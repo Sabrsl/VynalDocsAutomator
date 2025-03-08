@@ -1,0 +1,38 @@
+{
+    "app": {
+        "name": "Vynal Docs Automator",
+        "version": "1.0.0",
+        "theme": "light",
+        "language": "fr",
+        "company_name": "Vynal Agency LTD",
+        "company_logo": "",
+        "auto_save": true,
+        "save_interval": 5
+    },
+    "paths": {
+        "documents": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\documents",
+        "templates": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\templates",
+        "clients": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\clients",
+        "backup": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\backup"
+    },
+    "security": {
+        "require_password": false,
+        "password_hash": "",
+        "auto_lock": false,
+        "lock_time": 10
+    },
+    "document": {
+        "default_format": "pdf",
+        "filename_pattern": "{document_type}_{client_name}_{date}",
+        "date_format": "%Y-%m-%d"
+    },
+    "users": [
+        {
+            "username": "admin",
+            "display_name": "Administrateur",
+            "role": "admin",
+            "password_hash": "",
+            "created_at": ""
+        }
+    ]
+}

@@ -1,0 +1,5 @@
+customtkinter
+Pillow
+python-docx
+reportlab
+pandas
