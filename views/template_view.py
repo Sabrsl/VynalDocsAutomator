@@ -9,6 +9,9 @@ import os
 import logging
 import customtkinter as ctk
 from datetime import datetime
+import tkinter.messagebox as messagebox
+import tkinter.filedialog as filedialog
+from utils.usage_tracker import UsageTracker
 
 logger = logging.getLogger("VynalDocsAutomator.TemplateView")
 
@@ -28,6 +31,9 @@ class TemplateView:
         """
         self.parent = parent
         self.model = app_model
+        
+        # Initialiser le gestionnaire d'utilisation
+        self.usage_tracker = UsageTracker()
         
         # Cadre principal de la vue
         self.frame = ctk.CTkFrame(parent)
@@ -287,7 +293,7 @@ class TemplateView:
             text="Éditer",
             width=80,
             height=25,
-            command=lambda tid=template.get("id"): self.edit_template(tid)
+            command=lambda tid=template.get("id"): self.on_edit_template(tid)
         ).pack(side=ctk.LEFT, padx=2)
         
         # Bouton Utiliser
@@ -558,31 +564,127 @@ class TemplateView:
         self.parent.after(300, self.update_view)
         
         # Afficher une notification de succès
-        self.show_success_toast()
+        self.show_success_toast("Suppression effectuée avec succès")
     
-    def show_success_toast(self):
+    def show_error(self, parent, message):
         """
-        Affiche une notification toast de succès
-        """
-        # Créer un toast en bas de l'écran
-        toast = ctk.CTkFrame(self.parent, corner_radius=10)
+        Affiche un message d'erreur dans le style du Dashboard
         
-        # Icône de succès
-        icon_label = ctk.CTkLabel(
-            toast,
-            text="✓",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#2ecc71"
+        Args:
+            parent: Widget parent
+            message: Message d'erreur
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title("Erreur")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(parent)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="❌ Erreur",
+            font=ctk.CTkFont(size=20, weight="bold")
         )
-        icon_label.pack(side="left", padx=(10, 5), pady=10)
+        title_label.pack(pady=(0, 20))
         
         # Message
         message_label = ctk.CTkLabel(
-            toast,
-            text="Suppression effectuée avec succès",
-            font=ctk.CTkFont(size=12)
+            main_frame,
+            text=message,
+            wraplength=360
         )
-        message_label.pack(side="left", padx=(0, 10), pady=10)
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success(self, message):
+        """
+        Affiche une boîte de dialogue de succès dans le style du Dashboard
+        
+        Args:
+            message: Message de succès
+        """
+        dialog = ctk.CTkToplevel(self.parent)
+        dialog.title("Succès")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.parent)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="✅ Succès",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success_toast(self, message):
+        """
+        Affiche une notification toast de succès dans le style du Dashboard
+        
+        Args:
+            message: Message à afficher
+        """
+        # Créer un toast en bas de l'écran
+        toast = ctk.CTkFrame(self.parent, fg_color="#2ecc71")
+        
+        # Message avec icône
+        message_label = ctk.CTkLabel(
+            toast,
+            text=f"✅ {message}",
+            font=ctk.CTkFont(size=14),
+            text_color="white"
+        )
+        message_label.pack(padx=20, pady=10)
         
         # Positionner le toast en bas de l'écran
         toast.place(relx=0.5, rely=0.95, anchor="center")
@@ -638,18 +740,57 @@ class TemplateView:
         """
         Crée un nouveau modèle
         """
-        # Cette méthode sera implémentée par le contrôleur
-        logger.info("Action: Nouveau modèle (non implémentée)")
+        # Trouver la fenêtre principale (root)
+        root = self.parent.winfo_toplevel()
+        
+        # Si la fenêtre principale a une méthode create_template, l'utiliser
+        if hasattr(root, "create_template"):
+            root.create_template()
+        else:
+            # Sinon, utiliser notre propre formulaire
+            form = TemplateFormView(self.parent, self.model, on_save_callback=self.update_view)
     
-    def edit_template(self, template_id):
+    def on_edit_template(self, template_id):
+        """Gère l'édition d'un modèle"""
+        # Vérifier si l'édition nécessite une inscription
+        check = self.usage_tracker.needs_registration("template_editing")
+        if check["needs_registration"]:
+            # Trouver la fenêtre principale
+            root = self.parent
+            while root.master is not None:
+                root = root.master
+            
+            # Afficher le dialogue d'inscription
+            if hasattr(root, "_show_auth_dialog"):
+                root._show_auth_dialog()
+            return
+        
+        # Si l'utilisateur est inscrit ou n'a pas atteint la limite
+        self._show_template_editor(template_id)
+    
+    def _show_template_editor(self, template_id):
         """
         Édite un modèle existant
         
         Args:
             template_id: ID du modèle à éditer
         """
-        # Cette méthode sera implémentée par le contrôleur
-        logger.info(f"Action: Éditer le modèle {template_id} (non implémentée)")
+        try:
+            # Trouver la fenêtre principale (root)
+            root = self.parent
+            while root.master is not None:
+                root = root.master
+            
+            # Si la fenêtre principale a une méthode edit_template, l'utiliser
+            if hasattr(root, "edit_template"):
+                root.edit_template(template_id=template_id)
+            else:
+                # Sinon, utiliser notre propre formulaire
+                form = TemplateFormView(self.parent, self.model, on_save_callback=self.update_view)
+                form.load_template(template_id)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'édition du modèle: {e}")
+            self.show_error(self.parent, "Erreur lors de l'édition du modèle")
     
     def use_template(self, template_id):
         """
@@ -658,12 +799,595 @@ class TemplateView:
         Args:
             template_id: ID du modèle à utiliser
         """
-        # Cette méthode sera implémentée par le contrôleur
-        logger.info(f"Action: Utiliser le modèle {template_id} (non implémentée)")
+        try:
+            # Trouver la fenêtre principale (root)
+            root = self.parent
+            while root.master is not None:
+                root = root.master
+            
+            # Si la fenêtre principale a une méthode new_document, l'utiliser
+            if hasattr(root, "new_document"):
+                root.new_document(template_id=template_id)
+            else:
+                self.show_error(self.parent, "Impossible de créer un nouveau document")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'utilisation du modèle: {e}")
+            self.show_error(self.parent, "Erreur lors de la création du document")
     
     def import_template(self):
         """
         Importe un modèle depuis un fichier externe
         """
-        # Cette méthode sera implémentée par le contrôleur
-        logger.info("Action: Importer un modèle (non implémentée)")
+        # Trouver la fenêtre principale (root)
+        root = self.parent.winfo_toplevel()
+        
+        # Si la fenêtre principale a une méthode import_template, l'utiliser
+        if hasattr(root, "import_template"):
+            root.import_template()
+        else:
+            # Sinon, utiliser notre propre boîte de dialogue
+            self.show_import_dialog()
+
+    def show_import_dialog(self):
+        """
+        Affiche la boîte de dialogue d'importation de modèle
+        """
+        # Créer une fenêtre de dialogue
+        dialog = ctk.CTkToplevel(self.parent)
+        dialog.title("Importer un modèle")
+        dialog.geometry("500x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.parent)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="📄 Importer un modèle",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message d'instructions
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text="Sélectionnez un fichier de modèle à importer.\nFormats supportés : .docx, .txt",
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Variable pour stocker le chemin du fichier
+        file_path_var = ctk.StringVar()
+        
+        # Frame pour le chemin du fichier
+        file_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        file_frame.pack(fill=ctk.X, pady=10)
+        
+        # Entry pour afficher le chemin du fichier
+        file_entry = ctk.CTkEntry(file_frame, textvariable=file_path_var, width=300)
+        file_entry.pack(side=ctk.LEFT, padx=(0, 10))
+        
+        def browse_file():
+            file_types = [
+                ('Fichiers Word', '*.docx'),
+                ('Fichiers texte', '*.txt'),
+                ('Tous les fichiers', '*.*')
+            ]
+            file_path = filedialog.askopenfilename(
+                parent=dialog,
+                title="Sélectionner un fichier",
+                filetypes=file_types
+            )
+            if file_path:
+                file_path_var.set(file_path)
+        
+        # Bouton Parcourir
+        browse_button = ctk.CTkButton(
+            file_frame,
+            text="Parcourir",
+            width=100,
+            command=browse_file
+        )
+        browse_button.pack(side=ctk.LEFT)
+        
+        def import_file():
+            file_path = file_path_var.get()
+            if not file_path:
+                self.show_error("Veuillez sélectionner un fichier")
+                return
+            
+            if not os.path.exists(file_path):
+                self.show_error("Le fichier sélectionné n'existe pas")
+                return
+            
+            try:
+                # Importer le fichier selon son extension
+                ext = os.path.splitext(file_path)[1].lower()
+                
+                if ext == '.docx':
+                    success = self._import_docx(file_path)
+                elif ext == '.txt':
+                    success = self._import_text(file_path)
+                else:
+                    self.show_error("Format de fichier non supporté")
+                    return
+                
+                if success:
+                    self.show_success_toast("Modèle importé avec succès")
+                    dialog.destroy()
+                    self.update_view()
+                else:
+                    self.show_error("Erreur lors de l'importation du modèle")
+            
+            except Exception as e:
+                self.show_error(f"Erreur lors de l'importation : {str(e)}")
+        
+        # Frame pour les boutons
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill=ctk.X, pady=20)
+        
+        # Bouton Annuler
+        cancel_button = ctk.CTkButton(
+            buttons_frame,
+            text="Annuler",
+            width=100,
+            command=dialog.destroy
+        )
+        cancel_button.pack(side=ctk.RIGHT, padx=10)
+        
+        # Bouton Importer
+        import_button = ctk.CTkButton(
+            buttons_frame,
+            text="Importer",
+            width=100,
+            command=import_file
+        )
+        import_button.pack(side=ctk.RIGHT, padx=10)
+
+    def _import_docx(self, file_path):
+        """
+        Importe un fichier Word comme modèle
+        
+        Args:
+            file_path: Chemin du fichier à importer
+            
+        Returns:
+            bool: True si l'importation a réussi, False sinon
+        """
+        try:
+            import docx
+            
+            # Ouvrir le document Word
+            doc = docx.Document(file_path)
+            
+            # Extraire le texte
+            content = "\n\n".join([para.text for para in doc.paragraphs if para.text])
+            
+            # Extraire le nom du fichier sans extension pour le titre
+            file_name = os.path.basename(file_path)
+            name = os.path.splitext(file_name)[0]
+            
+            # Créer les données du modèle
+            template_data = {
+                "name": name,
+                "type": "autre",
+                "description": f"Modèle importé depuis {file_name}",
+                "content": content,
+                "variables": [],
+                "created_at": datetime.now().isoformat()
+            }
+            
+            # Ouvrir le formulaire avec les données pré-remplies
+            form = TemplateFormView(self.parent, self.model, on_save_callback=self.update_view)
+            form.template_data = template_data
+            form._create_form_view()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'import du fichier Word: {e}")
+            return False
+    
+    def _import_text(self, file_path):
+        """
+        Importe un fichier texte comme modèle
+        
+        Args:
+            file_path: Chemin du fichier à importer
+            
+        Returns:
+            bool: True si l'importation a réussi, False sinon
+        """
+        try:
+            # Déterminer l'encodage du fichier
+            encodings = ['utf-8', 'latin-1', 'cp1252']
+            content = None
+            
+            for encoding in encodings:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as file:
+                        content = file.read()
+                        break
+                except UnicodeDecodeError:
+                    continue
+            
+            if content is None:
+                logger.error(f"Impossible de déterminer l'encodage du fichier: {file_path}")
+                return False
+            
+            # Extraire le nom du fichier sans extension pour le titre
+            file_name = os.path.basename(file_path)
+            name = os.path.splitext(file_name)[0]
+            
+            # Créer les données du modèle
+            template_data = {
+                "name": name,
+                "type": "autre",
+                "description": f"Modèle importé depuis {file_name}",
+                "content": content,
+                "variables": [],
+                "created_at": datetime.now().isoformat()
+            }
+            
+            # Ouvrir le formulaire avec les données pré-remplies
+            form = TemplateFormView(self.parent, self.model, on_save_callback=self.update_view)
+            form.template_data = template_data
+            form._create_form_view()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'import du fichier texte: {e}")
+            return False
+
+class TemplateFormView:
+    """
+    Vue pour l'ajout et l'édition de modèles
+    """
+    
+    def __init__(self, parent, app_model, on_save_callback=None):
+        """
+        Initialise la vue de formulaire de modèle
+        
+        Args:
+            parent: Widget parent
+            app_model: Modèle de l'application
+            on_save_callback: Fonction à appeler après la sauvegarde
+        """
+        self.parent = parent
+        self.model = app_model
+        self.on_save_callback = on_save_callback
+        self.template_id = None
+        self.template_data = {}
+        
+        # Initialiser la vue du formulaire
+        self._create_form_view()
+    
+    def _create_form_view(self):
+        """
+        Crée la vue du formulaire
+        """
+        self.dialog = ctk.CTkToplevel(self.parent)
+        self.dialog.title("Nouveau modèle")
+        self.dialog.geometry("700x600")
+        self.dialog.lift()
+        self.dialog.focus_force()
+        self.dialog.grab_set()
+        
+        # Centrer la fenêtre
+        self.dialog.update_idletasks()
+        width = self.dialog.winfo_width()
+        height = self.dialog.winfo_height()
+        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
+        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Cadre principal
+        main_frame = ctk.CTkFrame(self.dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Informations générales
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill=ctk.X, padx=10, pady=10)
+        
+        # Nom du modèle
+        name_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        name_frame.pack(fill=ctk.X, padx=5, pady=5)
+        
+        ctk.CTkLabel(name_frame, text="Nom *", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
+        self.name_var = ctk.StringVar(value=self.template_data.get("name", ""))
+        self.name_entry = ctk.CTkEntry(name_frame, textvariable=self.name_var, width=400)
+        self.name_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
+        
+        # Type de modèle
+        type_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        type_frame.pack(fill=ctk.X, padx=5, pady=5)
+        
+        ctk.CTkLabel(type_frame, text="Type *", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
+        self.type_var = ctk.StringVar(value=self.template_data.get("type", ""))
+        self.type_combo = ctk.CTkComboBox(
+            type_frame,
+            values=["contrat", "facture", "proposition", "rapport", "autre"],
+            variable=self.type_var,
+            width=200
+        )
+        self.type_combo.pack(side=ctk.LEFT, padx=5)
+        
+        # Description
+        desc_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        desc_frame.pack(fill=ctk.X, padx=5, pady=5)
+        
+        ctk.CTkLabel(desc_frame, text="Description", anchor="w", width=100).pack(side=ctk.LEFT, padx=5, anchor="n")
+        self.desc_text = ctk.CTkTextbox(desc_frame, height=100, width=400)
+        self.desc_text.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Variables du modèle
+        variables_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        variables_frame.pack(fill=ctk.X, padx=5, pady=5)
+        
+        ctk.CTkLabel(variables_frame, text="Variables", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
+        self.variables_entry = ctk.CTkEntry(variables_frame, width=400, placeholder_text="Ex: nom, date, montant (séparés par des virgules)")
+        self.variables_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
+        
+        # Contenu du modèle
+        content_frame = ctk.CTkFrame(main_frame)
+        content_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+        
+        ctk.CTkLabel(content_frame, text="Contenu du modèle", font=ctk.CTkFont(size=14, weight="bold")).pack(padx=10, pady=5, anchor="w")
+        
+        # Zone d'édition du contenu
+        self.content_text = ctk.CTkTextbox(content_frame, wrap="word")
+        self.content_text.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Boutons d'action
+        buttons_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
+        buttons_frame.pack(fill=ctk.X, padx=20, pady=10)
+        
+        # Bouton Annuler
+        ctk.CTkButton(
+            buttons_frame,
+            text="Annuler",
+            command=self.dialog.destroy,
+            width=100
+        ).pack(side=ctk.RIGHT, padx=10)
+        
+        # Bouton Enregistrer
+        ctk.CTkButton(
+            buttons_frame,
+            text="Enregistrer",
+            command=self._save_template,
+            width=100
+        ).pack(side=ctk.RIGHT, padx=10)
+    
+    def _save_template(self):
+        """
+        Enregistre le modèle
+        """
+        # Récupérer les données du formulaire
+        name = self.name_var.get().strip()
+        template_type = self.type_var.get().strip().lower()
+        description = self.desc_text.get("1.0", "end-1c").strip()
+        content = self.content_text.get("1.0", "end-1c")
+        variables = [v.strip() for v in self.variables_entry.get().split(",") if v.strip()]
+        
+        # Validation
+        if not name:
+            self._show_error("Le nom est obligatoire")
+            return
+        
+        if not template_type:
+            self._show_error("Le type de modèle est obligatoire")
+            return
+        
+        if not content:
+            self._show_error("Le contenu du modèle est obligatoire")
+            return
+        
+        # Préparer les données du modèle
+        template_data = {
+            "name": name,
+            "type": template_type,
+            "description": description,
+            "content": content,
+            "variables": variables,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        # Si c'est une mise à jour
+        if self.template_id:
+            template_data["id"] = self.template_id
+            success = self.model.update_template(self.template_id, template_data)
+            success_message = "Modèle mis à jour avec succès"
+        else:
+            # Nouveau modèle
+            success = self.model.add_template(template_data)
+            success_message = "Nouveau modèle créé avec succès"
+        
+        if success:
+            # Afficher le toast de succès
+            self.show_success_toast(success_message)
+            
+            # Fermer la boîte de dialogue après un court délai
+            self.dialog.after(1000, self.dialog.destroy)
+            
+            # Appeler le callback si défini
+            if self.on_save_callback:
+                self.on_save_callback()
+        else:
+            self._show_error("Erreur lors de l'enregistrement du modèle")
+    
+    def _show_error(self, message):
+        """
+        Affiche un message d'erreur dans le style du Dashboard
+        
+        Args:
+            message: Message d'erreur
+        """
+        dialog = ctk.CTkToplevel(self.dialog)
+        dialog.title("Erreur")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.dialog)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="❌ Erreur",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def load_template(self, template_id):
+        """
+        Charge un modèle existant dans le formulaire
+        
+        Args:
+            template_id: ID du modèle à charger
+        """
+        template = next((t for t in self.model.templates if t.get("id") == template_id), None)
+        if not template:
+            self._show_error(f"Modèle introuvable (ID: {template_id})")
+            return False
+        
+        # Mettre à jour les données et l'interface
+        self.template_id = template_id
+        self.template_data = template
+        
+        # Mettre à jour le titre de la fenêtre
+        self.dialog.title(f"Modifier le modèle - {template.get('name', '')}")
+        
+        # Mettre à jour les champs du formulaire
+        self.name_var.set(template.get("name", ""))
+        self.type_var.set(template.get("type", ""))
+        
+        # Mettre à jour la description
+        self.desc_text.delete("1.0", "end")
+        self.desc_text.insert("1.0", template.get("description", ""))
+        
+        # Mettre à jour les variables
+        variables = template.get("variables", [])
+        self.variables_entry.delete(0, "end")
+        self.variables_entry.insert(0, ", ".join(variables))
+        
+        # Mettre à jour le contenu
+        self.content_text.delete("1.0", "end")
+        self.content_text.insert("1.0", template.get("content", ""))
+        
+        return True
+    
+    def show_success(self, message):
+        """
+        Affiche une boîte de dialogue de succès dans le style du Dashboard
+        
+        Args:
+            message: Message de succès
+        """
+        dialog = ctk.CTkToplevel(self.dialog)
+        dialog.title("Succès")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.dialog)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="✅ Succès",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success_toast(self, message):
+        """
+        Affiche une notification toast de succès dans le style du Dashboard
+        
+        Args:
+            message: Message à afficher
+        """
+        # Créer un toast en bas de l'écran
+        toast = ctk.CTkFrame(self.dialog, fg_color="#2ecc71")
+        
+        # Message avec icône
+        message_label = ctk.CTkLabel(
+            toast,
+            text=f"✅ {message}",
+            font=ctk.CTkFont(size=14),
+            text_color="white"
+        )
+        message_label.pack(padx=20, pady=10)
+        
+        # Positionner le toast en bas de l'écran
+        toast.place(relx=0.5, rely=0.95, anchor="center")
+        
+        # Faire disparaître le toast après quelques secondes
+        def hide_toast():
+            toast.destroy()
+        
+        self.dialog.after(3000, hide_toast)

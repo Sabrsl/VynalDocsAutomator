@@ -9,6 +9,8 @@ import queue
 import time
 import customtkinter as ctk
 import tkinter.messagebox as messagebox
+import csv
+import pandas as pd
 
 logger = logging.getLogger("VynalDocsAutomator.ClientView")
 
@@ -481,128 +483,187 @@ class ClientView:
         # Mettre à jour l'interface
         self._update_ui_with_clients(filtered_clients)
     
-    def show_client_form(self, client_id=None):
+    def show_client_form(self, client_data=None, parent=None):
         """
-        Affiche le formulaire pour ajouter ou modifier un client
+        Méthode publique pour afficher le formulaire client
+        Délègue à la méthode privée _show_client_form
         
         Args:
-            client_id: ID du client à modifier, ou None pour un nouveau client
+            client_data (dict, optional): Données du client à modifier
+            parent (Widget, optional): Widget parent pour le dialogue
         """
-        dialog = ctk.CTkToplevel(self.parent)
-        dialog.title("Nouveau client" if client_id is None else "Modifier le client")
-        dialog.geometry("500x400")
-        dialog.lift()
-        dialog.focus_force()
+        self._show_client_form(client_data, parent)
+    
+    def _show_client_form(self, client_data=None, parent=None):
+        """
+        Affiche le formulaire de client
+        
+        Args:
+            client_data (dict, optional): Données du client à modifier
+            parent (Widget, optional): Widget parent pour le dialogue (si None, utilise self.parent)
+        """
+        # Créer une nouvelle fenêtre modale
+        dialog = ctk.CTkToplevel(parent or self.parent)
+        dialog.title("Modifier le client" if client_data else "Nouveau client")
+        dialog.geometry("500x600")
+        dialog.resizable(False, False)
+        dialog.transient(parent or self.parent)
         dialog.grab_set()
         
+        # Centrer la fenêtre
         dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (dialog.winfo_screenheight() // 2) - (height // 2)
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
         
-        self.client_data = {}
-        self.current_client_id = client_id
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
         
-        if client_id:
-            client = self.model.get_client(client_id)
-            if client:
-                self.client_data = client.copy()
+        # Titre avec emoji
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="👤 " + ("Modifier le client" if client_data else "Nouveau client"),
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
         
-        form_frame = ctk.CTkFrame(dialog)
-        form_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        # Frame pour le formulaire
+        form_frame = ctk.CTkFrame(main_frame)
+        form_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
         
+        # Variables pour les champs
+        self.client_data = {
+            "name": ctk.StringVar(value=client_data.get("name", "") if client_data else ""),
+            "first_name": ctk.StringVar(value=client_data.get("first_name", "") if client_data else ""),
+            "company": ctk.StringVar(value=client_data.get("company", "") if client_data else ""),
+            "email": ctk.StringVar(value=client_data.get("email", "") if client_data else ""),
+            "phone": ctk.StringVar(value=client_data.get("phone", "") if client_data else ""),
+            "address": ctk.StringVar(value=client_data.get("address", "") if client_data else ""),
+            "postal_code": ctk.StringVar(value=client_data.get("postal_code", "") if client_data else ""),
+            "city": ctk.StringVar(value=client_data.get("city", "") if client_data else ""),
+            "notes": ctk.StringVar(value=client_data.get("notes", "") if client_data else "")
+        }
+        
+        # Fonction pour créer un champ de formulaire
+        def create_form_field(parent, row, label_text, variable, required=False, placeholder=""):
+            # Label
+            label = ctk.CTkLabel(
+                parent,
+                text=f"{label_text}{'*' if required else ''}:",
+                anchor="w"
+            )
+            label.grid(row=row, column=0, sticky="w", padx=10, pady=(10, 0))
+            
+            # Entry
+            entry = ctk.CTkEntry(
+                parent,
+                textvariable=variable,
+                placeholder_text=placeholder,
+                width=300
+            )
+            entry.grid(row=row, column=1, sticky="ew", padx=10, pady=(10, 0))
+            return entry
+        
+        # Créer les champs du formulaire
         fields = [
-            {"name": "name", "label": "Nom", "required": True},
-            {"name": "company", "label": "Entreprise", "required": False},
-            {"name": "email", "label": "Email", "required": True},
-            {"name": "phone", "label": "Téléphone", "required": False},
-            {"name": "address", "label": "Adresse", "required": False, "multiline": True}
+            ("Nom", "name", True),
+            ("Prénom", "first_name", False),
+            ("Entreprise", "company", False),
+            ("Email", "email", True),
+            ("Téléphone", "phone", False),
+            ("Adresse", "address", False),
+            ("Code postal", "postal_code", False),
+            ("Ville", "city", False),
+            ("Notes", "notes", False)
         ]
         
-        field_widgets = {}
-        row = 0
-        
-        for field in fields:
-            label = ctk.CTkLabel(form_frame, text=field["label"] + (" *" if field["required"] else ""), anchor="w")
-            label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
-            
-            current_value = self.client_data.get(field["name"], "")
-            
-            if field.get("multiline", False):
-                widget = ctk.CTkTextbox(form_frame, height=80, wrap="word")
-                widget.insert("1.0", current_value)
-            else:
-                var = ctk.StringVar(value=current_value)
-                widget = ctk.CTkEntry(form_frame, textvariable=var)
-                field_widgets[field["name"]] = {"widget": widget, "var": var}
-            
-            widget.grid(row=row, column=1, sticky="ew", padx=5, pady=5)
-            if field.get("multiline", False):
-                field_widgets[field["name"]] = {"widget": widget, "var": None}
-            row += 1
-        
+        # Configurer la grille du formulaire
         form_frame.columnconfigure(1, weight=1)
         
-        buttons_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        buttons_frame.pack(fill=ctk.X, pady=10)
-        
-        ctk.CTkButton(buttons_frame, text="Annuler", command=dialog.destroy, width=100).pack(side=ctk.RIGHT, padx=10)
-        
-        def save_client():
-            client_data = {}
-            for field in fields:
-                field_name = field["name"]
-                field_widget = field_widgets[field_name]
-                if field.get("multiline", False):
-                    value = field_widget["widget"].get("1.0", "end-1c").strip()
-                else:
-                    value = field_widget["var"].get().strip()
-                if field["required"] and not value:
-                    self.show_error(dialog, f"Le champ {field['label']} est requis.")
-                    return
-                client_data[field_name] = value
-            
-            # Afficher un indicateur de chargement pendant la sauvegarde
-            save_indicator = ctk.CTkLabel(
-                buttons_frame,
-                text="Enregistrement...",
-                text_color="#3498db",
-                font=ctk.CTkFont(size=12)
+        # Ajouter les champs
+        self.form_entries = {}
+        for i, (label, field, required) in enumerate(fields):
+            entry = create_form_field(
+                form_frame,
+                i,
+                label,
+                self.client_data[field],
+                required,
+                f"Entrez {label.lower()}"
             )
-            save_indicator.pack(side=ctk.LEFT, padx=10)
-            dialog.update_idletasks()
+            self.form_entries[field] = entry
+        
+        # Frame pour les boutons
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(fill=ctk.X, pady=(20, 0))
+        
+        # Fonction de validation et sauvegarde
+        def save_client():
+            # Valider uniquement le nom
+            if not self.client_data["name"].get().strip():
+                self.show_error(dialog, "Le nom est requis.")
+                self.form_entries["name"].focus()
+                return
+            
+            # Préparer les données
+            client = {
+                field: var.get().strip()
+                for field, var in self.client_data.items()
+            }
             
             try:
-                # Sauvegarder le client dans un thread séparé
-                def save_client_thread():
-                    if self.current_client_id:
-                        success = self.model.update_client(self.current_client_id, client_data)
-                    else:
-                        new_id = self.model.add_client(client_data)
-                        success = new_id is not None
-                        if success:
-                            self.current_client_id = new_id
-                    
-                    # Mettre à jour l'interface dans le thread principal
-                    dialog.after(0, lambda: finalize_save(success))
+                # Sauvegarder en arrière-plan
+                def save_task():
+                    try:
+                        if client_data:
+                            # Mise à jour
+                            if self.model.update_client(client_data["id"], client):
+                                dialog.destroy()
+                                self.update_view()
+                            else:
+                                self.show_error(dialog, "Erreur lors de la mise à jour du client.")
+                        else:
+                            # Création
+                            if self.model.add_client(client):
+                                dialog.destroy()
+                                self.update_view()
+                            else:
+                                self.show_error(dialog, "Erreur lors de la création du client.")
+                    except Exception as e:
+                        logger.error(f"Erreur lors de la sauvegarde du client: {e}")
+                        self.show_error(dialog, f"Erreur: {str(e)}")
                 
-                def finalize_save(success):
-                    save_indicator.destroy()
-                    if success:
-                        dialog.destroy()
-                        self.update_view()
-                    else:
-                        self.show_error(dialog, "Erreur lors de l'enregistrement du client.")
-                
-                threading.Thread(target=save_client_thread, daemon=True).start()
+                # Lancer la sauvegarde en arrière-plan
+                threading.Thread(target=save_task, daemon=True).start()
                 
             except Exception as e:
-                save_indicator.destroy()
-                self.show_error(dialog, f"Erreur lors de l'enregistrement du client: {str(e)}")
+                logger.error(f"Erreur lors de la sauvegarde du client: {e}")
+                self.show_error(dialog, f"Erreur: {str(e)}")
         
-        ctk.CTkButton(buttons_frame, text="Enregistrer", command=save_client, width=100).pack(side=ctk.RIGHT, padx=10)
+        # Boutons
+        cancel_button = ctk.CTkButton(
+            button_frame,
+            text="Annuler",
+            width=100,
+            fg_color="#e74c3c",
+            hover_color="#c0392b",
+            command=dialog.destroy
+        )
+        cancel_button.pack(side=ctk.LEFT, padx=10)
+        
+        save_button = ctk.CTkButton(
+            button_frame,
+            text="Enregistrer",
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            command=save_client
+        )
+        save_button.pack(side=ctk.RIGHT, padx=10)
+        
+        # Focus sur le premier champ
+        self.form_entries["name"].focus()
     
     def edit_client(self, client_id):
         """
@@ -611,7 +672,7 @@ class ClientView:
         Args:
             client_id: ID du client à modifier
         """
-        self.show_client_form(client_id)
+        self._show_client_form(self.model.get_client(client_id))
     
     def confirm_delete_client(self, client_id):
         """
@@ -700,10 +761,193 @@ class ClientView:
         delete_btn.pack(side=ctk.LEFT, padx=10)
     
     def import_clients(self):
-        """
-        Importe des clients depuis un fichier CSV ou Excel
-        """
-        logger.info("Action: Importer des clients (non implémentée)")
+        """Importe des clients depuis un fichier CSV"""
+        from tkinter import filedialog
+        
+        # Demander le fichier à importer
+        file_path = filedialog.askopenfilename(
+            title="Importer des clients",
+            filetypes=[("Fichiers CSV", "*.csv"), ("Tous les fichiers", "*.*")]
+        )
+        
+        if not file_path:
+            return
+            
+        try:
+            # Créer une fenêtre de prévisualisation
+            preview_dialog = ctk.CTkToplevel(self.parent)
+            preview_dialog.title("Aperçu de l'importation")
+            preview_dialog.geometry("800x600")
+            preview_dialog.resizable(False, False)
+            preview_dialog.transient(self.parent)
+            preview_dialog.grab_set()
+            
+            # Centrer la fenêtre
+            preview_dialog.update_idletasks()
+            x = (preview_dialog.winfo_screenwidth() - preview_dialog.winfo_width()) // 2
+            y = (preview_dialog.winfo_screenheight() - preview_dialog.winfo_height()) // 2
+            preview_dialog.geometry(f"+{x}+{y}")
+            
+            # Frame principal
+            main_frame = ctk.CTkFrame(preview_dialog)
+            main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+            
+            # Titre
+            title_label = ctk.CTkLabel(
+                main_frame,
+                text="📥 Aperçu de l'importation",
+                font=ctk.CTkFont(size=20, weight="bold")
+            )
+            title_label.pack(pady=(0, 20))
+            
+            # Lire le fichier CSV avec pandas
+            df = pd.read_csv(file_path)
+            
+            # Frame pour les options d'importation
+            options_frame = ctk.CTkFrame(main_frame)
+            options_frame.pack(fill=ctk.X, pady=(0, 20))
+            
+            # Options d'importation
+            skip_duplicates_var = ctk.BooleanVar(value=True)
+            ctk.CTkCheckBox(
+                options_frame,
+                text="Ignorer les doublons (basé sur l'email)",
+                variable=skip_duplicates_var
+            ).pack(side=ctk.LEFT, padx=10, pady=10)
+            
+            update_existing_var = ctk.BooleanVar(value=False)
+            ctk.CTkCheckBox(
+                options_frame,
+                text="Mettre à jour les clients existants",
+                variable=update_existing_var
+            ).pack(side=ctk.LEFT, padx=10, pady=10)
+            
+            # Frame pour l'aperçu
+            preview_frame = ctk.CTkFrame(main_frame)
+            preview_frame.pack(fill=ctk.BOTH, expand=True)
+            
+            # Afficher l'aperçu des données
+            preview_text = ctk.CTkTextbox(preview_frame, wrap="none")
+            preview_text.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Formater l'aperçu
+            headers = df.columns.tolist()
+            preview_data = df.head(5).values.tolist()
+            
+            preview_text.insert("end", "Aperçu des 5 premières lignes:\n\n")
+            preview_text.insert("end", "| " + " | ".join(headers) + " |\n")
+            preview_text.insert("end", "|" + "|".join(["-"*20]*len(headers)) + "|\n")
+            
+            for row in preview_data:
+                preview_text.insert("end", "| " + " | ".join(str(cell) for cell in row) + " |\n")
+            
+            preview_text.configure(state="disabled")
+            
+            # Frame pour les statistiques
+            stats_frame = ctk.CTkFrame(main_frame)
+            stats_frame.pack(fill=ctk.X, pady=(20, 0))
+            
+            total_rows = len(df)
+            stats_label = ctk.CTkLabel(
+                stats_frame,
+                text=f"Total de lignes à importer : {total_rows}",
+                font=ctk.CTkFont(weight="bold")
+            )
+            stats_label.pack(pady=10)
+            
+            # Frame pour les boutons
+            button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+            button_frame.pack(fill=ctk.X, pady=(20, 0))
+            
+            def import_data():
+                try:
+                    # Récupérer les clients existants (pour la vérification des doublons)
+                    existing_clients = self.model.get_all_clients()
+                    existing_emails = {client["email"] for client in existing_clients if "email" in client}
+                    
+                    imported = 0
+                    updated = 0
+                    skipped = 0
+                    errors = 0
+                    
+                    # Convertir le DataFrame en liste de dictionnaires
+                    clients_to_import = df.to_dict('records')
+                    
+                    for client in clients_to_import:
+                        try:
+                            # Nettoyer les données
+                            client = {k: str(v).strip() for k, v in client.items() if pd.notna(v)}
+                            
+                            # Vérifier si le client existe déjà
+                            email = client.get("email", "").lower()
+                            if email in existing_emails:
+                                if update_existing_var.get():
+                                    # Mettre à jour le client existant
+                                    existing_client = next(c for c in existing_clients if c["email"].lower() == email)
+                                    if self.model.update_client(existing_client["id"], client):
+                                        updated += 1
+                                    else:
+                                        errors += 1
+                                elif skip_duplicates_var.get():
+                                    skipped += 1
+                                continue
+                            
+                            # Ajouter le nouveau client
+                            if self.model.add_client(client):
+                                imported += 1
+                            else:
+                                errors += 1
+                                
+                        except Exception as e:
+                            logger.error(f"Erreur lors de l'importation d'un client: {e}")
+                            errors += 1
+                    
+                    # Fermer la fenêtre de prévisualisation
+                    preview_dialog.destroy()
+                    
+                    # Mettre à jour la vue
+                    self.update_view()
+                    
+                    # Afficher le résumé
+                    message = f"Importation terminée :\n\n"
+                    message += f"✅ {imported} clients importés\n"
+                    if updated > 0:
+                        message += f"🔄 {updated} clients mis à jour\n"
+                    if skipped > 0:
+                        message += f"⏭️ {skipped} clients ignorés (doublons)\n"
+                    if errors > 0:
+                        message += f"❌ {errors} erreurs\n"
+                    
+                    self.show_success(message)
+                    
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'importation: {e}")
+                    self.show_error(preview_dialog, f"Erreur lors de l'importation: {str(e)}")
+            
+            # Boutons
+            cancel_button = ctk.CTkButton(
+                button_frame,
+                text="Annuler",
+                width=100,
+                fg_color="#e74c3c",
+                hover_color="#c0392b",
+                command=preview_dialog.destroy
+            )
+            cancel_button.pack(side=ctk.LEFT, padx=10)
+            
+            import_button = ctk.CTkButton(
+                button_frame,
+                text="Importer",
+                width=100,
+                fg_color="#2ecc71",
+                hover_color="#27ae60",
+                command=import_data
+            )
+            import_button.pack(side=ctk.RIGHT, padx=10)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'ouverture du fichier: {e}")
+            self.show_error(self.parent, f"Erreur lors de l'ouverture du fichier: {str(e)}")
     
     def export_clients(self):
         """

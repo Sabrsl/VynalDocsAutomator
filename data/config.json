@@ -17,9 +17,11 @@
   },
   "security": {
     "require_password": false,
-    "password_hash": "",
+    "password_hash": "71f23946586710af36517bfd7f1a3e756d70f8f84e1c3a73a3858a1aaa2036b0",
     "auto_lock": false,
-    "lock_time": 10
+    "lock_time": 10,
+    "jwt_secret": "your-secret-key-here",
+    "admin_email": "admin@example.com"
   },
   "document": {
     "default_format": "pdf",
@@ -46,5 +48,17 @@
     "retention_days": 30,
     "max_files": 10,
     "log_user_actions": true
+  },
+  "smtp": {
+    "server": "smtp.gmail.com",
+    "port": 587,
+    "username": "your-email@gmail.com",
+    "password": "your-app-password",
+    "from_email": "your-email@gmail.com"
+  },
+  "oauth": {
+    "google_client_id": "your-google-client-id",
+    "google_client_secret": "your-google-client-secret",
+    "google_redirect_uri": "http://localhost:5000/auth/google/callback"
   }
 }

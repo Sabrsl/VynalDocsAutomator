@@ -1709,3 +1709,61 @@ class AppModel:
         stats["documents"]["by_month"] = dict(sorted(stats["documents"]["by_month"].items()))
         
         return stats
+
+    def cleanup(self) -> bool:
+        """
+        Nettoie et sauvegarde les données avant la fermeture de l'application.
+        
+        Cette méthode est appelée lors de la fermeture de l'application pour s'assurer que :
+        1. Toutes les données sont sauvegardées
+        2. Les fichiers temporaires sont nettoyés
+        3. Les ressources sont libérées proprement
+        
+        Returns:
+            bool: True si le nettoyage s'est bien passé, False sinon
+        """
+        logger.info("Début du nettoyage de l'application")
+        success = True
+        
+        try:
+            # Sauvegarder toutes les données
+            if not self.save_clients():
+                logger.error("Erreur lors de la sauvegarde des clients")
+                success = False
+            
+            if not self.save_templates():
+                logger.error("Erreur lors de la sauvegarde des modèles")
+                success = False
+            
+            if not self.save_documents():
+                logger.error("Erreur lors de la sauvegarde des documents")
+                success = False
+            
+            if not self.save_recent_activities():
+                logger.error("Erreur lors de la sauvegarde des activités récentes")
+                success = False
+            
+            # Nettoyer les fichiers temporaires
+            temp_files = []
+            for root, _, files in os.walk(self.data_dir):
+                for file in files:
+                    if file.endswith('.tmp'):
+                        temp_files.append(os.path.join(root, file))
+            
+            for temp_file in temp_files:
+                try:
+                    os.remove(temp_file)
+                    logger.info(f"Fichier temporaire supprimé: {temp_file}")
+                except OSError as e:
+                    logger.warning(f"Impossible de supprimer le fichier temporaire {temp_file}: {e}")
+                    success = False
+            
+            # Ajouter une activité de fermeture
+            self.add_activity('system', 'Application fermée proprement')
+            
+            logger.info("Nettoyage de l'application terminé avec succès" if success else "Nettoyage de l'application terminé avec des erreurs")
+            return success
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du nettoyage de l'application: {e}")
+            return False

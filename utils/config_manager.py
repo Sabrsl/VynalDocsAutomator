@@ -53,7 +53,7 @@ class ConfigManager:
             "app": {
                 "name": "Vynal Docs Automator",
                 "version": "1.0.0",
-                "theme": "system",
+                "theme": "dark",
                 "language": "fr",
                 "company_name": "Vynal Agency LTD",
                 "company_logo": "",

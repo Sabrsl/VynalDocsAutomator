@@ -35,6 +35,10 @@ class DocumentView:
         self.parent = parent
         self.model = app_model
         
+        # Initialiser le gestionnaire d'utilisation
+        from utils.usage_tracker import UsageTracker
+        self.usage_tracker = UsageTracker()
+        
         # Cadre principal de la vue
         self.frame = ctk.CTkFrame(parent)
         
@@ -789,6 +793,167 @@ class DocumentView:
         """
         # Cette méthode sera implémentée plus tard
         logger.info(f"Action: Télécharger le document {document_id} (non implémentée)")
+    
+    def show_error(self, parent, message):
+        """
+        Affiche un message d'erreur dans le style du Dashboard
+        
+        Args:
+            parent: Widget parent
+            message: Message d'erreur
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title("Erreur")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(parent)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="❌ Erreur",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success(self, message):
+        """
+        Affiche une boîte de dialogue de succès dans le style du Dashboard
+        
+        Args:
+            message: Message de succès
+        """
+        dialog = ctk.CTkToplevel(self.parent)
+        dialog.title("Succès")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.parent)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="✅ Succès",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success_toast(self, message):
+        """
+        Affiche une notification toast de succès dans le style du Dashboard
+        
+        Args:
+            message: Message à afficher
+        """
+        # Créer un toast en bas de l'écran
+        toast = ctk.CTkFrame(self.parent, fg_color="#2ecc71")
+        
+        # Message avec icône
+        message_label = ctk.CTkLabel(
+            toast,
+            text=f"✅ {message}",
+            font=ctk.CTkFont(size=14),
+            text_color="white"
+        )
+        message_label.pack(padx=20, pady=10)
+        
+        # Positionner le toast en bas de l'écran
+        toast.place(relx=0.5, rely=0.95, anchor="center")
+        
+        # Faire disparaître le toast après quelques secondes
+        def hide_toast():
+            toast.destroy()
+        
+        self.parent.after(3000, hide_toast)
+
+    def on_create_document(self):
+        """Gère la création d'un nouveau document"""
+        # Vérifier le compteur d'utilisation
+        usage = self.usage_tracker.increment_usage()
+        if usage["should_register"]:
+            # Trouver la fenêtre principale
+            root = self.parent
+            while root.master is not None:
+                root = root.master
+            
+            # Afficher le dialogue d'inscription avec un message sur l'utilisation
+            if hasattr(root, "_show_auth_dialog"):
+                root._show_auth_dialog()
+            return
+        
+        # Si l'utilisateur n'a pas atteint la limite
+        self._show_document_creator()
+    
+    def on_export_pdf(self):
+        """Gère l'export en PDF"""
+        # L'export PDF est une fonctionnalité gratuite, mais on compte quand même l'utilisation
+        usage = self.usage_tracker.increment_usage()
+        if usage["should_register"]:
+            # Afficher un message suggérant l'inscription
+            messagebox.showinfo(
+                "Inscription suggérée",
+                f"Vous avez utilisé l'application {usage['count']} fois.\n\n{usage['message']}\n\nVous pouvez continuer à utiliser cette fonctionnalité gratuitement."
+            )
+        
+        # Procéder à l'export
+        self._export_to_pdf()
 
 
 class DocumentCacheManager:
@@ -1489,134 +1654,121 @@ class DocumentFormView:
         """
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("Nouveau document")
-        self.dialog.geometry("700x600")
-        self.dialog.lift()
-        self.dialog.focus_force()
-        self.dialog.grab_set()
+        self.dialog.geometry("600x700")
+        self.dialog.resizable(True, True)
+        self.dialog.grab_set()  # Modal
+        self.dialog.focus_set()
         
         # Centrer la fenêtre
         self.dialog.update_idletasks()
-        width = self.dialog.winfo_width()
-        height = self.dialog.winfo_height()
-        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        x = (self.dialog.winfo_screenwidth() - self.dialog.winfo_width()) // 2
+        y = (self.dialog.winfo_screenheight() - self.dialog.winfo_height()) // 2
+        self.dialog.geometry(f"+{x}+{y}")
         
-        # Cadre principal
-        main_frame = ctk.CTkFrame(self.dialog)
+        # Créer un cadre principal avec défilement
+        main_frame = ctk.CTkScrollableFrame(self.dialog)
         main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
         
-        # Cadre pour les informations générales
+        # 1. Sélection du modèle
+        template_frame = ctk.CTkFrame(main_frame)
+        template_frame.pack(fill=ctk.X, pady=10)
+        
+        ctk.CTkLabel(template_frame, text="1. Sélectionner un modèle", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        # Liste des modèles
+        template_list_frame = ctk.CTkFrame(template_frame)
+        template_list_frame.pack(fill=ctk.X, padx=10, pady=10)
+        
+        ctk.CTkLabel(template_list_frame, text="Modèle:").pack(side=ctk.LEFT, padx=5)
+        self.template_var = ctk.StringVar()
+        template_options = [f"{t.get('name')} ({t.get('type', '')})" for t in self.model.templates]
+        self.template_combo = ctk.CTkComboBox(template_list_frame, values=template_options, 
+                                         variable=self.template_var, width=350)
+        self.template_combo.pack(side=ctk.LEFT, padx=5, fill=ctk.X, expand=True)
+        
+        # Description du modèle sélectionné
+        self.template_desc = ctk.CTkLabel(template_frame, text="", justify=ctk.LEFT, wraplength=550)
+        self.template_desc.pack(fill=ctk.X, padx=10, pady=5)
+        
+        # 2. Sélection du client
+        client_frame = ctk.CTkFrame(main_frame)
+        client_frame.pack(fill=ctk.X, pady=10)
+        
+        ctk.CTkLabel(client_frame, text="2. Sélectionner un client", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        # Liste des clients
+        client_list_frame = ctk.CTkFrame(client_frame)
+        client_list_frame.pack(fill=ctk.X, padx=10, pady=10)
+        
+        ctk.CTkLabel(client_list_frame, text="Client:").pack(side=ctk.LEFT, padx=5)
+        self.client_var = ctk.StringVar()
+        client_options = [f"{c.get('name')} ({c.get('company', '')})" for c in self.model.clients]
+        self.client_combo = ctk.CTkComboBox(client_list_frame, values=client_options, 
+                                       variable=self.client_var, width=350)
+        self.client_combo.pack(side=ctk.LEFT, padx=5, fill=ctk.X, expand=True)
+        
+        # Informations du client sélectionné
+        self.client_info = ctk.CTkLabel(client_frame, text="", justify=ctk.LEFT, wraplength=550)
+        self.client_info.pack(fill=ctk.X, padx=10, pady=5)
+        
+        # 3. Informations du document
         info_frame = ctk.CTkFrame(main_frame)
-        info_frame.pack(fill=ctk.X, padx=10, pady=10)
+        info_frame.pack(fill=ctk.X, pady=10)
+        
+        ctk.CTkLabel(info_frame, text="3. Informations du document", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        info_list_frame = ctk.CTkFrame(info_frame)
+        info_list_frame.pack(fill=ctk.X, padx=10, pady=10)
         
         # Titre
-        title_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        title_frame.pack(fill=ctk.X, padx=5, pady=5)
-        
-        ctk.CTkLabel(title_frame, text="Titre *", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
-        self.title_var = ctk.StringVar(value=self.document_data.get("title", ""))
-        self.title_entry = ctk.CTkEntry(title_frame, textvariable=self.title_var, width=400)
+        title_row = ctk.CTkFrame(info_list_frame)
+        title_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(title_row, text="Titre:").pack(side=ctk.LEFT, padx=5)
+        self.title_var = ctk.StringVar()
+        self.title_entry = ctk.CTkEntry(title_row, textvariable=self.title_var, width=400)
         self.title_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
         
-        # Type de document
-        type_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        type_frame.pack(fill=ctk.X, padx=5, pady=5)
-        
-        ctk.CTkLabel(type_frame, text="Type *", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
-        self.type_var = ctk.StringVar(value=self.document_data.get("type", ""))
-        self.type_combo = ctk.CTkComboBox(
-            type_frame,
-            values=["contrat", "facture", "proposition", "rapport", "autre"],
-            variable=self.type_var,
-            width=200
-        )
-        self.type_combo.pack(side=ctk.LEFT, padx=5)
-        
-        # Client
-        client_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        client_frame.pack(fill=ctk.X, padx=5, pady=5)
-        
-        ctk.CTkLabel(client_frame, text="Client", anchor="w", width=100).pack(side=ctk.LEFT, padx=5)
-        
-        # Récupérer la liste des clients
-        clients = self.model.clients
-        client_names = ["Aucun client"] + [client.get("name", "") for client in clients]
-        
-        self.client_var = ctk.StringVar()
-        self.client_combo = ctk.CTkComboBox(
-            client_frame,
-            values=client_names,
-            variable=self.client_var,
-            width=200
-        )
-        
-        # Définir la valeur actuelle
-        client_id = self.document_data.get("client_id", None)
-        if client_id:
-            client = next((c for c in clients if c.get("id") == client_id), None)
-            if client:
-                self.client_var.set(client.get("name", "Aucun client"))
-            else:
-                self.client_var.set("Aucun client")
-        else:
-            self.client_var.set("Aucun client")
-            
-        self.client_combo.pack(side=ctk.LEFT, padx=5)
+        # Date
+        date_row = ctk.CTkFrame(info_list_frame)
+        date_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(date_row, text="Date:").pack(side=ctk.LEFT, padx=5)
+        self.date_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        self.date_entry = ctk.CTkEntry(date_row, textvariable=self.date_var, width=200)
+        self.date_entry.pack(side=ctk.LEFT, padx=5)
         
         # Description
-        desc_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        desc_frame.pack(fill=ctk.X, padx=5, pady=5)
+        desc_row = ctk.CTkFrame(info_list_frame)
+        desc_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(desc_row, text="Description:").pack(side=ctk.LEFT, padx=5)
+        description_frame = ctk.CTkFrame(desc_row)
+        description_frame.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
+        self.desc_text = ctk.CTkTextbox(description_frame, width=400, height=80)
+        self.desc_text.pack(fill=ctk.BOTH, expand=True)
         
-        ctk.CTkLabel(desc_frame, text="Description", anchor="w", width=100).pack(side=ctk.LEFT, padx=5, anchor="n")
-        self.desc_text = ctk.CTkTextbox(desc_frame, height=100, width=400)
-        self.desc_text.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True, padx=5, pady=5)
+        # 4. Variables du modèle
+        variables_frame = ctk.CTkFrame(main_frame)
+        variables_frame.pack(fill=ctk.X, pady=10)
         
-        # Insérer la description actuelle
-        description = self.document_data.get("description", "")
-        if description:
-            self.desc_text.insert("1.0", description)
+        ctk.CTkLabel(variables_frame, text="4. Variables du modèle", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
         
-        # Cadre pour le contenu du document
-        content_frame = ctk.CTkFrame(main_frame)
-        content_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+        # Zone de défilement pour les variables
+        self.variables_scroll = ctk.CTkScrollableFrame(variables_frame, height=150)
+        self.variables_scroll.pack(fill=ctk.X, padx=10, pady=10)
         
-        # Titre du cadre de contenu
-        ctk.CTkLabel(content_frame, text="Contenu du document", font=ctk.CTkFont(size=14, weight="bold")).pack(padx=10, pady=5, anchor="w")
+        # Les widgets des variables seront ajoutés dynamiquement
+        self.variable_widgets = {}
         
-        # Zone d'affichage/édition du contenu
-        self.content_tabs = ctk.CTkTabview(content_frame)
-        self.content_tabs.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+        # Connecter les changements de sélection aux fonctions de mise à jour
+        self.template_var.trace_add("write", self._update_template_info)
+        self.client_var.trace_add("write", self._update_client_info)
         
-        # Onglet Éditeur
-        editor_tab = self.content_tabs.add("Éditeur")
-        preview_tab = self.content_tabs.add("Aperçu")
-        
-        # Zone d'édition
-        self.editor = ctk.CTkTextbox(editor_tab, wrap="word")
-        self.editor.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Insérer le contenu actuel
-        content = self.document_data.get("content", "")
-        if content:
-            self.editor.insert("1.0", content)
-        
-        # Zone d'aperçu (sera mise à jour lors du changement d'onglet)
-        self.preview_frame = ctk.CTkScrollableFrame(preview_tab)
-        self.preview_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
-        self.preview_label = ctk.CTkLabel(self.preview_frame, text="", wraplength=600, justify="left")
-        self.preview_label.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Mettre à jour l'aperçu lors du changement d'onglet
-        self.content_tabs._segmented_button.configure(command=self._update_preview)
-        
-        # Boutons d'action
-        buttons_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
-        buttons_frame.pack(fill=ctk.X, padx=20, pady=10)
+        # Boutons
+        button_frame = ctk.CTkFrame(self.dialog)
+        button_frame.pack(fill=ctk.X, pady=10, padx=20)
         
         # Bouton Annuler
         ctk.CTkButton(
-            buttons_frame,
+            button_frame,
             text="Annuler",
             command=self.dialog.destroy,
             width=100
@@ -1624,25 +1776,69 @@ class DocumentFormView:
         
         # Bouton Enregistrer
         ctk.CTkButton(
-            buttons_frame,
+            button_frame,
             text="Enregistrer",
             command=self._save_document,
             width=100
         ).pack(side=ctk.RIGHT, padx=10)
-    
-    def _update_preview(self):
-        """
-        Met à jour l'aperçu du contenu
-        """
-        # Récupérer l'onglet actif
-        active_tab = self.content_tabs.get()
         
-        if active_tab == "Aperçu":
-            # Récupérer le contenu de l'éditeur
-            content = self.editor.get("1.0", "end-1c")
-            
-            # Mettre à jour le label d'aperçu
-            self.preview_label.configure(text=content)
+        # Si des données sont fournies, les charger
+        if self.document_data:
+            self._load_document_data()
+    
+    def _load_document_data(self):
+        """
+        Charge les données du document dans le formulaire
+        """
+        self.title_var.set(self.document_data.get("title", ""))
+        self.date_var.set(self.document_data.get("date", datetime.now().strftime("%Y-%m-%d")))
+        self.desc_text.delete("1.0", "end")
+        self.desc_text.insert("1.0", self.document_data.get("description", ""))
+        self.template_var.set(f"{self.document_data.get('template', {}).get('name')} ({self.document_data.get('template', {}).get('type', '')})")
+        self.client_var.set(f"{self.document_data.get('client', {}).get('name')} ({self.document_data.get('client', {}).get('company', '')})")
+        self.client_info.configure(text=self.document_data.get("client_info", ""))
+        self.variables_scroll.pack_forget()
+        self.variable_widgets.clear()
+        for var_name, var_value in self.document_data.get("variables", {}).items():
+            self._add_variable_widget(var_name, var_value)
+    
+    def _add_variable_widget(self, var_name, var_value):
+        """
+        Ajoute un widget pour une variable du modèle
+        """
+        widget = ctk.CTkEntry(self.variables_scroll, width=300)
+        widget.pack(fill=ctk.X, padx=10, pady=5)
+        widget.insert(0, var_value)
+        self.variable_widgets[var_name] = widget
+    
+    def _update_template_info(self, *args):
+        """
+        Met à jour les informations du modèle sélectionné
+        """
+        template_name = self.template_var.get()
+        template = self.model.get_template_by_name(template_name)
+        if template:
+            self.template_desc.configure(text=template.get("description", ""))
+            self.variables_scroll.pack_forget()
+            self.variable_widgets.clear()
+            for var_name, var_value in template.get("variables", {}).items():
+                self._add_variable_widget(var_name, var_value)
+            self.variables_scroll.pack(fill=ctk.X, padx=10, pady=10)
+        else:
+            self.template_desc.configure(text="Modèle non trouvé")
+            self.variables_scroll.pack_forget()
+            self.variable_widgets.clear()
+    
+    def _update_client_info(self, *args):
+        """
+        Met à jour les informations du client sélectionné
+        """
+        client_name = self.client_var.get()
+        client = self.model.get_client_by_name(client_name)
+        if client:
+            self.client_info.configure(text=f"Informations du client: {client.get('company', '')}")
+        else:
+            self.client_info.configure(text="Client non trouvé")
     
     def _save_document(self):
         """
@@ -1650,57 +1846,75 @@ class DocumentFormView:
         """
         # Récupérer les données du formulaire
         title = self.title_var.get().strip()
-        doc_type = self.type_var.get().strip().lower()
+        date = self.date_var.get().strip()
         description = self.desc_text.get("1.0", "end-1c").strip()
-        content = self.editor.get("1.0", "end-1c")
         
         # Validation
         if not title:
-            self._show_error("Le titre est obligatoire")
+            self.show_error("Le titre est obligatoire")
             return
         
-        if not doc_type:
-            self._show_error("Le type de document est obligatoire")
+        if not self.template_var.get():
+            self.show_error("Veuillez sélectionner un modèle")
             return
         
-        # Récupérer l'ID du client
-        client_name = self.client_var.get()
-        client_id = None
+        if not self.client_var.get():
+            self.show_error("Veuillez sélectionner un client")
+            return
         
-        if client_name and client_name != "Aucun client":
-            for client in self.model.clients:
-                if client.get("name") == client_name:
-                    client_id = client.get("id")
-                    break
+        # Récupérer le modèle et le client
+        template = self.get_template_by_name(self.template_var.get())
+        client = self.get_client_by_name(self.client_var.get())
+        
+        if not template:
+            self.show_error("Modèle introuvable")
+            return
+        
+        if not client:
+            self.show_error("Client introuvable")
+            return
+        
+        # Récupérer les valeurs des variables
+        variables = {}
+        for var_name, widget in self.variable_widgets.items():
+            variables[var_name] = widget.get().strip()
         
         # Préparer les données du document
         document_data = {
             "title": title,
-            "type": doc_type,
+            "type": template.get("type", ""),
+            "date": date,
             "description": description,
-            "content": content,
-            "date": datetime.now().isoformat(),
-            "client_id": client_id
+            "template_id": template.get("id"),
+            "client_id": client.get("id"),
+            "variables": variables,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
         }
         
         # Si c'est une mise à jour
         if self.document_id:
             document_data["id"] = self.document_id
             success = self.model.update_document(self.document_id, document_data)
+            success_message = "Document mis à jour avec succès"
         else:
             # Nouveau document
             new_id = self.model.add_document(document_data)
             success = new_id is not None
+            success_message = "Document créé avec succès"
         
         if success:
-            # Fermer la boîte de dialogue
-            self.dialog.destroy()
+            # Afficher le message de succès
+            self.show_success_toast(success_message)
+            
+            # Fermer la boîte de dialogue après un court délai
+            self.dialog.after(1000, self.dialog.destroy)
             
             # Appeler le callback si défini
             if self.on_save_callback:
                 self.on_save_callback()
         else:
-            self._show_error("Erreur lors de l'enregistrement du document")
+            self.show_error("Erreur lors de l'enregistrement du document")
     
     def _show_error(self, message):
         """
@@ -1754,6 +1968,172 @@ class DocumentFormView:
         self.editor.insert("1.0", document.get("content", ""))
         
         return True
+    
+    def get_template_by_name(self, template_name):
+        """
+        Récupère un modèle par son nom
+        
+        Args:
+            template_name: Nom du modèle (avec le type entre parenthèses)
+            
+        Returns:
+            dict: Le modèle trouvé ou None
+        """
+        try:
+            # Extraire le nom sans le type
+            name = template_name.split(" (")[0]
+            
+            # Chercher le modèle
+            return next((t for t in self.model.templates if t.get("name") == name), None)
+        except:
+            return None
+    
+    def get_client_by_name(self, client_name):
+        """
+        Récupère un client par son nom
+        
+        Args:
+            client_name: Nom du client (avec la société entre parenthèses)
+            
+        Returns:
+            dict: Le client trouvé ou None
+        """
+        try:
+            # Extraire le nom sans la société
+            name = client_name.split(" (")[0]
+            
+            # Chercher le client
+            return next((c for c in self.model.clients if c.get("name") == name), None)
+        except:
+            return None
+    
+    def show_error(self, message):
+        """
+        Affiche un message d'erreur dans le style du Dashboard
+        
+        Args:
+            message: Message d'erreur
+        """
+        dialog = ctk.CTkToplevel(self.dialog)
+        dialog.title("Erreur")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.dialog)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="❌ Erreur",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success(self, message):
+        """
+        Affiche une boîte de dialogue de succès dans le style du Dashboard
+        
+        Args:
+            message: Message de succès
+        """
+        dialog = ctk.CTkToplevel(self.dialog)
+        dialog.title("Succès")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.dialog)
+        dialog.grab_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Frame principal avec padding
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="✅ Succès",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(pady=(0, 20))
+        
+        # Message
+        message_label = ctk.CTkLabel(
+            main_frame,
+            text=message,
+            wraplength=360
+        )
+        message_label.pack(pady=10)
+        
+        # Bouton OK
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="OK",
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            command=dialog.destroy
+        )
+        ok_button.pack(pady=10)
+    
+    def show_success_toast(self, message):
+        """
+        Affiche une notification toast de succès dans le style du Dashboard
+        
+        Args:
+            message: Message à afficher
+        """
+        # Créer un toast en bas de l'écran
+        toast = ctk.CTkFrame(self.dialog, fg_color="#2ecc71")
+        
+        # Message avec icône
+        message_label = ctk.CTkLabel(
+            toast,
+            text=f"✅ {message}",
+            font=ctk.CTkFont(size=14),
+            text_color="white"
+        )
+        message_label.pack(padx=20, pady=10)
+        
+        # Positionner le toast en bas de l'écran
+        toast.place(relx=0.5, rely=0.95, anchor="center")
+        
+        # Faire disparaître le toast après quelques secondes
+        def hide_toast():
+            toast.destroy()
+        
+        self.dialog.after(3000, hide_toast)
 
 
 class DocumentImportExport:

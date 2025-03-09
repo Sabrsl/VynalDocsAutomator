@@ -9,6 +9,8 @@ import os
 import logging
 import customtkinter as ctk
 from PIL import Image, ImageTk
+import json
+import tkinter as tk
 
 # Importation des vues
 from views.dashboard_view import DashboardView
@@ -39,24 +41,42 @@ class MainView:
         # Configurer la fenêtre principale
         self.root.title(self.model.config.get("app.name", "Vynal Docs Automator"))
         
+        # Mettre à jour le thème
+        theme = self.model.config.get("app.theme", "dark")
+        ctk.set_appearance_mode(theme)
+        
         # Créer le cadre principal
         self.main_frame = ctk.CTkFrame(self.root)
         self.main_frame.pack(fill=ctk.BOTH, expand=True)
         
-        # Créer la barre latérale et le contenu principal
-        self.create_sidebar()
-        self.create_content_area()
-        
-        # Dictionnaire des vues
+        # Initialiser les dictionnaires de widgets
         self.views = {}
+        self.nav_buttons = {}
         
-        # Créer les différentes vues
-        self.create_views()
+        # Initialiser les trackers
+        from utils.usage_tracker import UsageTracker
+        self.usage_tracker = UsageTracker()
         
-        # Afficher la vue par défaut (tableau de bord)
-        self.show_view("dashboard")
-        
-        logger.info("Vue principale initialisée")
+        # Créer la barre latérale et le contenu principal
+        try:
+            self.create_sidebar()
+            self.create_content_area()
+            
+            # Créer les différentes vues
+            self.create_views()
+            
+            # Afficher la vue par défaut (tableau de bord)
+            self.show_view("dashboard")
+            
+            logger.info("Vue principale initialisée")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'initialisation de la vue principale: {e}")
+            # Afficher un message d'erreur à l'utilisateur
+            self.root.after(100, lambda: self.show_message(
+                "Erreur d'initialisation", 
+                f"Une erreur est survenue lors de l'initialisation de l'application: {e}",
+                "error"
+            ))
     
     def create_sidebar(self):
         """
@@ -73,8 +93,9 @@ class MainView:
         
         # Charger le logo s'il existe
         logo_path = self.model.config.get("app.company_logo", "")
-        if logo_path and os.path.exists(logo_path):
-            try:
+        try:
+            # Utiliser l'image du logo si elle existe, sinon créer un placeholder
+            if logo_path and os.path.exists(logo_path):
                 logo_image = Image.open(logo_path)
                 logo_image = logo_image.resize((150, 70), Image.LANCZOS)
                 logo_photo = ImageTk.PhotoImage(logo_image)
@@ -82,8 +103,11 @@ class MainView:
                 self.logo_label = ctk.CTkLabel(self.logo_frame, image=logo_photo, text="")
                 self.logo_label.image = logo_photo  # Garder une référence
                 self.logo_label.pack(side=ctk.TOP, pady=5)
-            except Exception as e:
-                logger.error(f"Erreur lors du chargement du logo: {e}")
+            else:
+                # Créer une image de placeholder
+                logger.info("Logo non trouvé, utilisation d'un texte à la place")
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement du logo: {e}")
         
         # Titre de l'application
         self.title_label = ctk.CTkLabel(
@@ -97,7 +121,6 @@ class MainView:
         ctk.CTkFrame(self.sidebar, height=1, fg_color="gray").pack(side=ctk.TOP, fill=ctk.X, padx=10, pady=5)
         
         # Boutons de navigation
-        self.nav_buttons = {}
         
         # Cadre pour les boutons
         self.nav_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
@@ -120,6 +143,8 @@ class MainView:
                 anchor="w",
                 height=40,
                 corner_radius=10,
+                fg_color="transparent",  # Couleur d'origine transparente
+                hover_color=("gray85", "gray25"),  # Couleur de survol d'origine
                 command=lambda i=item["id"]: self.show_view(i)
             )
             btn.pack(side=ctk.TOP, fill=ctk.X, padx=5, pady=5)
@@ -128,6 +153,10 @@ class MainView:
         # Informations en bas de la barre latérale
         self.sidebar_footer = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         self.sidebar_footer.pack(side=ctk.BOTTOM, fill=ctk.X, padx=10, pady=10)
+        
+        # Toolbar pour les boutons supplémentaires
+        self.toolbar = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.toolbar.pack(side=ctk.BOTTOM, fill=ctk.X, padx=10, pady=5)
         
         # Version de l'application
         ctk.CTkLabel(
@@ -142,31 +171,202 @@ class MainView:
             text=f"© {self.model.config.get('app.company_name', 'Vynal Agency LTD')}",
             font=ctk.CTkFont(size=10)
         ).pack(side=ctk.TOP, pady=2)
+        
+        # Bouton Mon compte
+        from utils.usage_tracker import UsageTracker
+        if not hasattr(self, 'usage_tracker'):
+            self.usage_tracker = UsageTracker()
+        
+        # Vérifier l'état de connexion
+        is_logged_in = self.usage_tracker.is_user_registered()
+        
+        # Créer le bouton principal selon l'état de connexion
+        if is_logged_in:
+            # Utilisateur connecté - afficher son nom
+            user_data = self.usage_tracker.get_user_data()
+            display_name = user_data.get('email', 'Utilisateur').split('@')[0]
+            button_text = f"👤 {display_name}"
+            button_color = "#3498db"
+            hover_color = "#2980b9"
+        else:
+            # Utilisateur non connecté - afficher "Se connecter"
+            button_text = "👤 Se connecter"
+            button_color = "#2ecc71"
+            hover_color = "#27ae60"
+        
+        # Créer le bouton principal
+        auth_button = ctk.CTkButton(
+            self.sidebar_footer,
+            text=button_text,
+            command=self._show_auth_dialog,
+            fg_color=button_color,
+            hover_color=hover_color
+        )
+        auth_button.pack(side=ctk.TOP, fill=ctk.X, pady=5)
+        self.auth_button = auth_button
+        
+        # Nous n'ajoutons pas les boutons supplémentaires ici
+        # Ils seront ajoutés par update_auth_button
+        self.update_auth_button()
+
+    def create_user_menu(self, parent_frame):
+        """Crée le menu utilisateur dans la barre latérale"""
+        # Frame pour le menu utilisateur
+        user_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
+        user_frame.pack(fill=ctk.X, pady=5)
+        
+        # Bouton principal "Mon compte"
+        if self.usage_tracker.is_user_registered():
+            user_data = self.usage_tracker.get_user_data()
+            display_name = user_data.get('email', 'Utilisateur').split('@')[0]
+            button_text = f"👤 {display_name}"
+            button_color = "#3498db"
+            hover_color = "#2980b9"
+        else:
+            button_text = "👤 Se connecter"
+            button_color = "#2ecc71"
+            hover_color = "#27ae60"
+        
+        self.auth_button = ctk.CTkButton(
+            user_frame,
+            text=button_text,
+            fg_color=button_color,
+            hover_color=hover_color,
+            command=self._show_auth_dialog
+        )
+        self.auth_button.pack(fill=ctk.X)
+        
+        # Si l'utilisateur est connecté, ajouter l'option de déconnexion
+        if self.usage_tracker.is_user_registered():
+            # Séparateur
+            ctk.CTkFrame(user_frame, height=1, fg_color="gray50").pack(fill=ctk.X, pady=5)
+            
+            # Option de déconnexion
+            logout_button = ctk.CTkButton(
+                user_frame,
+                text="🔒 Déconnexion",
+                fg_color="transparent",
+                hover_color=("gray80", "gray30"),
+                anchor="w",
+                command=self._handle_logout
+            )
+            logout_button.pack(fill=ctk.X, pady=2)
     
+    def _show_account_settings(self):
+        """Affiche les paramètres du compte utilisateur"""
+        if hasattr(self, 'auth_view'):
+            self.auth_view.show_account()
+            self.auth_view._show_tab("account")
+        else:
+            self._show_auth_dialog()
+    
+    def _show_usage_stats(self):
+        """Affiche les statistiques d'utilisation"""
+        # À implémenter - Afficher les statistiques d'utilisation
+        self.show_message("Statistiques", "Les statistiques d'utilisation seront disponibles prochainement.")
+    
+    def _handle_logout(self):
+        """Gère la déconnexion de l'utilisateur"""
+        if hasattr(self, 'auth_view'):
+            try:
+                # Appeler la méthode de déconnexion de AuthView
+                self.auth_view._handle_logout()
+                
+                # Fermer la fenêtre d'authentification
+                try:
+                    self.auth_view.hide()
+                except:
+                    pass
+                
+                # Mettre à jour l'interface après la déconnexion
+                self.update_auth_button()
+                
+                # Afficher un message de confirmation
+                self.show_message("Déconnexion", "Vous avez été déconnecté avec succès.", "success")
+            except Exception as e:
+                logger.error(f"Erreur lors de la déconnexion: {e}")
+                self.show_message("Erreur", f"Une erreur est survenue lors de la déconnexion: {e}", "error")
+        else:
+            # Si auth_view n'existe pas, effectuer une déconnexion directe
+            try:
+                # Réinitialiser l'état de connexion dans UsageTracker
+                if hasattr(self, 'usage_tracker'):
+                    # Supprimer les données de connexion
+                    users_file = os.path.join(self.usage_tracker.data_dir, "users.json")
+                    if os.path.exists(users_file):
+                        with open(users_file, 'w') as f:
+                            json.dump({}, f)
+                    
+                    # Mettre à jour l'interface
+                    self.update_auth_button()
+                    
+                    # Afficher un message de confirmation
+                    self.show_message("Déconnexion", "Vous avez été déconnecté avec succès.", "success")
+            except Exception as e:
+                logger.error(f"Erreur lors de la déconnexion directe: {e}")
+                self.show_message("Erreur", f"Une erreur est survenue lors de la déconnexion: {e}", "error")
+    
+    def create_toolbar_buttons(self):
+        """Crée les boutons de la barre d'outils"""
+        # Bouton Paramètres
+        settings_button = ctk.CTkButton(
+            self.toolbar,
+            text="⚙️ Paramètres",
+            fg_color="transparent",
+            hover_color=("gray80", "gray30"),
+            command=lambda: self.show_view("settings")
+        )
+        settings_button.pack(fill=ctk.X, pady=5)
+        
+        # Bouton Aide
+        help_button = ctk.CTkButton(
+            self.toolbar,
+            text="❓ Aide",
+            fg_color="transparent",
+            hover_color=("gray80", "gray30"),
+            command=self._show_help
+        )
+        help_button.pack(fill=ctk.X, pady=5)
+    
+    def _show_help(self):
+        """Affiche l'aide de l'application"""
+        # À implémenter - Afficher l'aide
+        self.show_message("Aide", "L'aide sera disponible prochainement.")
+
     def create_content_area(self):
         """
         Crée la zone de contenu principal
         """
-        # Cadre pour le contenu
-        self.content_area = ctk.CTkFrame(self.main_frame)
-        self.content_area.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True, padx=0, pady=0)
-        
-        # En-tête du contenu
-        self.content_header = ctk.CTkFrame(self.content_area, height=60, fg_color=("gray90", "gray20"))
-        self.content_header.pack(side=ctk.TOP, fill=ctk.X, padx=0, pady=0)
-        self.content_header.pack_propagate(False)  # Empêcher le redimensionnement
-        
-        # Titre de la page
-        self.page_title = ctk.CTkLabel(
-            self.content_header,
-            text="Tableau de bord",
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        self.page_title.pack(side=ctk.LEFT, padx=20, pady=10)
-        
-        # Cadre principal pour les différentes vues
-        self.main_content = ctk.CTkFrame(self.content_area, fg_color="transparent")
-        self.main_content.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        try:
+            # Cadre pour le contenu
+            self.content_area = ctk.CTkFrame(self.main_frame)
+            self.content_area.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True, padx=0, pady=0)
+            
+            # En-tête du contenu
+            self.content_header = ctk.CTkFrame(self.content_area, height=60, fg_color=("gray90", "gray20"))
+            self.content_header.pack(side=ctk.TOP, fill=ctk.X, padx=0, pady=0)
+            self.content_header.pack_propagate(False)  # Empêcher le redimensionnement
+            
+            # Titre de la page
+            self.page_title = ctk.CTkLabel(
+                self.content_header,
+                text="Tableau de bord",
+                font=ctk.CTkFont(size=20, weight="bold")
+            )
+            self.page_title.pack(side=ctk.LEFT, padx=20, pady=10)
+            
+            # Cadre principal pour les différentes vues
+            self.main_content = ctk.CTkFrame(self.content_area, fg_color="transparent")
+            self.main_content.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True, padx=20, pady=20)
+            
+            logger.debug("Zone de contenu créée avec succès")
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de la zone de contenu: {e}")
+            # Créer une structure minimale en cas d'erreur
+            self.content_area = ctk.CTkFrame(self.main_frame)
+            self.content_area.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True)
+            self.main_content = ctk.CTkFrame(self.content_area)
+            self.main_content.pack(fill=ctk.BOTH, expand=True)
     
     def create_views(self):
         """
@@ -211,14 +411,21 @@ class MainView:
             "documents": "Bibliothèque de documents",
             "settings": "Paramètres"
         }
-        self.page_title.configure(text=titles.get(view_id, ""))
+        
+        try:
+            self.page_title.configure(text=titles.get(view_id, ""))
+        except Exception as e:
+            logger.warning(f"Impossible de mettre à jour le titre: {e}")
         
         # Mettre à jour l'état des boutons de navigation
         for btn_id, btn in self.nav_buttons.items():
-            if btn_id == view_id:
-                btn.configure(fg_color=("blue", "#1f538d"))
-            else:
-                btn.configure(fg_color=("gray75", "#333333"))
+            try:
+                if btn_id == view_id:
+                    btn.configure(fg_color=("blue", "#1f538d"))
+                else:
+                    btn.configure(fg_color=("gray75", "#333333"))
+            except Exception as e:
+                logger.warning(f"Impossible de mettre à jour le bouton {btn_id}: {e}")
         
         # Masquer toutes les vues
         for view in self.views.values():
@@ -367,5 +574,162 @@ class MainView:
         self.root.title(self.model.config.get("app.name", "Vynal Docs Automator"))
         
         # Mettre à jour le thème
-        theme = self.model.config.get("app.theme", "system")
+        theme = self.model.config.get("app.theme", "dark")
         ctk.set_appearance_mode(theme)
+
+    def _show_auth_dialog(self):
+        """Affiche le dialogue d'authentification"""
+        from views.auth_view import AuthView
+        from utils.usage_tracker import UsageTracker
+        
+        if not hasattr(self, 'usage_tracker'):
+            self.usage_tracker = UsageTracker()
+        
+        # Vérifier si l'instance auth_view existe et est valide
+        try:
+            if hasattr(self, 'auth_view'):
+                self.auth_view.window.winfo_exists()
+        except (tk.TclError, AttributeError):
+            # Recréer l'instance si elle n'existe pas ou n'est plus valide
+            self.auth_view = None
+        
+        if not hasattr(self, 'auth_view') or self.auth_view is None:
+            self.auth_view = AuthView(self.root, self.usage_tracker)
+            # Définir le callback pour mettre à jour le bouton
+            if hasattr(self.auth_view, 'set_auth_callback'):
+                self.auth_view.set_auth_callback(lambda is_logged_in, user: self.update_auth_button())
+            else:
+                # Si la méthode set_auth_callback n'existe pas, définir directement l'attribut
+                self.auth_view.auth_callback = lambda is_logged_in, user: self.update_auth_button()
+        
+        # Vérifier l'état de connexion
+        is_logged_in = self.usage_tracker.is_user_registered()
+        
+        # Afficher la vue d'authentification
+        if is_logged_in:
+            # Si l'utilisateur est connecté, afficher directement l'onglet Mon compte
+            self.auth_view.show()
+            try:
+                self.auth_view._show_tab("account")
+            except Exception as e:
+                logger.error(f"Erreur lors de l'affichage de l'onglet compte: {e}")
+        else:
+            # Sinon, afficher la vue de connexion
+            self.auth_view.show()
+            try:
+                self.auth_view._show_tab("login")
+            except Exception as e:
+                logger.error(f"Erreur lors de l'affichage de l'onglet login: {e}")
+
+    def update_auth_button(self):
+        """Met à jour l'interface utilisateur selon l'état d'authentification"""
+        if not hasattr(self, 'usage_tracker'):
+            from utils.usage_tracker import UsageTracker
+            self.usage_tracker = UsageTracker()
+        
+        is_logged_in = self.usage_tracker.is_user_registered()
+        
+        # Mettre à jour le texte et la couleur des boutons selon l'état de connexion
+        if is_logged_in:
+            # Utilisateur connecté
+            user_data = self.usage_tracker.get_user_data()
+            display_name = user_data.get('email', 'Utilisateur').split('@')[0]
+            button_text = f"👤 {display_name}"
+            button_color = "#3498db"
+            hover_color = "#2980b9"
+        else:
+            # Utilisateur non connecté
+            button_text = "👤 Se connecter"
+            button_color = "#2ecc71"
+            hover_color = "#27ae60"
+        
+        # Mettre à jour le bouton principal
+        if hasattr(self, 'auth_button') and self.auth_button:
+            try:
+                self.auth_button.configure(
+                    text=button_text,
+                    fg_color=button_color,
+                    hover_color=hover_color
+                )
+            except Exception as e:
+                logger.warning(f"Erreur lors de la mise à jour du bouton d'authentification: {e}")
+        
+        # Nettoyer tous les boutons existants dans la barre latérale
+        try:
+            if hasattr(self, 'sidebar_footer') and self.sidebar_footer:
+                # Supprimer tous les widgets enfants sauf le bouton principal
+                for widget in list(self.sidebar_footer.winfo_children()):
+                    if widget != self.auth_button:
+                        try:
+                            widget.destroy()
+                        except Exception as e:
+                            logger.warning(f"Erreur lors de la suppression d'un widget: {e}")
+            
+            # Supprimer les références aux boutons
+            for btn_name in ['logout_button', 'register_button', 'login_button']:
+                if hasattr(self, btn_name):
+                    delattr(self, btn_name)
+            
+            # Ajouter les boutons appropriés selon l'état de connexion
+            if hasattr(self, 'sidebar_footer') and self.sidebar_footer:
+                if is_logged_in:
+                    # Utilisateur connecté - ajouter le bouton de déconnexion
+                    logout_button = ctk.CTkButton(
+                        self.sidebar_footer,
+                        text="🔒 Déconnexion",
+                        command=self._handle_logout,
+                        fg_color="transparent",
+                        hover_color=("gray85", "gray25"),
+                        anchor="w"
+                    )
+                    logout_button.pack(side=ctk.TOP, fill=ctk.X, pady=5)
+                    self.logout_button = logout_button
+                else:
+                    # Utilisateur non connecté - ajouter les boutons d'inscription et de connexion
+                    register_button = ctk.CTkButton(
+                        self.sidebar_footer,
+                        text="✏️ S'inscrire",
+                        command=lambda: self._show_auth_dialog_tab("register"),
+                        fg_color="transparent",
+                        hover_color=("gray85", "gray25"),
+                        anchor="w"
+                    )
+                    register_button.pack(side=ctk.TOP, fill=ctk.X, pady=5)
+                    self.register_button = register_button
+                    
+                    login_button = ctk.CTkButton(
+                        self.sidebar_footer,
+                        text="🔑 Se connecter",
+                        command=lambda: self._show_auth_dialog_tab("login"),
+                        fg_color="transparent",
+                        hover_color=("gray85", "gray25"),
+                        anchor="w"
+                    )
+                    login_button.pack(side=ctk.TOP, fill=ctk.X, pady=5)
+                    self.login_button = login_button
+        except Exception as e:
+            logger.warning(f"Erreur lors de la mise à jour des boutons d'authentification: {e}")
+        
+        # Mettre à jour l'interface de la vue principale
+        self.update_view()
+        
+        # Journaliser le changement d'état
+        logger.info(f"État d'authentification mis à jour - Connecté: {is_logged_in}")
+
+    def _show_auth_dialog_tab(self, tab_name):
+        """
+        Affiche le dialogue d'authentification avec un onglet spécifique
+        
+        Args:
+            tab_name: Nom de l'onglet à afficher ("login", "register" ou "account")
+        """
+        # Utiliser la méthode standard pour afficher la fenêtre d'authentification
+        self._show_auth_dialog()
+        
+        # Puis afficher l'onglet spécifié
+        try:
+            if hasattr(self, 'auth_view') and self.auth_view:
+                logger.info(f"Affichage de l'onglet {tab_name}")
+                self.auth_view._show_tab(tab_name)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'affichage de l'onglet {tab_name}: {e}")

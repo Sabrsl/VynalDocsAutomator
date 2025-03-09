@@ -213,7 +213,6 @@ class ClientController:
         Connecte les événements de la vue aux méthodes du contrôleur
         """
         # Remplacer les méthodes de la vue par les méthodes du contrôleur
-        self.view.show_client_form = self.show_client_form
         self.view.edit_client = self.edit_client
         self.view.confirm_delete_client = self.confirm_delete_client
         
@@ -341,193 +340,25 @@ class ClientController:
             logger.error(f"Erreur lors de la suppression du client: {e}")
             return False
     
-    def show_client_form(self, client_id=None):
+    def show_client_form(self, client_id=None, parent=None):
         """
         Affiche le formulaire pour ajouter ou modifier un client
         
         Args:
             client_id: ID du client à modifier, ou None pour un nouveau client
+            parent: Widget parent optionnel (si None, utilise self.view.parent)
         """
-        # Créer une fenêtre de dialogue
-        dialog = ctk.CTkToplevel(self.view.parent)
-        dialog.title("Nouveau client" if client_id is None else "Modifier le client")
-        dialog.geometry("550x550")
-        dialog.resizable(False, False)
-        dialog.grab_set()  # Modal
-        dialog.focus_set()
-        
-        # Centrer la fenêtre
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
-        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
-        dialog.geometry(f"+{x}+{y}")
-        
-        # Variables pour le formulaire
-        client_data = {}
+        # Récupérer les données du client si c'est une modification
+        client_data = None
         if client_id:
-            # Chercher le client existant
-            client = next((c for c in self.model.clients if c.get('id') == client_id), None)
-            if client:
-                client_data = client.copy()
+            client_data = self.model.get_client(client_id)
         
-        # Créer un cadre principal avec défilement
-        main_frame = ctk.CTkScrollableFrame(dialog)
-        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
-        
-        # Informations du client
-        info_frame = ctk.CTkFrame(main_frame)
-        info_frame.pack(fill=ctk.X, pady=10)
-        
-        ctk.CTkLabel(
-            info_frame, 
-            text="Informations du client", 
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(anchor="w", padx=10, pady=5)
-        
-        form_frame = ctk.CTkFrame(info_frame)
-        form_frame.pack(fill=ctk.X, padx=10, pady=10)
-        
-        # Nom
-        name_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        name_row.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(name_row, text="Nom*:").pack(side=ctk.LEFT, padx=5)
-        name_var = ctk.StringVar(value=client_data.get('name', ''))
-        name_entry = ctk.CTkEntry(name_row, textvariable=name_var, width=300)
-        name_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
-        
-        # Entreprise
-        company_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        company_row.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(company_row, text="Entreprise:").pack(side=ctk.LEFT, padx=5)
-        company_var = ctk.StringVar(value=client_data.get('company', ''))
-        company_entry = ctk.CTkEntry(company_row, textvariable=company_var, width=300)
-        company_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
-        
-        # Email
-        email_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        email_row.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(email_row, text="Email*:").pack(side=ctk.LEFT, padx=5)
-        email_var = ctk.StringVar(value=client_data.get('email', ''))
-        email_entry = ctk.CTkEntry(email_row, textvariable=email_var, width=300)
-        email_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
-        
-        # Téléphone
-        phone_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        phone_row.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(phone_row, text="Téléphone:").pack(side=ctk.LEFT, padx=5)
-        phone_var = ctk.StringVar(value=client_data.get('phone', ''))
-        phone_entry = ctk.CTkEntry(phone_row, textvariable=phone_var, width=300)
-        phone_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
-        
-        # Adresse
-        address_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        address_row.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(address_row, text="Adresse:").pack(side=ctk.LEFT, padx=5)
-        address_frame = ctk.CTkFrame(address_row, fg_color="transparent")
-        address_frame.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
-        address_text = ctk.CTkTextbox(address_frame, width=300, height=80)
-        address_text.pack(fill=ctk.BOTH, expand=True)
-        address_text.insert("1.0", client_data.get('address', ''))
-        
-        # Note obligatoire
-        note_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        note_frame.pack(fill=ctk.X, pady=10)
-        ctk.CTkLabel(
-            note_frame, 
-            text="* Champs obligatoires", 
-            text_color="gray"
-        ).pack(anchor="w")
-        
-        # Boutons
-        button_frame = ctk.CTkFrame(dialog)
-        button_frame.pack(fill=ctk.X, pady=10, padx=20)
-        
-        # Fonction pour sauvegarder
-        def save_client():
-            # Récupérer les valeurs
-            name = name_var.get().strip()
-            company = company_var.get().strip()
-            email = email_var.get().strip()
-            phone = phone_var.get().strip()
-            address = address_text.get("1.0", "end-1c").strip()
+        # Utiliser le formulaire de la vue client avec le parent spécifié
+        if parent is None:
+            parent = self.view.parent
             
-            # Validation
-            if not name:
-                DialogUtils.show_message(dialog, "Erreur", "Le nom est obligatoire", "error")
-                return
-            
-            if not email:
-                DialogUtils.show_message(dialog, "Erreur", "L'email est obligatoire", "error")
-                return
-            
-            # Créer un dictionnaire avec les données
-            new_client_data = {
-                'name': name,
-                'company': company,
-                'email': email,
-                'phone': phone,
-                'address': address
-            }
-            
-            # Mettre à jour ou créer le client
-            if client_id:
-                # C'est une modification
-                new_client_data['id'] = client_id
-                new_client_data['created_at'] = client_data.get('created_at', datetime.now().isoformat())
-                new_client_data['updated_at'] = datetime.now().isoformat()
-                
-                # Mettre à jour le client via le modèle
-                if self.model.update_client(client_id, new_client_data):
-                    # Fermer la fenêtre
-                    dialog.destroy()
-                    
-                    logger.info(f"Client modifié: {client_id} - {name}")
-                    
-                    # Afficher un message de succès
-                    DialogUtils.show_message(self.view.parent, "Succès", "Client modifié avec succès", "success")
-                else:
-                    DialogUtils.show_message(dialog, "Erreur", "Client non trouvé ou erreur lors de la modification", "error")
-            else:
-                # C'est un nouveau client
-                # Ajouter via le modèle
-                new_id = self.model.add_client(new_client_data)
-                
-                if new_id:
-                    # Fermer la fenêtre
-                    dialog.destroy()
-                    
-                    logger.info(f"Nouveau client créé: {new_id} - {name}")
-                    
-                    # Afficher un message de succès
-                    DialogUtils.show_message(self.view.parent, "Succès", "Client ajouté avec succès", "success")
-                else:
-                    DialogUtils.show_message(dialog, "Erreur", "Erreur lors de l'ajout du client", "error")
-            
-            # Mettre à jour la vue
-            self.view.update_view()
-        
-        # Bouton Annuler
-        cancel_btn = ctk.CTkButton(
-            button_frame,
-            text="Annuler",
-            command=dialog.destroy,
-            width=120
-        )
-        cancel_btn.pack(side=ctk.RIGHT, padx=10)
-        
-        # Bouton Enregistrer
-        save_btn = ctk.CTkButton(
-            button_frame,
-            text="Enregistrer",
-            command=save_client,
-            width=120
-        )
-        save_btn.pack(side=ctk.RIGHT, padx=10)
-        
-        # Focus sur le premier champ
-        name_entry.focus_set()
-        
-        logger.info(f"Formulaire client affiché pour {'nouveau client' if client_id is None else 'modification'}")
+        # Appeler directement la méthode originale de la vue
+        self.view._show_client_form(client_data, parent)
     
     def edit_client(self, client_id):
         """
@@ -537,13 +368,13 @@ class ClientController:
             client_id: ID du client à modifier
         """
         # Vérifier si le client existe
-        client = next((c for c in self.model.clients if c.get('id') == client_id), None)
+        client = self.model.get_client(client_id)
         if not client:
             DialogUtils.show_message(self.view.parent, "Erreur", "Client non trouvé", "error")
             return
         
         # Appeler la méthode pour afficher le formulaire
-        self.show_client_form(client_id)
+        self.show_client_form(client_id, self.view.parent)
         
         logger.info(f"Édition du client {client_id}")
     

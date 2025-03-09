@@ -1,302 +1,302 @@
 [
   {
-    "id": "55c4ed75-63af-47b4-80d8-f4f5379d2bf1",
-    "type": "client",
-    "description": "Client supprimé: tesy",
-    "timestamp": "2025-03-09T12:21:17.006641"
+    "id": "a21ff82e-55bd-4bf3-a3e9-ed3d497629f5",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T20:21:39.861538"
   },
   {
-    "id": "ab2a5817-f852-40a2-a181-bacbec92f2cc",
-    "type": "client",
-    "description": "Nouveau client: tesy",
-    "timestamp": "2025-03-09T12:21:07.001164"
+    "id": "4fff341c-04be-4a5c-a31b-69a21b09ea4d",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T20:21:19.610787"
   },
   {
-    "id": "ecca4ead-1ab0-4bc5-8f72-06fe5c251d4d",
-    "type": "template",
-    "description": "Modèle modifié: Ambassade Canada",
-    "timestamp": "2025-03-09T11:03:35.229095"
+    "id": "429f33c2-b1d8-4b4e-ad01-c5b2ed3e0cdf",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T20:12:26.320177"
   },
   {
-    "id": "111f7784-ac2e-4e4c-a0da-817dc279f753",
-    "type": "template",
-    "description": "Modèle importé: Ambassade Canada",
-    "timestamp": "2025-03-09T11:03:19.750014"
+    "id": "39d83a9f-1ab4-42ff-a016-bcffdb3d655d",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T20:11:39.987823"
   },
   {
-    "id": "d0e8a56f-2785-4bb8-a0b8-32be35843887",
-    "type": "template",
-    "description": "Modèle modifié: Ambassade Canada",
-    "timestamp": "2025-03-09T10:56:53.980674"
+    "id": "c35e1212-2ad4-4132-9bff-05e2df1b448f",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:49:05.122576"
   },
   {
-    "id": "82be2c65-9459-44c9-bfa9-fdba14091258",
-    "type": "template",
-    "description": "Modèle modifié: Ambassade Canada",
-    "timestamp": "2025-03-09T10:56:33.501947"
+    "id": "d0f16245-95a9-4807-b0da-de89f09eca0d",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:48:35.810459"
   },
   {
-    "id": "a11e61de-9b62-451f-80f2-9255a8e4bf93",
-    "type": "template",
-    "description": "Modèle importé: Ambassade Canada (1)",
-    "timestamp": "2025-03-09T10:56:00.790559"
+    "id": "d6a3510e-91c2-4b77-b722-e556a4f691b2",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:44:03.231594"
   },
   {
-    "id": "0e6ccb29-8fa7-47f5-b4a0-f1513817b03d",
-    "type": "client",
-    "description": "Exportation de 5 clients",
-    "timestamp": "2025-03-09T10:48:22.330454"
+    "id": "f818d299-9cc7-4e5c-a49b-78a5e4229d19",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:36:46.565427"
   },
   {
-    "id": "88e898b1-0da2-41be-bfdb-7a7b7faf3fd3",
-    "type": "client",
-    "description": "Importation de 5 clients",
-    "timestamp": "2025-03-09T10:47:04.940944"
+    "id": "d8b885c9-91fa-4a7e-afa6-cee51380a78b",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:34:57.703057"
   },
   {
-    "id": "d00244a0-1f2c-48e1-842d-d8037eaea87b",
-    "type": "client",
-    "description": "Exportation de 5 clients",
-    "timestamp": "2025-03-09T10:46:57.380346"
+    "id": "d2bcde4d-2c8d-4a53-8901-230f1c962f86",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:18:03.252895"
   },
   {
-    "id": "0530209a-d199-4cf9-a1d3-df880add1e20",
-    "type": "client",
-    "description": "Client supprimé: etst",
-    "timestamp": "2025-03-09T10:45:49.263747"
+    "id": "60e19a24-ed06-450b-bd83-d9e4fa30c2b6",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:05:26.524549"
   },
   {
-    "id": "a33847d9-a75b-460e-bd10-87ed8e56fd13",
-    "type": "client",
-    "description": "Client modifié: etst",
-    "timestamp": "2025-03-09T10:45:37.694585"
+    "id": "87d713e7-cb5e-428b-a167-aa8ba8a3ddd0",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:04:19.727930"
   },
   {
-    "id": "70c178fc-f4cc-4f19-8b53-1a1988150773",
-    "type": "client",
-    "description": "Nouveau client: etst",
-    "timestamp": "2025-03-09T10:45:22.351944"
+    "id": "14f398eb-1201-4add-b40f-0ef222cf2225",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:04:16.780329"
   },
   {
-    "id": "5cdb6baf-fbbe-4f01-9824-004c603845fa",
+    "id": "65e32f6a-dd0d-4d5c-982f-a2a4de4295c5",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:01:25.091128"
+  },
+  {
+    "id": "a5e31b1a-b2f1-4d86-a1f7-bd06914b4ee5",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T19:01:15.054338"
+  },
+  {
+    "id": "a78b13d3-b2a1-448b-8d93-5f6d6a73592a",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:54:53.982484"
+  },
+  {
+    "id": "b375c6e1-616e-44a5-ba98-8bb08d31ec7c",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:53:58.281872"
+  },
+  {
+    "id": "cb73ebd9-be28-4c7e-b2fe-ba43d83fceff",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:36:40.422006"
+  },
+  {
+    "id": "54aa3062-7fbf-49cc-a0f8-2b2f2ae615f2",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:32:42.763399"
+  },
+  {
+    "id": "f1013e19-ff28-452f-9f9f-d9169bf20ab5",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:24:44.026340"
+  },
+  {
+    "id": "48c0a7d3-fd93-4aee-a357-5549aaef9784",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:22:10.200549"
+  },
+  {
+    "id": "fc7069d8-66dd-4877-ae55-10e4c083ca35",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:13:19.078840"
+  },
+  {
+    "id": "9ce4f2c0-56cb-4f98-8517-386f6dcdb314",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:13:05.503257"
+  },
+  {
+    "id": "6d2666ba-176e-485d-9281-53152b424b66",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:06:46.310741"
+  },
+  {
+    "id": "cf727a13-17e8-410f-afac-12ad977e64fb",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T18:06:06.874824"
+  },
+  {
+    "id": "c0f3a476-75fa-4be1-a505-6ae37d279162",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:59:55.217062"
+  },
+  {
+    "id": "7576c043-d28f-408e-947b-569a20f12393",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:56:39.842489"
+  },
+  {
+    "id": "1c100212-6a8b-4b31-9b4f-d48058ed29a6",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:56:28.709208"
+  },
+  {
+    "id": "35c5a084-acdf-4aff-bdad-71c0144cbd20",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:50:04.000892"
+  },
+  {
+    "id": "e8a68173-138a-46d6-bb23-b3408f0370ab",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:41:51.519120"
+  },
+  {
+    "id": "d055109f-a941-4e28-83e5-a055459bcfad",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:41:36.522355"
+  },
+  {
+    "id": "3e357fa4-6cfa-4d35-a49e-ea3870649863",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:26:13.794772"
+  },
+  {
+    "id": "fb698f9c-5bd2-4b45-9bbb-656aeac42088",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:22:52.770737"
+  },
+  {
+    "id": "b7ef4edc-5f9d-44af-aeb4-827db0fb622c",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:22:31.643701"
+  },
+  {
+    "id": "c44e86d8-6a25-4fcf-8af3-7ac5fc74d1b2",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:19:26.042360"
+  },
+  {
+    "id": "b859059d-00e2-4956-aed4-a65d735da753",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:18:47.500432"
+  },
+  {
+    "id": "1ac31070-a413-428b-a016-21ae1d081782",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:07:46.860781"
+  },
+  {
+    "id": "40f2eae9-786a-416b-ac02-109cc587b5ee",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:07:13.345103"
+  },
+  {
+    "id": "2e34bfe8-78fa-4ed7-9441-002a9a9eafc1",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:06:11.592015"
+  },
+  {
+    "id": "05343116-e932-41fd-9ee7-2518b1f999c3",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:01:53.545856"
+  },
+  {
+    "id": "3d98366a-5b63-4bc5-aad9-94f42617455e",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T17:01:23.495537"
+  },
+  {
+    "id": "6cb95493-ae5d-4139-b472-df95ca1a1556",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:59:31.981723"
+  },
+  {
+    "id": "f6ae3229-8890-4de0-a73c-3006c632e9fb",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:55:19.057524"
+  },
+  {
+    "id": "8320eacf-c2f8-4ef9-a043-4d15d978d3c0",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:53:15.617695"
+  },
+  {
+    "id": "3d18375b-b34e-4c67-ab46-d5ab41c92ae1",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:23:27.805663"
+  },
+  {
+    "id": "7430eacb-3fd9-4240-a1da-bd9fa2b62512",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:21:47.108263"
+  },
+  {
+    "id": "50cda846-81ce-420c-b6a6-b18270934b14",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:17:21.256642"
+  },
+  {
+    "id": "1552b787-04fd-471d-8706-d44979007e42",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:12:58.253573"
+  },
+  {
+    "id": "ce4c434c-7729-46cb-a6b8-512afef807e2",
+    "type": "system",
+    "description": "Application fermée proprement",
+    "timestamp": "2025-03-09T16:08:54.876822"
+  },
+  {
+    "id": "57be6fb9-4fd4-4796-ad6d-1bed36e0d88c",
     "type": "document",
-    "description": "Document créé: contrat - Mariama Mboup",
-    "timestamp": "2025-03-09T10:33:57.884195"
-  },
-  {
-    "id": "5595bb27-57fa-41dd-b91c-5c58a42cf914",
-    "type": "document",
-    "description": "Document créé: Contrat - Senator Amadou Thiam",
-    "timestamp": "2025-03-09T10:29:53.270416"
-  },
-  {
-    "id": "c39a0002-5d04-45dd-97f1-61f99ecfbe86",
-    "type": "document",
-    "description": "Document créé: Ambassade Canada (1)",
-    "timestamp": "2025-03-09T09:08:16.885990"
-  },
-  {
-    "id": "e992f56e-ee9e-49de-bb98-cb114a8a92b1",
-    "type": "template",
-    "description": "Modèle modifié: Ambassade Canada (1)",
-    "timestamp": "2025-03-09T09:07:48.088413"
-  },
-  {
-    "id": "fe26e70c-f1e2-4073-a3bd-c75d0a843eee",
-    "type": "document",
-    "description": "Document créé: 1 - Alioune Badara GUEYE",
-    "timestamp": "2025-03-09T09:06:10.269788"
-  },
-  {
-    "id": "c4bd8ccf-7200-4f8a-9cee-564abf176819",
-    "type": "template",
-    "description": "Modèle modifié: Ambassade Canada (1)",
-    "timestamp": "2025-03-09T09:05:46.085803"
-  },
-  {
-    "id": "2b4a5d52-f8e2-4dfe-bad3-4e0a5c493a33",
-    "type": "template",
-    "description": "Modèle importé: Ambassade Canada (1)",
-    "timestamp": "2025-03-09T09:05:29.148647"
-  },
-  {
-    "id": "d6b09b96-2da9-4c40-bafb-ac02c20e239a",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T09:01:03.812301"
-  },
-  {
-    "id": "10bc7360-8059-4ba8-8366-b6cd58506803",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:54:54.497744"
-  },
-  {
-    "id": "5c3d2cee-4171-4f2d-8015-07a7892ef98e",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:54:01.474946"
-  },
-  {
-    "id": "c93d5584-77be-415c-8930-933948bae586",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:52:46.156848"
-  },
-  {
-    "id": "7a5753e5-549c-4f6f-910a-046f6e79b065",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:45:46.869585"
-  },
-  {
-    "id": "dcd3d6be-4ebe-4d86-9be4-e4695a7c5264",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:44:07.866243"
-  },
-  {
-    "id": "63261f4d-6983-463e-b719-f078f5477226",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:39:01.636344"
-  },
-  {
-    "id": "4d2b310f-ea59-443a-93e0-623f3b5f7286",
-    "type": "document",
-    "description": "Document créé: document - Alioune Badara GUEYE",
-    "timestamp": "2025-03-09T08:35:50.396486"
-  },
-  {
-    "id": "59bcc692-d7e2-42d1-af0c-c93853b89a14",
-    "type": "template",
-    "description": "Modèle modifié: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:35:37.225682"
-  },
-  {
-    "id": "17df3f43-fffc-428f-8df4-23ea1e72b59b",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:35:23.168132"
-  },
-  {
-    "id": "d93502c1-8d59-430d-99be-32601b79da82",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:14:41.577413"
-  },
-  {
-    "id": "d14ef39d-ac85-4044-883b-5536cf084f05",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T08:08:09.241260"
-  },
-  {
-    "id": "640b384c-8419-4b03-816f-fb6e69f3c500",
-    "type": "document",
-    "description": "Document créé: contrat - Senator Amadou Thiam",
-    "timestamp": "2025-03-09T08:02:47.516912"
-  },
-  {
-    "id": "0fce2aff-5ac6-42be-8718-6e86edc35f5c",
-    "type": "template",
-    "description": "Nouveau modèle: Rupture du Contrat de Prestations de Services TikTok",
-    "timestamp": "2025-03-09T08:02:17.244152"
-  },
-  {
-    "id": "7ec3b2c6-c60e-457a-83d5-1bc13c9a37e8",
-    "type": "document",
-    "description": "Document créé: document - Alioune Badara GUEYE",
-    "timestamp": "2025-03-09T07:59:35.034061"
-  },
-  {
-    "id": "093f4eb5-ba6e-4acc-87ce-38c915398226",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T07:58:58.721367"
-  },
-  {
-    "id": "a1d51c18-78a2-4abc-b09d-ac2c0636be28",
-    "type": "document",
-    "description": "Document créé: document - Mariama Mboup",
-    "timestamp": "2025-03-09T07:45:34.161607"
-  },
-  {
-    "id": "ebf31f91-f7d4-4983-977a-2d02f89d95cd",
-    "type": "document",
-    "description": "Document créé: document - Alioune Badara GUEYE",
-    "timestamp": "2025-03-09T07:45:01.810742"
-  },
-  {
-    "id": "191ab525-a128-4109-8a86-d35e8759eaf6",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T07:43:44.763657"
-  },
-  {
-    "id": "6a62fbb4-dda4-4348-b458-260ba3de2020",
-    "type": "template",
-    "description": "Modèle importé: Rupture de Contrat _ Sab Agency LTD",
-    "timestamp": "2025-03-09T07:41:56.877746"
-  },
-  {
-    "id": "b118127d-4185-4e9a-9f8e-f197569542f6",
-    "type": "client",
-    "description": "Exportation de 5 clients",
-    "timestamp": "2025-03-09T06:27:51.017946"
-  },
-  {
-    "id": "16f8e01e-01e5-4180-a865-93faac525728",
-    "type": "client",
-    "description": "Importation de 5 clients",
-    "timestamp": "2025-03-09T06:27:24.497061"
-  },
-  {
-    "id": "bbb4ca16-6af1-4d7e-a50e-f821c2e4821f",
-    "type": "client",
-    "description": "Importation de 5 clients",
-    "timestamp": "2025-03-09T06:24:05.338772"
-  },
-  {
-    "id": "d7c37cd0-2cfa-40f1-8da8-de1028010974",
-    "type": "client",
-    "description": "Importation de 5 clients",
-    "timestamp": "2025-03-09T06:23:55.924133"
-  },
-  {
-    "id": "48dc6700-15e9-41de-90dd-0542a177b692",
-    "type": "client",
-    "description": "Exportation de 5 clients",
-    "timestamp": "2025-03-09T06:22:17.126949"
-  },
-  {
-    "id": "46bbb802-262e-4409-8942-2603ae2e1093",
-    "type": "client",
-    "description": "Client supprimé: test",
-    "timestamp": "2025-03-09T06:10:12.118358"
-  },
-  {
-    "id": "85227948-f695-47ce-927b-5c2bca5a2a53",
-    "type": "document",
-    "description": "Document créé: contrat - John Doee",
-    "timestamp": "2025-03-09T05:50:45.885522"
-  },
-  {
-    "id": "a4fc57b8-b498-4a36-89a9-6ce5401e9429",
-    "type": "document",
-    "description": "Document créé: contrat - test",
-    "timestamp": "2025-03-09T05:31:14.064474"
-  },
-  {
-    "id": "51286d7d-2f65-4567-a9ea-f2d6eb650ba4",
-    "type": "client",
-    "description": "Nouveau client: test",
-    "timestamp": "2025-03-09T05:23:18.356501"
-  },
-  {
-    "id": "3489dd4d-1574-44b4-a6de-3dccc127dbe0",
-    "type": "client",
-    "description": "Client supprimé: test",
-    "timestamp": "2025-03-09T05:20:26.229038"
+    "description": "Document créé: Contrat - Jane Smith",
+    "timestamp": "2025-03-09T16:07:19.135781"
   }
 ]

@@ -1,5 +1,25 @@
 [
   {
+    "id": "template_6_20250309125012",
+    "name": "RTEST",
+    "type": "facture",
+    "description": "TEST",
+    "content": "TETS\nTEST",
+    "variables": [],
+    "created_at": "2025-03-09T12:50:12.908909",
+    "updated_at": "2025-03-09T12:50:12.908909"
+  },
+  {
+    "id": "0a98b82e-72a3-421f-8914-9a6ab6557f52",
+    "name": "Ambassade Canada",
+    "type": "autre",
+    "description": "Modèle importé depuis le fichier PDF Ambassade Canada",
+    "content": "Ardo Gningue  \nTivaouane ,eid  \nArdogningue7@gmail.com   \n+221 77 260 01 50  \n \nÀ l’attention de Son Excellence l’Ambassadeur du Canada , \n \nAmbassade du Canada au Sénégal  \nAu coin des rues Galliéni et Amadou Cissé Dia  \nC.P. 3373  \nDakar, Sénégal  \nLundi 10 mars 2025  \n \nObjet  : Atteinte grave à la liberté d’opinion et menaces sur ma personne \naprès ma plainte déposée au Pôle Judiciaire Financier et à l’OFNAC sur les \n1000 milliards découverts par le Premier ministre Ousmane Sonko – \nAccusations fallacieuses visant à m’empris onner  \n \nSon Excellence,  \n \nPar la présente, je tiens à vous informer de la situation alarmante \ndans laquelle je me trouve en raison de mon engagement dans la \nlutte contre la corruption et pour la transparence dans la gestion \ndes deniers publics. Suite à ma plainte déposée auprès du Pôle \nJudiciaire Financier et de l’OFNAC concernant les 1000 milliards \ndécouverts par le Premier ministre Ousmane Sonko, je fais \naujourd’hui l’objet d’une cabale politique visant à me réduire au \nsilence.  \n \nLe régime en place a orchestré contre moi des accusations \nfallacieuses, dans le but manifeste de m’emprisonner et \nd’intimider toute voix dissidente. Depuis ce dépôt de plainte, je \nsuis confronté à des menaces croissantes sur ma personne, à des \npressions in cessantes et à un climat d’insécurité qui met ma \nliberté et mon intégrité physique en péril.  \n \nCes actes constituent une grave atteinte à la liberté d’opinion et \naux droits fondamentaux garantis par les principes \ndémocratiques. Face à cette situation préoccupante, je sollicite \nvotre bienveillance et votre intervention pour porter cette affaire à \nl’attention des instances compétentes et contribuer à garantir ma \nsécurité.  \n \nJe reste disponible pour toute information complémentaire et \nvous prie d’agréer, Son Excellence, l’expression de ma plus haute \nconsidération.  \n \n \nArdo Gningue  \nActiviste , citoyen sénégalais",
+    "variables": [],
+    "created_at": "2025-03-09T11:03:19.740436",
+    "updated_at": "2025-03-09T11:03:35.221248"
+  },
+  {
     "id": "00e62e74-7275-4939-975f-bd2d26c236e1",
     "name": "Ambassade Canada",
     "type": "autre",
@@ -38,15 +58,5 @@
     "variables": [],
     "created_at": "2025-03-09T07:58:58.457378",
     "updated_at": "2025-03-09T07:58:58.457378"
-  },
-  {
-    "id": "0a98b82e-72a3-421f-8914-9a6ab6557f52",
-    "name": "Ambassade Canada",
-    "type": "autre",
-    "description": "Modèle importé depuis le fichier PDF Ambassade Canada",
-    "variables": [],
-    "content": "Ardo Gningue  \nTivaouane ,eid  \nArdogningue7@gmail.com   \n+221 77 260 01 50  \n \nÀ l’attention de Son Excellence l’Ambassadeur du Canada , \n \nAmbassade du Canada au Sénégal  \nAu coin des rues Galliéni et Amadou Cissé Dia  \nC.P. 3373  \nDakar, Sénégal  \nLundi 10 mars 2025  \n \nObjet  : Atteinte grave à la liberté d’opinion et menaces sur ma personne \naprès ma plainte déposée au Pôle Judiciaire Financier et à l’OFNAC sur les \n1000 milliards découverts par le Premier ministre Ousmane Sonko – \nAccusations fallacieuses visant à m’empris onner  \n \nSon Excellence,  \n \nPar la présente, je tiens à vous informer de la situation alarmante \ndans laquelle je me trouve en raison de mon engagement dans la \nlutte contre la corruption et pour la transparence dans la gestion \ndes deniers publics. Suite à ma plainte déposée auprès du Pôle \nJudiciaire Financier et de l’OFNAC concernant les 1000 milliards \ndécouverts par le Premier ministre Ousmane Sonko, je fais \naujourd’hui l’objet d’une cabale politique visant à me réduire au \nsilence.  \n \nLe régime en place a orchestré contre moi des accusations \nfallacieuses, dans le but manifeste de m’emprisonner et \nd’intimider toute voix dissidente. Depuis ce dépôt de plainte, je \nsuis confronté à des menaces croissantes sur ma personne, à des \npressions in cessantes et à un climat d’insécurité qui met ma \nliberté et mon intégrité physique en péril.  \n \nCes actes constituent une grave atteinte à la liberté d’opinion et \naux droits fondamentaux garantis par les principes \ndémocratiques. Face à cette situation préoccupante, je sollicite \nvotre bienveillance et votre intervention pour porter cette affaire à \nl’attention des instances compétentes et contribuer à garantir ma \nsécurité.  \n \nJe reste disponible pour toute information complémentaire et \nvous prie d’agréer, Son Excellence, l’expression de ma plus haute \nconsidération.  \n \n \nArdo Gningue  \nActiviste , citoyen sénégalais",
-    "created_at": "2025-03-09T11:03:19.740436",
-    "updated_at": "2025-03-09T11:03:35.221248"
   }
 ]
