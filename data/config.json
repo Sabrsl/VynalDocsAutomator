@@ -1,38 +1,50 @@
 {
-    "app": {
-        "name": "Vynal Docs Automator",
-        "version": "1.0.0",
-        "theme": "light",
-        "language": "fr",
-        "company_name": "Vynal Agency LTD",
-        "company_logo": "",
-        "auto_save": true,
-        "save_interval": 5
-    },
-    "paths": {
-        "documents": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\documents",
-        "templates": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\templates",
-        "clients": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\clients",
-        "backup": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\backup"
-    },
-    "security": {
-        "require_password": false,
-        "password_hash": "",
-        "auto_lock": false,
-        "lock_time": 10
-    },
-    "document": {
-        "default_format": "pdf",
-        "filename_pattern": "{document_type}_{client_name}_{date}",
-        "date_format": "%Y-%m-%d"
-    },
-    "users": [
-        {
-            "username": "admin",
-            "display_name": "Administrateur",
-            "role": "admin",
-            "password_hash": "",
-            "created_at": ""
-        }
-    ]
+  "app": {
+    "name": "Vynal Docs Automator",
+    "version": "1.0.0",
+    "theme": "light",
+    "language": "fr",
+    "company_name": "Vynal Docs",
+    "company_logo": "",
+    "auto_save": true,
+    "save_interval": 5
+  },
+  "paths": {
+    "documents": "C:\\Users\\badza\\VynalDocs\\Documents",
+    "templates": "C:\\Users\\badza\\VynalDocs\\Templates",
+    "clients": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\clients",
+    "backup": "C:\\Users\\badza\\Desktop\\vynal_docs_automator\\data\\backup"
+  },
+  "security": {
+    "require_password": false,
+    "password_hash": "",
+    "auto_lock": false,
+    "lock_time": 10
+  },
+  "document": {
+    "default_format": "pdf",
+    "filename_pattern": "{document_type}_{client_name}_{date}",
+    "date_format": "%Y-%m-%d"
+  },
+  "users": [
+    {
+      "username": "admin",
+      "display_name": "Administrateur",
+      "role": "admin",
+      "password_hash": "",
+      "created_at": "2025-03-09T05:43:40.525176"
+    }
+  ],
+  "ui": {
+    "font_size": "medium",
+    "show_tooltips": true,
+    "enable_animations": true,
+    "sidebar_width": 200
+  },
+  "logging": {
+    "level": "INFO",
+    "retention_days": 30,
+    "max_files": 10,
+    "log_user_actions": true
+  }
 }

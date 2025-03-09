@@ -10,6 +10,7 @@ import re
 import shutil
 import logging
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 from reportlab.pdfgen import canvas
@@ -19,6 +20,172 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 logger = logging.getLogger("VynalDocsAutomator.DocumentController")
+
+class DialogUtils:
+    """
+    Utilitaires pour créer des boîtes de dialogue cohérentes dans l'application
+    """
+    
+    @staticmethod
+    def show_confirmation(parent, title, message, on_yes=None, on_no=None):
+        """
+        Affiche une boîte de dialogue de confirmation
+        
+        Args:
+            parent: Widget parent
+            title: Titre de la boîte de dialogue
+            message: Message à afficher
+            on_yes: Fonction à appeler si l'utilisateur confirme
+            on_no: Fonction à appeler si l'utilisateur annule
+            
+        Returns:
+            bool: True si confirmé, False sinon
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title(title)
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.focus_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Résultat par défaut
+        result = [False]
+        
+        # Cadre principal
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        ctk.CTkLabel(
+            frame,
+            text=f"⚠️ {title}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(0, 10))
+        
+        # Message
+        ctk.CTkLabel(
+            frame,
+            text=message,
+            wraplength=360
+        ).pack(pady=10)
+        
+        # Cadre pour les boutons
+        button_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        button_frame.pack(pady=10)
+        
+        # Fonctions de callback
+        def yes_action():
+            result[0] = True
+            dialog.destroy()
+            if on_yes:
+                on_yes()
+        
+        def no_action():
+            result[0] = False
+            dialog.destroy()
+            if on_no:
+                on_no()
+        
+        # Bouton Non
+        ctk.CTkButton(
+            button_frame,
+            text="Non",
+            command=no_action,
+            width=100,
+            fg_color="#e74c3c",
+            hover_color="#c0392b"
+        ).pack(side=ctk.LEFT, padx=10)
+        
+        # Bouton Oui
+        ctk.CTkButton(
+            button_frame,
+            text="Oui",
+            command=yes_action,
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60"
+        ).pack(side=ctk.LEFT, padx=10)
+        
+        # Attendre que la fenêtre soit fermée
+        parent.wait_window(dialog)
+        
+        return result[0]
+    
+    @staticmethod
+    def show_message(parent, title, message, message_type="info"):
+        """
+        Affiche une boîte de dialogue avec un message
+        
+        Args:
+            parent: Widget parent
+            title: Titre de la boîte de dialogue
+            message: Message à afficher
+            message_type: Type de message ('info', 'error', 'warning', 'success')
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title(title)
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.focus_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Icône selon le type
+        icon = "ℹ️"
+        button_color = "#3498db"
+        hover_color = "#2980b9"
+        
+        if message_type == "error":
+            icon = "❌"
+            button_color = "#e74c3c"
+            hover_color = "#c0392b"
+        elif message_type == "warning":
+            icon = "⚠️"
+            button_color = "#f39c12"
+            hover_color = "#d35400"
+        elif message_type == "success":
+            icon = "✅"
+            button_color = "#2ecc71"
+            hover_color = "#27ae60"
+        
+        # Cadre principal
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        ctk.CTkLabel(
+            frame,
+            text=f"{icon} {title}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(0, 10))
+        
+        # Message
+        ctk.CTkLabel(
+            frame,
+            text=message,
+            wraplength=360
+        ).pack(pady=10)
+        
+        # Bouton OK
+        ctk.CTkButton(
+            frame,
+            text="OK",
+            command=dialog.destroy,
+            width=100,
+            fg_color=button_color,
+            hover_color=hover_color
+        ).pack(pady=10)
 
 class DocumentController:
     """
@@ -54,25 +221,28 @@ class DocumentController:
         
         logger.info("Événements de DocumentView connectés")
     
-    def new_document(self):
+    def new_document(self, template_id=None):
         """
         Crée un nouveau document à partir d'un modèle
+        
+        Args:
+            template_id: ID du modèle à utiliser (optionnel)
         """
         # Vérifier s'il y a des modèles disponibles
         if not self.model.templates:
-            messagebox.showwarning("Attention", "Aucun modèle disponible. Veuillez d'abord créer un modèle.", parent=self.view.parent)
+            DialogUtils.show_message(self.view.parent, "Attention", "Aucun modèle disponible. Veuillez d'abord créer un modèle.", "warning")
             return
         
         # Vérifier s'il y a des clients disponibles
         if not self.model.clients:
-            messagebox.showwarning("Attention", "Aucun client disponible. Veuillez d'abord ajouter un client.", parent=self.view.parent)
+            DialogUtils.show_message(self.view.parent, "Attention", "Aucun client disponible. Veuillez d'abord ajouter un client.", "warning")
             return
         
         # Créer une fenêtre de dialogue
-        dialog = tk.Toplevel(self.view.parent)
+        dialog = ctk.CTkToplevel(self.view.parent)
         dialog.title("Nouveau document")
-        dialog.geometry("550x600")
-        dialog.resizable(False, False)
+        dialog.geometry("600x700")
+        dialog.resizable(True, True)
         dialog.grab_set()  # Modal
         dialog.focus_set()
         
@@ -83,94 +253,102 @@ class DocumentController:
         dialog.geometry(f"+{x}+{y}")
         
         # Créer un cadre principal avec défilement
-        main_frame = tk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_frame = ctk.CTkScrollableFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
         
         # 1. Sélection du modèle
-        template_frame = tk.LabelFrame(main_frame, text="1. Sélectionner un modèle")
-        template_frame.pack(fill=tk.X, pady=10)
+        template_frame = ctk.CTkFrame(main_frame)
+        template_frame.pack(fill=ctk.X, pady=10)
+        
+        ctk.CTkLabel(template_frame, text="1. Sélectionner un modèle", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
         
         # Liste des modèles
-        template_list_frame = tk.Frame(template_frame)
-        template_list_frame.pack(fill=tk.X, padx=10, pady=10)
+        template_list_frame = ctk.CTkFrame(template_frame)
+        template_list_frame.pack(fill=ctk.X, padx=10, pady=10)
         
-        tk.Label(template_list_frame, text="Modèle:").grid(row=0, column=0, sticky="w")
-        template_var = tk.StringVar()
+        ctk.CTkLabel(template_list_frame, text="Modèle:").pack(side=ctk.LEFT, padx=5)
+        template_var = ctk.StringVar()
         template_options = [f"{t.get('name')} ({t.get('type', '')})" for t in self.model.templates]
-        template_menu = tk.OptionMenu(template_list_frame, template_var, *template_options)
-        template_menu.grid(row=0, column=1, sticky="ew", padx=5)
-        template_list_frame.columnconfigure(1, weight=1)
+        template_combobox = ctk.CTkComboBox(template_list_frame, values=template_options, 
+                                         variable=template_var, width=350)
+        template_combobox.pack(side=ctk.LEFT, padx=5, fill=ctk.X, expand=True)
+        
+        # Si un template_id est fourni, le sélectionner
+        if template_id:
+            template = next((t for t in self.model.templates if t.get('id') == template_id), None)
+            if template:
+                template_name = f"{template.get('name')} ({template.get('type', '')})"
+                if template_name in template_options:
+                    template_var.set(template_name)
         
         # Description du modèle sélectionné
-        template_desc = tk.Label(template_frame, text="", justify=tk.LEFT, wraplength=500)
-        template_desc.pack(fill=tk.X, padx=10, pady=5)
+        template_desc = ctk.CTkLabel(template_frame, text="", justify=ctk.LEFT, wraplength=550)
+        template_desc.pack(fill=ctk.X, padx=10, pady=5)
         
         # 2. Sélection du client
-        client_frame = tk.LabelFrame(main_frame, text="2. Sélectionner un client")
-        client_frame.pack(fill=tk.X, pady=10)
+        client_frame = ctk.CTkFrame(main_frame)
+        client_frame.pack(fill=ctk.X, pady=10)
+        
+        ctk.CTkLabel(client_frame, text="2. Sélectionner un client", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
         
         # Liste des clients
-        client_list_frame = tk.Frame(client_frame)
-        client_list_frame.pack(fill=tk.X, padx=10, pady=10)
+        client_list_frame = ctk.CTkFrame(client_frame)
+        client_list_frame.pack(fill=ctk.X, padx=10, pady=10)
         
-        tk.Label(client_list_frame, text="Client:").grid(row=0, column=0, sticky="w")
-        client_var = tk.StringVar()
+        ctk.CTkLabel(client_list_frame, text="Client:").pack(side=ctk.LEFT, padx=5)
+        client_var = ctk.StringVar()
         client_options = [f"{c.get('name')} ({c.get('company', '')})" for c in self.model.clients]
-        client_menu = tk.OptionMenu(client_list_frame, client_var, *client_options)
-        client_menu.grid(row=0, column=1, sticky="ew", padx=5)
-        client_list_frame.columnconfigure(1, weight=1)
+        client_combobox = ctk.CTkComboBox(client_list_frame, values=client_options, 
+                                       variable=client_var, width=350)
+        client_combobox.pack(side=ctk.LEFT, padx=5, fill=ctk.X, expand=True)
         
         # Informations du client sélectionné
-        client_info = tk.Label(client_frame, text="", justify=tk.LEFT, wraplength=500)
-        client_info.pack(fill=tk.X, padx=10, pady=5)
+        client_info = ctk.CTkLabel(client_frame, text="", justify=ctk.LEFT, wraplength=550)
+        client_info.pack(fill=ctk.X, padx=10, pady=5)
         
         # 3. Informations du document
-        info_frame = tk.LabelFrame(main_frame, text="3. Informations du document")
-        info_frame.pack(fill=tk.X, pady=10)
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill=ctk.X, pady=10)
         
-        info_list_frame = tk.Frame(info_frame)
-        info_list_frame.pack(fill=tk.X, padx=10, pady=10)
+        ctk.CTkLabel(info_frame, text="3. Informations du document", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        info_list_frame = ctk.CTkFrame(info_frame)
+        info_list_frame.pack(fill=ctk.X, padx=10, pady=10)
         
         # Titre
-        tk.Label(info_list_frame, text="Titre:").grid(row=0, column=0, sticky="w", pady=5)
-        title_var = tk.StringVar()
-        title_entry = tk.Entry(info_list_frame, textvariable=title_var, width=40)
-        title_entry.grid(row=0, column=1, sticky="ew", pady=5)
+        title_row = ctk.CTkFrame(info_list_frame)
+        title_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(title_row, text="Titre:").pack(side=ctk.LEFT, padx=5)
+        title_var = ctk.StringVar()
+        title_entry = ctk.CTkEntry(title_row, textvariable=title_var, width=400)
+        title_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
         
         # Date
-        tk.Label(info_list_frame, text="Date:").grid(row=1, column=0, sticky="w", pady=5)
-        date_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        date_entry = tk.Entry(info_list_frame, textvariable=date_var, width=40)
-        date_entry.grid(row=1, column=1, sticky="ew", pady=5)
+        date_row = ctk.CTkFrame(info_list_frame)
+        date_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(date_row, text="Date:").pack(side=ctk.LEFT, padx=5)
+        date_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        date_entry = ctk.CTkEntry(date_row, textvariable=date_var, width=200)
+        date_entry.pack(side=ctk.LEFT, padx=5)
         
         # Description
-        tk.Label(info_list_frame, text="Description:").grid(row=2, column=0, sticky="w", pady=5)
-        description_text = tk.Text(info_list_frame, width=40, height=3)
-        description_text.grid(row=2, column=1, sticky="ew", pady=5)
-        
-        info_list_frame.columnconfigure(1, weight=1)
+        desc_row = ctk.CTkFrame(info_list_frame)
+        desc_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(desc_row, text="Description:").pack(side=ctk.LEFT, padx=5)
+        description_frame = ctk.CTkFrame(desc_row)
+        description_frame.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
+        description_text = ctk.CTkTextbox(description_frame, width=400, height=80)
+        description_text.pack(fill=ctk.BOTH, expand=True)
         
         # 4. Variables spécifiques du modèle
-        variables_frame = tk.LabelFrame(main_frame, text="4. Variables spécifiques")
-        variables_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        variables_frame = ctk.CTkFrame(main_frame)
+        variables_frame.pack(fill=ctk.BOTH, expand=True, pady=10)
+        
+        ctk.CTkLabel(variables_frame, text="4. Variables spécifiques", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
         
         # Cadre défilable pour les variables
-        canvas = tk.Canvas(variables_frame)
-        scrollbar = tk.Scrollbar(variables_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        variables_scroll = ctk.CTkScrollableFrame(variables_frame)
+        variables_scroll.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
         
         # Dictionnaire pour stocker les widgets des variables
         variable_widgets = {}
@@ -187,7 +365,7 @@ class DocumentController:
             template = self.model.templates[template_index]
             
             # Mettre à jour la description
-            template_desc.config(text=template.get('description', ''))
+            template_desc.configure(text=template.get('description', ''))
             
             # Générer un titre par défaut si le client est sélectionné
             if client_var.get():
@@ -196,7 +374,7 @@ class DocumentController:
             
             # Mettre à jour les variables
             # Supprimer les anciens widgets
-            for widget in scrollable_frame.winfo_children():
+            for widget in variables_scroll.winfo_children():
                 widget.destroy()
             
             # Créer les nouveaux widgets pour chaque variable
@@ -204,47 +382,55 @@ class DocumentController:
             variables = template.get('variables', [])
             
             if variables:
-                tk.Label(scrollable_frame, text="Complétez les informations spécifiques à ce document:").pack(anchor="w", padx=10, pady=(10, 5))
+                ctk.CTkLabel(
+                    variables_scroll, 
+                    text="Complétez les informations spécifiques à ce document:",
+                    font=ctk.CTkFont(weight="bold")
+                ).pack(anchor="w", pady=(0, 10))
                 
                 for i, var_name in enumerate(variables):
                     # Ignorer les variables standard qui seront remplies automatiquement
                     if var_name in ['client_name', 'client_company', 'client_email', 'client_phone', 'client_address']:
                         continue
                     
-                    frame = tk.Frame(scrollable_frame)
-                    frame.pack(fill=tk.X, padx=10, pady=2)
+                    var_frame = ctk.CTkFrame(variables_scroll)
+                    var_frame.pack(fill=ctk.X, pady=5)
                     
-                    tk.Label(frame, text=f"{var_name}:").pack(side=tk.LEFT)
+                    ctk.CTkLabel(var_frame, text=f"{var_name}:").pack(side=ctk.LEFT, padx=5)
                     
                     if "montant" in var_name.lower() or "prix" in var_name.lower() or "cout" in var_name.lower() or "coût" in var_name.lower():
                         # Champ monétaire
-                        money_frame = tk.Frame(frame)
-                        money_frame.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                        money_frame = ctk.CTkFrame(var_frame, fg_color="transparent")
+                        money_frame.pack(side=ctk.RIGHT, fill=ctk.X, expand=True)
                         
-                        var = tk.StringVar()
-                        entry = tk.Entry(money_frame, textvariable=var)
-                        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                        var = ctk.StringVar()
+                        entry = ctk.CTkEntry(money_frame, textvariable=var, width=150)
+                        entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
                         
-                        tk.Label(money_frame, text="€").pack(side=tk.LEFT)
+                        ctk.CTkLabel(money_frame, text="€").pack(side=ctk.LEFT)
                         
                         variable_widgets[var_name] = {"widget": entry, "var": var, "type": "money"}
                     elif "date" in var_name.lower():
                         # Champ date
-                        var = tk.StringVar()
-                        entry = tk.Entry(frame, textvariable=var, width=15)
-                        entry.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                        var = ctk.StringVar()
+                        entry = ctk.CTkEntry(var_frame, textvariable=var, width=150)
+                        entry.pack(side=ctk.RIGHT, fill=ctk.X, expand=True, padx=5)
                         entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
                         
                         variable_widgets[var_name] = {"widget": entry, "var": var, "type": "date"}
                     else:
                         # Champ texte standard
-                        var = tk.StringVar()
-                        entry = tk.Entry(frame, textvariable=var)
-                        entry.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                        var = ctk.StringVar()
+                        entry = ctk.CTkEntry(var_frame, textvariable=var, width=250)
+                        entry.pack(side=ctk.RIGHT, fill=ctk.X, expand=True, padx=5)
                         
                         variable_widgets[var_name] = {"widget": entry, "var": var, "type": "text"}
             else:
-                tk.Label(scrollable_frame, text="Ce modèle ne contient pas de variables personnalisables.").pack(anchor="w", padx=10, pady=10)
+                ctk.CTkLabel(
+                    variables_scroll, 
+                    text="Ce modèle ne contient pas de variables personnalisables.",
+                    text_color="gray"
+                ).pack(anchor="w", pady=10)
         
         def update_client_info(*args):
             # Récupérer le client sélectionné
@@ -263,12 +449,18 @@ class DocumentController:
             if client.get('address'):
                 info_text += f"Adresse: {client.get('address')}"
             
-            client_info.config(text=info_text)
+            client_info.configure(text=info_text)
             
             # Mettre à jour le titre si un modèle est sélectionné
             if template_var.get():
-                template_name = template_var.get().split(' (')[0]
-                template_type = template_var.get().split(' (')[1].strip(')')
+                template_type = ""
+                try:
+                    template_parts = template_var.get().split(' (')
+                    template_name = template_parts[0]
+                    template_type = template_parts[1].strip(')')
+                except:
+                    template_name = template_var.get()
+                    
                 client_name = selected_client.split(' (')[0]
                 title_var.set(f"{template_type} - {client_name}")
         
@@ -277,24 +469,24 @@ class DocumentController:
         client_var.trace_add("write", update_client_info)
         
         # Boutons
-        button_frame = tk.Frame(dialog)
-        button_frame.pack(fill=tk.X, pady=10)
+        button_frame = ctk.CTkFrame(dialog)
+        button_frame.pack(fill=ctk.X, pady=10, padx=20)
         
         # Fonction pour générer le document
         def generate_document():
             # Vérifier si un modèle et un client sont sélectionnés
             if not template_var.get():
-                messagebox.showwarning("Attention", "Veuillez sélectionner un modèle", parent=dialog)
+                DialogUtils.show_message(dialog, "Attention", "Veuillez sélectionner un modèle", "warning")
                 return
             
             if not client_var.get():
-                messagebox.showwarning("Attention", "Veuillez sélectionner un client", parent=dialog)
+                DialogUtils.show_message(dialog, "Attention", "Veuillez sélectionner un client", "warning")
                 return
             
             # Récupérer le titre et la date
             title = title_var.get().strip()
             if not title:
-                messagebox.showwarning("Attention", "Veuillez entrer un titre", parent=dialog)
+                DialogUtils.show_message(dialog, "Attention", "Veuillez entrer un titre", "warning")
                 return
             
             date = date_var.get().strip()
@@ -363,21 +555,31 @@ class DocumentController:
                 dialog.destroy()
                 
                 # Afficher un message de succès
-                messagebox.showinfo("Succès", f"Document '{title}' créé avec succès")
+                DialogUtils.show_message(self.view.parent, "Succès", f"Document '{title}' créé avec succès", "success")
                 
                 logger.info(f"Document créé: {document_id} - {title}")
                 
             except Exception as e:
                 logger.error(f"Erreur lors de la génération du document: {e}")
-                messagebox.showerror("Erreur", f"Erreur lors de la génération du document: {str(e)}", parent=dialog)
+                DialogUtils.show_message(dialog, "Erreur", f"Erreur lors de la génération du document: {str(e)}", "error")
         
         # Bouton Annuler
-        cancel_btn = tk.Button(button_frame, text="Annuler", command=dialog.destroy, width=10)
-        cancel_btn.pack(side=tk.RIGHT, padx=10)
+        cancel_btn = ctk.CTkButton(
+            button_frame, 
+            text="Annuler", 
+            command=dialog.destroy, 
+            width=120
+        )
+        cancel_btn.pack(side=ctk.RIGHT, padx=10)
         
         # Bouton Générer
-        generate_btn = tk.Button(button_frame, text="Générer", command=generate_document, width=10)
-        generate_btn.pack(side=tk.RIGHT, padx=10)
+        generate_btn = ctk.CTkButton(
+            button_frame, 
+            text="Générer", 
+            command=generate_document, 
+            width=120
+        )
+        generate_btn.pack(side=ctk.RIGHT, padx=10)
         
         logger.info("Formulaire de création de document affiché")
     
@@ -392,14 +594,14 @@ class DocumentController:
         document = next((d for d in self.model.documents if d.get('id') == document_id), None)
         
         if not document:
-            messagebox.showerror("Erreur", "Document non trouvé")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Document non trouvé", "error")
             return
         
         # Vérifier si le fichier existe
         file_path = document.get('file_path')
         
         if not file_path or not os.path.exists(file_path):
-            messagebox.showerror("Erreur", "Le fichier du document est introuvable")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Le fichier du document est introuvable", "error")
             return
         
         # Ouvrir le fichier avec l'application par défaut du système
@@ -414,7 +616,7 @@ class DocumentController:
             logger.info(f"Document ouvert: {document_id} - {file_path}")
         except Exception as e:
             logger.error(f"Erreur lors de l'ouverture du document: {e}")
-            messagebox.showerror("Erreur", f"Erreur lors de l'ouverture du document: {str(e)}")
+            DialogUtils.show_message(self.view.parent, "Erreur", f"Erreur lors de l'ouverture du document: {str(e)}", "error")
     
     def download_document(self, document_id):
         """
@@ -427,14 +629,14 @@ class DocumentController:
         document = next((d for d in self.model.documents if d.get('id') == document_id), None)
         
         if not document:
-            messagebox.showerror("Erreur", "Document non trouvé")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Document non trouvé", "error")
             return
         
         # Vérifier si le fichier existe
         file_path = document.get('file_path')
         
         if not file_path or not os.path.exists(file_path):
-            messagebox.showerror("Erreur", "Le fichier du document est introuvable")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Le fichier du document est introuvable", "error")
             return
         
         # Déterminer l'extension du fichier
@@ -456,10 +658,10 @@ class DocumentController:
             shutil.copy2(file_path, dest_path)
             
             logger.info(f"Document téléchargé: {document_id} - {dest_path}")
-            messagebox.showinfo("Succès", "Document téléchargé avec succès")
+            DialogUtils.show_message(self.view.parent, "Succès", "Document téléchargé avec succès", "success")
         except Exception as e:
             logger.error(f"Erreur lors du téléchargement du document: {e}")
-            messagebox.showerror("Erreur", f"Erreur lors du téléchargement du document: {str(e)}")
+            DialogUtils.show_message(self.view.parent, "Erreur", f"Erreur lors du téléchargement du document: {str(e)}", "error")
     
     def filter_documents(self, *args):
         """
@@ -579,6 +781,9 @@ class DocumentController:
             company_name: Nom de l'entreprise
         """
         try:
+            # Créer le répertoire parent si nécessaire
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
             # Créer un PDF
             c = canvas.Canvas(file_path, pagesize=A4)
             width, height = A4
@@ -656,6 +861,9 @@ class DocumentController:
             company_name: Nom de l'entreprise
         """
         try:
+            # Créer le répertoire parent si nécessaire
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
             # Créer un document Word
             doc = docx.Document()
             
@@ -723,45 +931,43 @@ class DocumentController:
         document = next((d for d in self.model.documents if d.get('id') == document_id), None)
         
         if not document:
-            messagebox.showerror("Erreur", "Document non trouvé")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Document non trouvé", "error")
             return
         
         # Confirmer la suppression
-        response = messagebox.askyesno(
-            "Confirmation", 
+        def delete_action():
+            try:
+                # Supprimer le fichier s'il existe
+                file_path = document.get('file_path')
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+                
+                # Supprimer le document de la liste
+                self.model.documents = [d for d in self.model.documents if d.get('id') != document_id]
+                
+                # Sauvegarder les modifications
+                self.model.save_documents()
+                
+                # Ajouter l'activité
+                self.model.add_activity("document", f"Document supprimé: {document.get('title')}")
+                
+                # Mettre à jour la vue
+                self.view.update_view()
+                
+                logger.info(f"Document supprimé: {document_id} - {document.get('title')}")
+                
+                # Afficher un message de succès
+                DialogUtils.show_message(self.view.parent, "Succès", "Document supprimé avec succès", "success")
+            except Exception as e:
+                logger.error(f"Erreur lors de la suppression du document: {e}")
+                DialogUtils.show_message(self.view.parent, "Erreur", f"Erreur lors de la suppression du document: {str(e)}", "error")
+        
+        DialogUtils.show_confirmation(
+            self.view.parent,
+            "Confirmer la suppression",
             f"Êtes-vous sûr de vouloir supprimer le document '{document.get('title')}'?\n\nCette action est irréversible.",
-            icon='warning'
+            on_yes=delete_action
         )
-        
-        if not response:
-            return
-        
-        try:
-            # Supprimer le fichier s'il existe
-            file_path = document.get('file_path')
-            if file_path and os.path.exists(file_path):
-                os.remove(file_path)
-            
-            # Supprimer le document de la liste
-            self.model.documents = [d for d in self.model.documents if d.get('id') != document_id]
-            
-            # Sauvegarder les modifications
-            self.model.save_documents()
-            
-            # Ajouter l'activité
-            self.model.add_activity("document", f"Document supprimé: {document.get('title')}")
-            
-            # Mettre à jour la vue
-            self.view.update_view()
-            
-            logger.info(f"Document supprimé: {document_id} - {document.get('title')}")
-            
-            # Afficher un message de succès
-            messagebox.showinfo("Succès", "Document supprimé avec succès")
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de la suppression du document: {e}")
-            messagebox.showerror("Erreur", f"Erreur lors de la suppression du document: {str(e)}")
     
     def export_document(self, document_id, format_type=None):
         """
@@ -775,14 +981,14 @@ class DocumentController:
         document = next((d for d in self.model.documents if d.get('id') == document_id), None)
         
         if not document:
-            messagebox.showerror("Erreur", "Document non trouvé")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Document non trouvé", "error")
             return
         
         # Vérifier si le fichier existe
         file_path = document.get('file_path')
         
         if not file_path or not os.path.exists(file_path):
-            messagebox.showerror("Erreur", "Le fichier du document est introuvable")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Le fichier du document est introuvable", "error")
             return
         
         # Déterminer le format actuel
@@ -798,7 +1004,7 @@ class DocumentController:
         
         # Vérifier que le format est différent du format actuel
         if format_type == current_ext:
-            messagebox.showinfo("Information", f"Le document est déjà au format {format_type.upper()}")
+            DialogUtils.show_message(self.view.parent, "Information", f"Le document est déjà au format {format_type.upper()}", "info")
             return
         
         # Déterminer le chemin du nouveau fichier
@@ -835,12 +1041,7 @@ class DocumentController:
             logger.info(f"Document exporté: {document_id} - {new_file_path}")
             
             # Demander à l'utilisateur s'il veut ouvrir le fichier
-            response = messagebox.askyesno(
-                "Succès", 
-                f"Document exporté avec succès en format {format_type.upper()}.\n\nVoulez-vous l'ouvrir maintenant?"
-            )
-            
-            if response:
+            def open_exported_file():
                 # Ouvrir le fichier avec l'application par défaut du système
                 if os.name == 'nt':  # Windows
                     os.startfile(new_file_path)
@@ -848,9 +1049,16 @@ class DocumentController:
                     import subprocess
                     subprocess.call(('open' if os.uname().sysname == 'Darwin' else 'xdg-open', new_file_path))
             
+            DialogUtils.show_confirmation(
+                self.view.parent,
+                "Succès",
+                f"Document exporté avec succès en format {format_type.upper()}.\n\nVoulez-vous l'ouvrir maintenant?",
+                on_yes=open_exported_file
+            )
+            
         except Exception as e:
             logger.error(f"Erreur lors de l'exportation du document: {e}")
-            messagebox.showerror("Erreur", f"Erreur lors de l'exportation du document: {str(e)}")
+            DialogUtils.show_message(self.view.parent, "Erreur", f"Erreur lors de l'exportation du document: {str(e)}", "error")
     
     def update_document(self, document_id):
         """
@@ -863,7 +1071,7 @@ class DocumentController:
         document = next((d for d in self.model.documents if d.get('id') == document_id), None)
         
         if not document:
-            messagebox.showerror("Erreur", "Document non trouvé")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Document non trouvé", "error")
             return
         
         # Récupérer le client et le modèle associés
@@ -874,11 +1082,11 @@ class DocumentController:
         template = next((t for t in self.model.templates if t.get('id') == template_id), None)
         
         if not client or not template:
-            messagebox.showerror("Erreur", "Client ou modèle introuvable")
+            DialogUtils.show_message(self.view.parent, "Erreur", "Client ou modèle introuvable", "error")
             return
         
         # Ouvrir une boîte de dialogue pour modifier les informations
-        dialog = tk.Toplevel(self.view.parent)
+        dialog = ctk.CTkToplevel(self.view.parent)
         dialog.title("Mettre à jour le document")
         dialog.geometry("550x600")
         dialog.resizable(False, False)
@@ -892,57 +1100,53 @@ class DocumentController:
         dialog.geometry(f"+{x}+{y}")
         
         # Créer un cadre principal avec défilement
-        main_frame = tk.Frame(dialog)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_frame = ctk.CTkScrollableFrame(dialog)
+        main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
         
         # Informations du document
-        info_frame = tk.LabelFrame(main_frame, text="Informations du document")
-        info_frame.pack(fill=tk.X, pady=10)
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill=ctk.X, pady=10)
         
-        info_list_frame = tk.Frame(info_frame)
-        info_list_frame.pack(fill=tk.X, padx=10, pady=10)
+        ctk.CTkLabel(info_frame, text="Informations du document", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        info_list_frame = ctk.CTkFrame(info_frame)
+        info_list_frame.pack(fill=ctk.X, padx=10, pady=10)
         
         # Titre
-        tk.Label(info_list_frame, text="Titre:").grid(row=0, column=0, sticky="w", pady=5)
-        title_var = tk.StringVar(value=document.get('title', ''))
-        title_entry = tk.Entry(info_list_frame, textvariable=title_var, width=40)
-        title_entry.grid(row=0, column=1, sticky="ew", pady=5)
+        title_row = ctk.CTkFrame(info_list_frame, fg_color="transparent")
+        title_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(title_row, text="Titre:").pack(side=ctk.LEFT, padx=5)
+        title_var = ctk.StringVar(value=document.get('title', ''))
+        title_entry = ctk.CTkEntry(title_row, textvariable=title_var, width=300)
+        title_entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
         
         # Date
-        tk.Label(info_list_frame, text="Date:").grid(row=1, column=0, sticky="w", pady=5)
-        date_var = tk.StringVar(value=document.get('date', ''))
-        date_entry = tk.Entry(info_list_frame, textvariable=date_var, width=40)
-        date_entry.grid(row=1, column=1, sticky="ew", pady=5)
+        date_row = ctk.CTkFrame(info_list_frame, fg_color="transparent")
+        date_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(date_row, text="Date:").pack(side=ctk.LEFT, padx=5)
+        date_var = ctk.StringVar(value=document.get('date', ''))
+        date_entry = ctk.CTkEntry(date_row, textvariable=date_var, width=200)
+        date_entry.pack(side=ctk.LEFT, padx=5)
         
         # Description
-        tk.Label(info_list_frame, text="Description:").grid(row=2, column=0, sticky="w", pady=5)
-        description_text = tk.Text(info_list_frame, width=40, height=3)
-        description_text.grid(row=2, column=1, sticky="ew", pady=5)
+        desc_row = ctk.CTkFrame(info_list_frame, fg_color="transparent")
+        desc_row.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(desc_row, text="Description:").pack(side=ctk.LEFT, padx=5)
+        description_frame = ctk.CTkFrame(desc_row, fg_color="transparent")
+        description_frame.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
+        description_text = ctk.CTkTextbox(description_frame, width=300, height=80)
+        description_text.pack(fill=ctk.BOTH, expand=True)
         description_text.insert("1.0", document.get('description', ''))
         
-        info_list_frame.columnconfigure(1, weight=1)
-        
         # Variables spécifiques du modèle
-        variables_frame = tk.LabelFrame(main_frame, text="Variables spécifiques")
-        variables_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        variables_frame = ctk.CTkFrame(main_frame)
+        variables_frame.pack(fill=ctk.BOTH, expand=True, pady=10)
+        
+        ctk.CTkLabel(variables_frame, text="Variables spécifiques", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=5)
         
         # Cadre défilable pour les variables
-        canvas = tk.Canvas(variables_frame)
-        scrollbar = tk.Scrollbar(variables_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        variables_scroll = ctk.CTkScrollableFrame(variables_frame)
+        variables_scroll.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
         
         # Dictionnaire pour stocker les widgets des variables
         variable_widgets = {}
@@ -954,60 +1158,68 @@ class DocumentController:
         variables = template.get('variables', [])
         
         if variables:
-            tk.Label(scrollable_frame, text="Complétez les informations spécifiques à ce document:").pack(anchor="w", padx=10, pady=(10, 5))
+            ctk.CTkLabel(
+                variables_scroll, 
+                text="Complétez les informations spécifiques à ce document:",
+                font=ctk.CTkFont(weight="bold")
+            ).pack(anchor="w", pady=(0, 10))
             
             for i, var_name in enumerate(variables):
                 # Ignorer les variables standard qui sont remplies automatiquement
                 if var_name in ['client_name', 'client_company', 'client_email', 'client_phone', 'client_address']:
                     continue
                 
-                frame = tk.Frame(scrollable_frame)
-                frame.pack(fill=tk.X, padx=10, pady=2)
+                var_frame = ctk.CTkFrame(variables_scroll)
+                var_frame.pack(fill=ctk.X, pady=5)
                 
-                tk.Label(frame, text=f"{var_name}:").pack(side=tk.LEFT)
+                ctk.CTkLabel(var_frame, text=f"{var_name}:").pack(side=ctk.LEFT, padx=5)
                 
                 # Récupérer la valeur existante
                 existing_value = existing_variables.get(var_name, '')
                 
                 if "montant" in var_name.lower() or "prix" in var_name.lower() or "cout" in var_name.lower() or "coût" in var_name.lower():
                     # Champ monétaire
-                    money_frame = tk.Frame(frame)
-                    money_frame.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                    money_frame = ctk.CTkFrame(var_frame, fg_color="transparent")
+                    money_frame.pack(side=ctk.RIGHT, fill=ctk.X, expand=True)
                     
-                    var = tk.StringVar(value=existing_value)
-                    entry = tk.Entry(money_frame, textvariable=var)
-                    entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                    var = ctk.StringVar(value=existing_value)
+                    entry = ctk.CTkEntry(money_frame, textvariable=var, width=150)
+                    entry.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5)
                     
-                    tk.Label(money_frame, text="€").pack(side=tk.LEFT)
+                    ctk.CTkLabel(money_frame, text="€").pack(side=ctk.LEFT)
                     
                     variable_widgets[var_name] = {"widget": entry, "var": var, "type": "money"}
                 elif "date" in var_name.lower():
                     # Champ date
-                    var = tk.StringVar(value=existing_value)
-                    entry = tk.Entry(frame, textvariable=var, width=15)
-                    entry.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                    var = ctk.StringVar(value=existing_value)
+                    entry = ctk.CTkEntry(var_frame, textvariable=var, width=150)
+                    entry.pack(side=ctk.RIGHT, fill=ctk.X, expand=True, padx=5)
                     
                     variable_widgets[var_name] = {"widget": entry, "var": var, "type": "date"}
                 else:
                     # Champ texte standard
-                    var = tk.StringVar(value=existing_value)
-                    entry = tk.Entry(frame, textvariable=var)
-                    entry.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+                    var = ctk.StringVar(value=existing_value)
+                    entry = ctk.CTkEntry(var_frame, textvariable=var, width=250)
+                    entry.pack(side=ctk.RIGHT, fill=ctk.X, expand=True, padx=5)
                     
                     variable_widgets[var_name] = {"widget": entry, "var": var, "type": "text"}
         else:
-            tk.Label(scrollable_frame, text="Ce modèle ne contient pas de variables personnalisables.").pack(anchor="w", padx=10, pady=10)
+            ctk.CTkLabel(
+                variables_scroll, 
+                text="Ce modèle ne contient pas de variables personnalisables.",
+                text_color="gray"
+            ).pack(anchor="w", pady=10)
         
         # Boutons
-        button_frame = tk.Frame(dialog)
-        button_frame.pack(fill=tk.X, pady=10)
+        button_frame = ctk.CTkFrame(dialog)
+        button_frame.pack(fill=ctk.X, pady=10, padx=20)
         
         # Fonction pour mettre à jour le document
         def update_document_data():
             # Récupérer le titre et la date
             title = title_var.get().strip()
             if not title:
-                messagebox.showwarning("Attention", "Veuillez entrer un titre", parent=dialog)
+                DialogUtils.show_message(dialog, "Attention", "Veuillez entrer un titre", "warning")
                 return
             
             date = date_var.get().strip()
@@ -1065,20 +1277,30 @@ class DocumentController:
                 dialog.destroy()
                 
                 # Afficher un message de succès
-                messagebox.showinfo("Succès", f"Document '{title}' mis à jour avec succès")
+                DialogUtils.show_message(self.view.parent, "Succès", f"Document '{title}' mis à jour avec succès", "success")
                 
                 logger.info(f"Document mis à jour: {document_id} - {title}")
                 
             except Exception as e:
                 logger.error(f"Erreur lors de la mise à jour du document: {e}")
-                messagebox.showerror("Erreur", f"Erreur lors de la mise à jour du document: {str(e)}", parent=dialog)
+                DialogUtils.show_message(dialog, "Erreur", f"Erreur lors de la mise à jour du document: {str(e)}", "error")
         
         # Bouton Annuler
-        cancel_btn = tk.Button(button_frame, text="Annuler", command=dialog.destroy, width=10)
-        cancel_btn.pack(side=tk.RIGHT, padx=10)
+        cancel_btn = ctk.CTkButton(
+            button_frame,
+            text="Annuler",
+            command=dialog.destroy,
+            width=120
+        )
+        cancel_btn.pack(side=ctk.RIGHT, padx=10)
         
         # Bouton Mettre à jour
-        update_btn = tk.Button(button_frame, text="Mettre à jour", command=update_document_data, width=10)
-        update_btn.pack(side=tk.RIGHT, padx=10)
+        update_btn = ctk.CTkButton(
+            button_frame,
+            text="Mettre à jour",
+            command=update_document_data,
+            width=120
+        )
+        update_btn.pack(side=ctk.RIGHT, padx=10)
         
         logger.info("Formulaire de mise à jour de document affiché")

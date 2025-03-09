@@ -1,5 +1,5 @@
-customtkinter
-Pillow
-python-docx
-reportlab
-pandas
+customtkinter  # Interface utilisateur personnalisée
+Pillow  # Traitement d'image
+python-docx  # Manipulation de documents Word
+reportlab  # Génération de PDF
+pandas  # Traitement de données

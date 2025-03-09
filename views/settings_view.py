@@ -7,10 +7,177 @@ Vue des paramètres pour l'application Vynal Docs Automator
 
 import os
 import logging
+import tkinter as tk
 import customtkinter as ctk
 from tkinter import filedialog
 
 logger = logging.getLogger("VynalDocsAutomator.SettingsView")
+
+class DialogUtils:
+    """
+    Utilitaires pour créer des boîtes de dialogue cohérentes dans l'application
+    """
+    
+    @staticmethod
+    def show_confirmation(parent, title, message, on_yes=None, on_no=None):
+        """
+        Affiche une boîte de dialogue de confirmation
+        
+        Args:
+            parent: Widget parent
+            title: Titre de la boîte de dialogue
+            message: Message à afficher
+            on_yes: Fonction à appeler si l'utilisateur confirme
+            on_no: Fonction à appeler si l'utilisateur annule
+            
+        Returns:
+            bool: True si confirmé, False sinon
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title(title)
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.focus_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Résultat par défaut
+        result = [False]
+        
+        # Cadre principal
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        ctk.CTkLabel(
+            frame,
+            text=f"⚠️ {title}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(0, 10))
+        
+        # Message
+        ctk.CTkLabel(
+            frame,
+            text=message,
+            wraplength=360
+        ).pack(pady=10)
+        
+        # Cadre pour les boutons
+        button_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        button_frame.pack(pady=10)
+        
+        # Fonctions de callback
+        def yes_action():
+            result[0] = True
+            dialog.destroy()
+            if on_yes:
+                on_yes()
+        
+        def no_action():
+            result[0] = False
+            dialog.destroy()
+            if on_no:
+                on_no()
+        
+        # Bouton Non
+        ctk.CTkButton(
+            button_frame,
+            text="Non",
+            command=no_action,
+            width=100,
+            fg_color="#e74c3c",
+            hover_color="#c0392b"
+        ).pack(side=ctk.LEFT, padx=10)
+        
+        # Bouton Oui
+        ctk.CTkButton(
+            button_frame,
+            text="Oui",
+            command=yes_action,
+            width=100,
+            fg_color="#2ecc71",
+            hover_color="#27ae60"
+        ).pack(side=ctk.LEFT, padx=10)
+        
+        # Attendre que la fenêtre soit fermée
+        parent.wait_window(dialog)
+        
+        return result[0]
+    
+    @staticmethod
+    def show_message(parent, title, message, message_type="info"):
+        """
+        Affiche une boîte de dialogue avec un message
+        
+        Args:
+            parent: Widget parent
+            title: Titre de la boîte de dialogue
+            message: Message à afficher
+            message_type: Type de message ('info', 'error', 'warning', 'success')
+        """
+        dialog = ctk.CTkToplevel(parent)
+        dialog.title(title)
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.focus_set()
+        
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Icône selon le type
+        icon = "ℹ️"
+        button_color = "#3498db"
+        hover_color = "#2980b9"
+        
+        if message_type == "error":
+            icon = "❌"
+            button_color = "#e74c3c"
+            hover_color = "#c0392b"
+        elif message_type == "warning":
+            icon = "⚠️"
+            button_color = "#f39c12"
+            hover_color = "#d35400"
+        elif message_type == "success":
+            icon = "✅"
+            button_color = "#2ecc71"
+            hover_color = "#27ae60"
+        
+        # Cadre principal
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Titre avec icône
+        ctk.CTkLabel(
+            frame,
+            text=f"{icon} {title}",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(0, 10))
+        
+        # Message
+        ctk.CTkLabel(
+            frame,
+            text=message,
+            wraplength=360
+        ).pack(pady=10)
+        
+        # Bouton OK
+        ctk.CTkButton(
+            frame,
+            text="OK",
+            command=dialog.destroy,
+            width=100,
+            fg_color=button_color,
+            hover_color=hover_color
+        ).pack(pady=10)
 
 class SettingsView:
     """
@@ -162,16 +329,18 @@ class SettingsView:
         )
         
         # Modèle de nom de fichier
-        self.filename_pattern_var = ctk.StringVar(value=self.model.config.get("document.filename_pattern", ""))
+        default_pattern = "{document_type}_{client_name}_{date}"
+        self.filename_pattern_var = ctk.StringVar(value=self.model.config.get("document.filename_pattern", default_pattern))
         self.create_setting(
             "Modèle de nom de fichier",
-            "Pattern pour nommer les fichiers (ex: {type}_{client}_{date})",
+            "Pattern pour nommer les fichiers (ex: {document_type}_{client_name}_{date})",
             "entry",
             self.filename_pattern_var
         )
         
         # Format de date
-        self.date_format_var = ctk.StringVar(value=self.model.config.get("document.date_format", "%Y-%m-%d"))
+        default_format = "%Y-%m-%d"
+        self.date_format_var = ctk.StringVar(value=self.model.config.get("document.date_format", default_format))
         self.create_setting(
             "Format de date",
             "Format des dates dans les noms de fichiers",
@@ -204,7 +373,8 @@ class SettingsView:
         ctk.CTkButton(
             backup_restore_frame,
             text="Réinitialiser",
-            fg_color="red",
+            fg_color="#e74c3c",
+            hover_color="#c0392b",
             command=self.reset_settings
         ).pack(side=ctk.RIGHT, padx=10)
         
@@ -217,6 +387,8 @@ class SettingsView:
             text="Enregistrer les paramètres",
             width=200,
             height=40,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
             command=self.save_settings
         ).pack(side=ctk.RIGHT, padx=10)
     
@@ -295,14 +467,17 @@ class SettingsView:
                 widget_frame,
                 values=options,
                 variable=variable,
-                width=250
+                width=250,
+                state="readonly"  # Assure qu'on ne peut que sélectionner des valeurs valides
             ).pack(side=ctk.RIGHT, pady=5)
         
         elif widget_type == "switch":
             ctk.CTkSwitch(
                 widget_frame,
                 text="",
-                variable=variable
+                variable=variable,
+                onvalue=True,
+                offvalue=False
             ).pack(side=ctk.RIGHT, pady=5)
         
         elif widget_type == "slider":
@@ -314,20 +489,25 @@ class SettingsView:
                 slider_frame,
                 from_=min_val,
                 to=max_val,
+                number_of_steps=max_val-min_val,
                 variable=variable
             )
             slider.pack(side=ctk.LEFT, fill=ctk.X, expand=True, pady=5)
             
             value_label = ctk.CTkLabel(
                 slider_frame,
-                text=str(variable.get()),
+                text=str(int(variable.get())),
                 width=30
             )
             value_label.pack(side=ctk.RIGHT, padx=10)
             
             # Mettre à jour l'étiquette de valeur
             def update_value_label(*args):
-                value_label.configure(text=str(variable.get()))
+                try:
+                    value = int(variable.get())
+                    value_label.configure(text=str(value))
+                except:
+                    pass
             
             variable.trace_add("write", update_value_label)
         
@@ -375,7 +555,7 @@ class SettingsView:
         """
         Met à jour la vue avec les données actuelles
         """
-        # Mettre à jour les variables
+        # Mettre à jour les variables avec des valeurs par défaut si non définies
         self.company_name_var.set(self.model.config.get("app.company_name", ""))
         self.company_logo_var.set(self.model.config.get("app.company_logo", ""))
         self.theme_var.set(self.model.config.get("app.theme", "system"))
@@ -387,8 +567,14 @@ class SettingsView:
         self.auto_lock_var.set(self.model.config.get("security.auto_lock", False))
         self.lock_time_var.set(self.model.config.get("security.lock_time", 10))
         self.default_format_var.set(self.model.config.get("document.default_format", "pdf"))
-        self.filename_pattern_var.set(self.model.config.get("document.filename_pattern", ""))
-        self.date_format_var.set(self.model.config.get("document.date_format", "%Y-%m-%d"))
+        
+        # Utiliser une valeur par défaut pour le modèle de nom de fichier si non défini
+        default_pattern = "{document_type}_{client_name}_{date}"
+        self.filename_pattern_var.set(self.model.config.get("document.filename_pattern", default_pattern))
+        
+        # Utiliser une valeur par défaut pour le format de date si non défini
+        default_format = "%Y-%m-%d"
+        self.date_format_var.set(self.model.config.get("document.date_format", default_format))
         
         logger.info("SettingsView mise à jour")
     
@@ -402,147 +588,264 @@ class SettingsView:
             "app.company_logo": self.company_logo_var.get(),
             "app.theme": self.theme_var.get(),
             "app.auto_save": self.auto_save_var.get(),
-            "app.save_interval": self.save_interval_var.get(),
+            "app.save_interval": int(self.save_interval_var.get()),
             "paths.documents": self.documents_dir_var.get(),
             "paths.templates": self.templates_dir_var.get(),
             "security.require_password": self.require_password_var.get(),
             "security.auto_lock": self.auto_lock_var.get(),
-            "security.lock_time": self.lock_time_var.get(),
+            "security.lock_time": int(self.lock_time_var.get()),
             "document.default_format": self.default_format_var.get(),
-            "document.filename_pattern": self.filename_pattern_var.get(),
-            "document.date_format": self.date_format_var.get()
+            "document.filename_pattern": self.filename_pattern_var.get() or "{document_type}_{client_name}_{date}",
+            "document.date_format": self.date_format_var.get() or "%Y-%m-%d"
         }
         
+        # Créer les répertoires s'ils n'existent pas
+        for path_key in ["paths.documents", "paths.templates"]:
+            path = settings.get(path_key, "")
+            if path and not os.path.exists(path):
+                try:
+                    os.makedirs(path, exist_ok=True)
+                    logger.info(f"Répertoire créé: {path}")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la création du répertoire {path}: {e}")
+                    DialogUtils.show_message(
+                        self.parent,
+                        "Erreur",
+                        f"Impossible de créer le répertoire {path}:\n{str(e)}",
+                        "error"
+                    )
+                    return
+        
         # Enregistrer les paramètres
-        for key, value in settings.items():
-            self.model.config.set(key, value)
-        
-        # Mettre à jour l'interface
-        # (Si le thème a changé, il faut le mettre à jour dans l'application)
-        if hasattr(self.parent, "update_theme"):
-            self.parent.update_theme()
-        
-        # Afficher un message de confirmation
-        dialog = ctk.CTkToplevel(self.parent)
-        dialog.title("Paramètres enregistrés")
-        dialog.geometry("300x150")
-        dialog.lift()
-        dialog.focus_force()
-        dialog.grab_set()
-        
-        # Centrer la fenêtre
-        dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (dialog.winfo_screenheight() // 2) - (height // 2)
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # Message
-        msg_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        msg_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
-        
-        ctk.CTkLabel(
-            msg_frame,
-            text="✅ Paramètres enregistrés",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=(0, 10))
-        
-        ctk.CTkLabel(
-            msg_frame,
-            text="Les paramètres ont été enregistrés avec succès."
-        ).pack(pady=10)
-        
-        # Bouton OK
-        ctk.CTkButton(
-            msg_frame,
-            text="OK",
-            width=100,
-            command=dialog.destroy
-        ).pack(pady=10)
-        
-        logger.info("Paramètres enregistrés")
+        try:
+            for key, value in settings.items():
+                self.model.config.set(key, value)
+            
+            # Mettre à jour les chemins dans le modèle
+            self.model.paths['documents'] = settings["paths.documents"]
+            self.model.paths['templates'] = settings["paths.templates"]
+            
+            # Mettre à jour l'interface
+            # (Si le thème a changé, il faut le mettre à jour dans l'application)
+            current_theme = ctk.get_appearance_mode().lower()
+            new_theme = settings["app.theme"].lower()
+            
+            if new_theme != "system" and new_theme != current_theme:
+                ctk.set_appearance_mode(new_theme)
+                logger.info(f"Thème changé: {new_theme}")
+            
+            # Afficher un message de confirmation
+            DialogUtils.show_message(
+                self.parent,
+                "Paramètres enregistrés",
+                "Les paramètres ont été enregistrés avec succès.",
+                "success"
+            )
+            
+            logger.info("Paramètres enregistrés")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'enregistrement des paramètres: {e}")
+            DialogUtils.show_message(
+                self.parent,
+                "Erreur",
+                f"Erreur lors de l'enregistrement des paramètres:\n{str(e)}",
+                "error"
+            )
     
     def create_backup(self):
         """
         Crée une sauvegarde des données
         """
-        # Cette méthode sera implémentée plus tard
-        logger.info("Action: Créer une sauvegarde (non implémentée)")
+        try:
+            # Demander l'emplacement de la sauvegarde
+            backup_path = filedialog.asksaveasfilename(
+                title="Créer une sauvegarde",
+                defaultextension=".zip",
+                filetypes=[("Fichiers ZIP", "*.zip"), ("Tous les fichiers", "*.*")]
+            )
+            
+            if not backup_path:
+                return
+            
+            # Appeler la méthode du modèle pour créer la sauvegarde
+            result = self.model.create_backup(backup_path)
+            
+            if result:
+                DialogUtils.show_message(
+                    self.parent,
+                    "Sauvegarde créée",
+                    f"Sauvegarde créée avec succès:\n{backup_path}",
+                    "success"
+                )
+                logger.info(f"Sauvegarde créée: {backup_path}")
+            else:
+                DialogUtils.show_message(
+                    self.parent,
+                    "Erreur",
+                    "Impossible de créer la sauvegarde.",
+                    "error"
+                )
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de la sauvegarde: {e}")
+            DialogUtils.show_message(
+                self.parent,
+                "Erreur",
+                f"Erreur lors de la création de la sauvegarde:\n{str(e)}",
+                "error"
+            )
     
     def restore_backup(self):
         """
         Restaure les données à partir d'une sauvegarde
         """
-        # Cette méthode sera implémentée plus tard
-        logger.info("Action: Restaurer une sauvegarde (non implémentée)")
+        try:
+            # Demander le fichier de sauvegarde
+            backup_path = filedialog.askopenfilename(
+                title="Restaurer une sauvegarde",
+                filetypes=[("Fichiers ZIP", "*.zip"), ("Tous les fichiers", "*.*")]
+            )
+            
+            if not backup_path:
+                return
+            
+            def process_restore():
+                try:
+                    # Appeler la méthode du modèle pour restaurer la sauvegarde
+                    result = self.model.restore_backup(backup_path)
+                    
+                    if result:
+                        DialogUtils.show_message(
+                            self.parent,
+                            "Restauration terminée",
+                            "La sauvegarde a été restaurée avec succès.\nVeuillez redémarrer l'application pour appliquer les changements.",
+                            "success"
+                        )
+                        logger.info(f"Sauvegarde restaurée: {backup_path}")
+                        
+                        # Mettre à jour la vue
+                        self.update_view()
+                    else:
+                        DialogUtils.show_message(
+                            self.parent,
+                            "Erreur",
+                            "Impossible de restaurer la sauvegarde.",
+                            "error"
+                        )
+                except Exception as e:
+                    logger.error(f"Erreur lors de la restauration: {e}")
+                    DialogUtils.show_message(
+                        self.parent,
+                        "Erreur",
+                        f"Erreur lors de la restauration:\n{str(e)}",
+                        "error"
+                    )
+            
+            # Demander confirmation
+            DialogUtils.show_confirmation(
+                self.parent,
+                "Confirmer la restauration",
+                "Restaurer une sauvegarde remplacera toutes vos données actuelles. Cette action est irréversible.\n\nÊtes-vous sûr de vouloir continuer?",
+                on_yes=process_restore
+            )
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la restauration de la sauvegarde: {e}")
+            DialogUtils.show_message(
+                self.parent,
+                "Erreur",
+                f"Erreur lors de la restauration de la sauvegarde:\n{str(e)}",
+                "error"
+            )
     
     def reset_settings(self):
         """
         Réinitialise les paramètres aux valeurs par défaut
         """
         # Demander confirmation
-        dialog = ctk.CTkToplevel(self.parent)
-        dialog.title("Confirmer la réinitialisation")
-        dialog.geometry("400x200")
-        dialog.lift()
-        dialog.focus_force()
-        dialog.grab_set()
-        
-        # Centrer la fenêtre
-        dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (dialog.winfo_screenheight() // 2) - (height // 2)
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # Message
-        msg_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        msg_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
-        
-        ctk.CTkLabel(
-            msg_frame,
-            text="⚠️ Confirmer la réinitialisation",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=(0, 10))
-        
-        ctk.CTkLabel(
-            msg_frame,
-            text="Êtes-vous sûr de vouloir réinitialiser tous les paramètres aux valeurs par défaut ?",
-            wraplength=360
-        ).pack(pady=10)
-        
-        # Boutons
-        btn_frame = ctk.CTkFrame(msg_frame, fg_color="transparent")
-        btn_frame.pack(pady=10)
-        
-        # Fonction pour réinitialiser
         def confirm_reset():
-            # Réinitialiser la configuration
-            self.model.config.reset_to_defaults()
-            
-            # Mettre à jour la vue
-            self.update_view()
-            
-            # Fermer la boîte de dialogue
-            dialog.destroy()
-            
-            logger.info("Paramètres réinitialisés")
+            try:
+                # Définir des valeurs par défaut sécurisées
+                default_values = {
+                    "app.company_name": "Vynal Docs",
+                    "app.company_logo": "",
+                    "app.theme": "system",
+                    "app.auto_save": True,
+                    "app.save_interval": 5,
+                    "paths.documents": os.path.join(os.path.expanduser("~"), "VynalDocs", "Documents"),
+                    "paths.templates": os.path.join(os.path.expanduser("~"), "VynalDocs", "Templates"),
+                    "security.require_password": False,
+                    "security.auto_lock": False,
+                    "security.lock_time": 10,
+                    "document.default_format": "pdf",
+                    "document.filename_pattern": "{document_type}_{client_name}_{date}",
+                    "document.date_format": "%Y-%m-%d"
+                }
+                
+                # Éviter d'utiliser la méthode reset_to_defaults qui peut causer des problèmes
+                # Définir directement les valeurs dans la configuration
+                try:
+                    # Sauvegarder le thème actuel pour le restaurer après
+                    current_theme = self.model.config.get("app.theme", "system")
+                    
+                    # Définir chaque valeur individuellement
+                    for key, value in default_values.items():
+                        self.model.config.set(key, value)
+                    
+                    # Créer les répertoires nécessaires
+                    os.makedirs(default_values["paths.documents"], exist_ok=True)
+                    os.makedirs(default_values["paths.templates"], exist_ok=True)
+                    
+                    # Mettre à jour les chemins dans le modèle
+                    self.model.paths['documents'] = default_values["paths.documents"]
+                    self.model.paths['templates'] = default_values["paths.templates"]
+                    
+                    # Mettre à jour la vue sans toucher au thème pour l'instant
+                    self.company_name_var.set(default_values["app.company_name"])
+                    self.company_logo_var.set(default_values["app.company_logo"])
+                    self.theme_var.set(default_values["app.theme"])
+                    self.auto_save_var.set(default_values["app.auto_save"])
+                    self.save_interval_var.set(default_values["app.save_interval"])
+                    self.documents_dir_var.set(default_values["paths.documents"])
+                    self.templates_dir_var.set(default_values["paths.templates"])
+                    self.require_password_var.set(default_values["security.require_password"])
+                    self.auto_lock_var.set(default_values["security.auto_lock"])
+                    self.lock_time_var.set(default_values["security.lock_time"])
+                    self.default_format_var.set(default_values["document.default_format"])
+                    self.filename_pattern_var.set(default_values["document.filename_pattern"])
+                    self.date_format_var.set(default_values["document.date_format"])
+                    
+                    # Afficher un message de succès
+                    DialogUtils.show_message(
+                        self.parent,
+                        "Paramètres réinitialisés",
+                        "Les paramètres ont été réinitialisés aux valeurs par défaut.",
+                        "success"
+                    )
+                    
+                    logger.info("Paramètres réinitialisés avec succès")
+                    
+                except Exception as e:
+                    logger.error(f"Erreur lors de la réinitialisation des paramètres: {e}")
+                    DialogUtils.show_message(
+                        self.parent,
+                        "Erreur",
+                        f"Erreur lors de la réinitialisation des paramètres:\n{str(e)}",
+                        "error"
+                    )
+            except Exception as e:
+                logger.error(f"Erreur globale lors de la réinitialisation des paramètres: {e}")
+                DialogUtils.show_message(
+                    self.parent,
+                    "Erreur",
+                    f"Une erreur inattendue s'est produite:\n{str(e)}",
+                    "error"
+                )
         
-        # Bouton Annuler
-        ctk.CTkButton(
-            btn_frame,
-            text="Annuler",
-            width=100,
-            command=dialog.destroy
-        ).pack(side=ctk.LEFT, padx=10)
-        
-        # Bouton Réinitialiser
-        ctk.CTkButton(
-            btn_frame,
-            text="Réinitialiser",
-            width=100,
-            fg_color="red",
-            command=confirm_reset
-        ).pack(side=ctk.LEFT, padx=10)
+        DialogUtils.show_confirmation(
+            self.parent,
+            "Confirmer la réinitialisation",
+            "Êtes-vous sûr de vouloir réinitialiser tous les paramètres aux valeurs par défaut ?",
+            on_yes=confirm_reset
+        )

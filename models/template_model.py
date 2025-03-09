@@ -11,6 +11,7 @@ import logging
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
+from utils.rich_text_editor import RichTextEditor
 
 logger = logging.getLogger("VynalDocsAutomator.TemplateController")
 
@@ -65,7 +66,7 @@ class TemplateController:
         # Créer une fenêtre de dialogue
         dialog = tk.Toplevel(self.view.parent)
         dialog.title("Nouveau modèle")
-        dialog.geometry("600x700")
+        dialog.geometry("800x750")
         dialog.resizable(True, True)
         dialog.grab_set()  # Modal
         dialog.focus_set()
@@ -110,9 +111,9 @@ class TemplateController:
         standard_vars = "client_name, client_company, client_email, client_phone, client_address, company_name, date"
         tk.Label(form_frame, text=standard_vars, fg="gray").grid(row=6, column=0, columnspan=2, sticky="w")
         
-        # Contenu du modèle
+        # Contenu du modèle avec éditeur enrichi
         tk.Label(form_frame, text="Contenu*:").grid(row=7, column=0, sticky="w", pady=5)
-        content_text = tk.Text(form_frame, width=60, height=20)
+        content_text = RichTextEditor(form_frame, variable_options=standard_vars.split(", "), height=350, width=600)
         content_text.grid(row=7, column=1, sticky="w", pady=5)
         
         # Note explicative pour les variables
@@ -137,7 +138,7 @@ class TemplateController:
             variables = [v.strip() for v in variables_raw.split('\n') if v.strip()]
             
             # Récupérer le contenu
-            content = content_text.get("1.0", "end-1c").strip()
+            content = content_text.get_content().strip()
             
             # Validation
             if not name:
@@ -213,7 +214,7 @@ class TemplateController:
         # Créer une fenêtre de dialogue
         dialog = tk.Toplevel(self.view.parent)
         dialog.title(f"Modifier le modèle - {template.get('name')}")
-        dialog.geometry("600x700")
+        dialog.geometry("800x750")
         dialog.resizable(True, True)
         dialog.grab_set()  # Modal
         dialog.focus_set()
@@ -264,11 +265,12 @@ class TemplateController:
         standard_vars = "client_name, client_company, client_email, client_phone, client_address, company_name, date"
         tk.Label(form_frame, text=standard_vars, fg="gray").grid(row=6, column=0, columnspan=2, sticky="w")
         
-        # Contenu du modèle
+        # Contenu du modèle avec éditeur enrichi
         tk.Label(form_frame, text="Contenu*:").grid(row=7, column=0, sticky="w", pady=5)
-        content_text = tk.Text(form_frame, width=60, height=20)
+        content_text = RichTextEditor(form_frame, initial_content=template.get('content', ''), 
+                                     variable_options=standard_vars.split(", "), 
+                                     height=350, width=600)
         content_text.grid(row=7, column=1, sticky="w", pady=5)
-        content_text.insert("1.0", template.get('content', ''))
         
         # Note explicative pour les variables
         tk.Label(form_frame, text="Utilisez {variable} pour insérer des variables dans le contenu").grid(row=8, column=0, columnspan=2, sticky="w", pady=5)
@@ -292,7 +294,7 @@ class TemplateController:
             variables = [v.strip() for v in variables_raw.split('\n') if v.strip()]
             
             # Récupérer le contenu
-            content = content_text.get("1.0", "end-1c").strip()
+            content = content_text.get_content().strip()
             
             # Validation
             if not name:

@@ -20,8 +20,16 @@ from views.main_view import MainView
 from models.app_model import AppModel
 from utils.config_manager import ConfigManager
 
-# Configuration des logs
 def setup_logging():
+    """
+    Configure la journalisation de l'application.
+    
+    Crée un répertoire de logs s'il n'existe pas, et configure les handlers
+    pour écrire les logs dans un fichier et sur la console.
+    
+    Retourne :
+        logger (logging.Logger) : Logger configuré pour l'application.
+    """
     log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
     os.makedirs(log_dir, exist_ok=True)
     
@@ -38,8 +46,18 @@ def setup_logging():
     
     return logging.getLogger("VynalDocsAutomator")
 
-# Vérification des répertoires nécessaires
 def ensure_directories():
+    """
+    Vérifie et crée les répertoires nécessaires au bon fonctionnement de l'application.
+    
+    Les répertoires vérifiés sont :
+        - data
+        - data/clients
+        - data/documents
+        - data/templates
+        - data/backup
+        - logs
+    """
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dirs = [
         os.path.join(base_dir, "data"),
@@ -54,8 +72,13 @@ def ensure_directories():
         os.makedirs(directory, exist_ok=True)
         logger.info(f"Répertoire vérifié: {directory}")
 
-# Fonction principale
 def main():
+    """
+    Fonction principale de l'application.
+    
+    Configure l'apparence de l'application, crée les objets principaux 
+    (config, modèle, vue, contrôleur) et démarre l'interface graphique.
+    """
     # Configuration de l'application CustomTkinter
     ctk.set_appearance_mode("System")  # Modes: "System", "Dark", "Light"
     ctk.set_default_color_theme("blue")  # Thèmes: "blue", "green", "dark-blue"
