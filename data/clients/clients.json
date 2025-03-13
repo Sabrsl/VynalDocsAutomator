@@ -1,0 +1,52 @@
+[
+  {
+    "name": "John Doee",
+    "company": "Doe Enterprises",
+    "email": "john.doe@example.com",
+    "phone": "+1 123-456-7890",
+    "address": "123 Main St, Anytown, USA",
+    "id": "client_1",
+    "created_at": "2025-03-09T03:30:07.300377",
+    "updated_at": "2025-03-13T03:13:22.292488"
+  },
+  {
+    "name": "Jane Smith",
+    "company": "Smith Co.",
+    "email": "jane.smith@example.com",
+    "phone": "+1 987-654-3210",
+    "address": "456 Elm St, Othertown, USA",
+    "id": "client_2",
+    "created_at": "2025-03-09T02:57:31.396865",
+    "updated_at": "2025-03-13T03:13:22.294042"
+  },
+  {
+    "name": "Alioune Badara GUEYE",
+    "company": "Sab Agency LTD",
+    "email": "contact@abgempire.com",
+    "phone": "+212 691344062",
+    "address": "71-75 Shelton Street, Covent Garden, London, UK",
+    "id": "client_3",
+    "created_at": "2025-03-09T02:57:31.396865",
+    "updated_at": "2025-03-13T03:13:22.294042"
+  },
+  {
+    "name": "Mariama Mboup",
+    "company": "Influenceuse TikTok",
+    "email": "mariama.mboup@example.com",
+    "phone": "+221 78 105 2621",
+    "address": "Dakar, Sénégal",
+    "id": "client_4_20250313031322",
+    "created_at": "2025-03-13T03:13:22.294042",
+    "updated_at": "2025-03-13T03:13:22.294042"
+  },
+  {
+    "name": "Senator Amadou Thiam",
+    "company": "Personnalité Politique",
+    "email": "amadou.thiam@example.com",
+    "phone": "+221 77 123 4567",
+    "address": "Dakar, Sénégal",
+    "id": "client_5_20250313031322",
+    "created_at": "2025-03-13T03:13:22.294042",
+    "updated_at": "2025-03-13T03:13:22.294042"
+  }
+]

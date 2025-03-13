@@ -1,0 +1,89 @@
+{
+  "app": {
+    "name": "Vynal Docs Automator",
+    "version": "1.0.0",
+    "theme": "dark",
+    "language": "fr",
+    "company_name": "Vynal Docs",
+    "company_logo": "",
+    "auto_save": true,
+    "save_interval": 5,
+    "auth_button_text": "👤 Se connecter"
+  },
+  "paths": {
+    "documents": "C:\\Users\\badza\\VynalDocs\\Documents",
+    "templates": "C:\\Users\\badza\\VynalDocs\\Templates",
+    "clients": "data/clients",
+    "backup": "data/backup"
+  },
+  "security": {
+    "require_password": false,
+    "password_hash": "",
+    "auto_lock": false,
+    "lock_time": 10,
+    "auth_enabled": true,
+    "allow_registration": true,
+    "min_password_length": 8,
+    "default_role": "user",
+    "max_login_attempts": 3,
+    "lockout_duration": 300
+  },
+  "document": {
+    "default_format": "pdf",
+    "filename_pattern": "{document_type}_{client_name}_{date}",
+    "date_format": "%Y-%m-%d"
+  },
+  "users": [
+    {
+      "username": "admin",
+      "display_name": "Administrateur",
+      "role": "admin",
+      "password_hash": "",
+      "created_at": "2025-03-12T15:54:23.788686"
+    }
+  ],
+  "ui": {
+    "font_size": "medium",
+    "show_tooltips": true,
+    "enable_animations": false,
+    "sidebar_width": 200,
+    "dialog_z_index": 9999,
+    "auth_dialog": {
+      "width": 400,
+      "height": 500,
+      "position": "center",
+      "always_on_top": true,
+      "modal": true,
+      "title": "Authentification",
+      "login_form": {
+        "title": "Se connecter",
+        "email_label": "Adresse email",
+        "email_placeholder": "Votre adresse email",
+        "password_label": "Mot de passe",
+        "password_placeholder": "Votre mot de passe",
+        "submit_button": "Se connecter",
+        "register_link": "Pas encore de compte ? Créer un compte",
+        "forgot_password_link": "Mot de passe oublié ?"
+      },
+      "register_form": {
+        "title": "Créer un compte",
+        "name_label": "Nom complet",
+        "name_placeholder": "Votre nom complet",
+        "email_label": "Adresse email",
+        "email_placeholder": "Votre adresse email",
+        "password_label": "Mot de passe",
+        "password_placeholder": "Choisissez un mot de passe",
+        "confirm_password_label": "Confirmer le mot de passe",
+        "confirm_password_placeholder": "Confirmez votre mot de passe",
+        "submit_button": "Créer mon compte",
+        "login_link": "Déjà un compte ? Se connecter"
+      }
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "retention_days": 30,
+    "max_files": 10,
+    "log_user_actions": true
+  }
+}

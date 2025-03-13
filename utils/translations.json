@@ -1,0 +1,832 @@
+{
+    "fr": {
+      "app": {
+        "name": "Vynal Docs Automator",
+        "version": "Version {version}",
+        "company_name": "Vynal Agency LTD",
+        "loading": "Chargement...",
+        "error": "Erreur",
+        "success": "Succès",
+        "warning": "Avertissement",
+        "info": "Information",
+        "confirm": "Confirmer",
+        "cancel": "Annuler",
+        "save": "Enregistrer",
+        "edit": "Éditer",
+        "delete": "Supprimer",
+        "close": "Fermer",
+        "back": "Retour",
+        "next": "Suivant",
+        "finish": "Terminer",
+        "yes": "Oui",
+        "no": "Non",
+        "ok": "OK",
+        "browse": "Parcourir"
+      },
+      "navigation": {
+        "dashboard": "Tableau de bord",
+        "clients": "Clients",
+        "templates": "Modèles",
+        "documents": "Documents",
+        "settings": "Paramètres"
+      },
+      "auth": {
+        "login": "Connexion",
+        "login_title": "Connexion à votre compte",
+        "register": "Inscription",
+        "register_title": "Créer un compte",
+        "logout": "Déconnexion",
+        "account": "Mon compte",
+        "password": "Mot de passe",
+        "confirm_password": "Confirmer le mot de passe",
+        "remember_me": "Se souvenir de moi",
+        "forgot_password": "Mot de passe oublié ?",
+        "email": "Adresse email",
+        "email_placeholder": "Votre adresse email",
+        "password_placeholder": "Votre mot de passe",
+        "confirm_password_placeholder": "Confirmez votre mot de passe",
+        "no_account": "Vous n'avez pas de compte ?",
+        "create_account": "Créer un compte",
+        "already_account": "Déjà un compte ?",
+        "login_button": "Se connecter",
+        "register_button": "S'inscrire",
+        "login_with_google": "Se connecter avec Google",
+        "register_with_google": "S'inscrire avec Google",
+        "full_name": "Nom complet",
+        "full_name_placeholder": "Votre nom complet",
+        "terms": "J'accepte les ",
+        "terms_link": "conditions d'utilisation",
+        "password_requirements": "Le mot de passe doit contenir au moins:\n- 6 caractères\n- 1 chiffre\n- 1 caractère spécial (!@#$%^&*)",
+        "password_strength": {
+          "weak": "Faible",
+          "medium": "Moyen",
+          "strong": "Fort"
+        },
+        "errors": {
+          "email_required": "L'adresse email est requise",
+          "invalid_email": "Format d'email invalide",
+          "password_required": "Le mot de passe est requis",
+          "password_min_length": "Le mot de passe doit contenir au moins {length} caractères",
+          "password_match": "Les mots de passe ne correspondent pas",
+          "login_failed": "Email ou mot de passe incorrect",
+          "max_attempts": "Nombre maximum de tentatives atteint",
+          "max_attempts_timeout": "Trop de tentatives, réessayez dans {minutes} minutes",
+          "email_already_used": "Cet email est déjà utilisé",
+          "accept_terms": "Vous devez accepter les conditions d'utilisation"
+        },
+        "success": {
+          "login": "Connexion réussie",
+          "logout": "Déconnexion réussie",
+          "register": "Inscription réussie !",
+          "password_reset": "Un mot de passe temporaire a été envoyé à votre adresse email"
+        },
+        "password_reset": {
+          "title": "Réinitialisation du mot de passe",
+          "instructions": "Entrez votre adresse email pour recevoir un mot de passe temporaire",
+          "send_button": "Envoyer",
+          "email_sent": "Un email de réinitialisation a été envoyé",
+          "email_not_authorized": "Cette adresse email n'est pas autorisée"
+        }
+      },
+      "dashboard": {
+        "overview": "Vue d'ensemble",
+        "quick_actions": "Actions rapides",
+        "recent_activities": "Activités récentes",
+        "no_activities": "Aucune activité récente",
+        "stats": {
+          "clients": "Clients",
+          "templates": "Modèles",
+          "documents": "Documents"
+        },
+        "actions": {
+          "new_document": "Nouveau document",
+          "add_client": "Ajouter un client",
+          "create_template": "Créer un modèle"
+        }
+      },
+      "clients": {
+        "management": "Gestion des clients",
+        "new_client": "Nouveau client",
+        "edit_client": "Modifier le client",
+        "import_clients": "Importer",
+        "export_clients": "Exporter",
+        "delete_client": "Supprimer le client",
+        "delete_clients": "Supprimer les clients sélectionnés",
+        "search_placeholder": "Rechercher un client...",
+        "no_clients": "Aucun client disponible. Ajoutez des clients pour commencer.",
+        "no_results": "Aucun client ne correspond aux critères de recherche.",
+        "selected_clients": "{count} sélectionné(s)",
+        "client_info": "Informations du client: {company}",
+        "confirm_delete": {
+          "title": "Confirmer la suppression",
+          "message": "Vous êtes sur le point de supprimer {count} client(s).",
+          "warning": "Cette action est irréversible et les clients supprimés ne pourront pas être récupérés.",
+          "button": "Supprimer {count} client(s)"
+        },
+        "deletion_success": "Suppression effectuée avec succès",
+        "fields": {
+          "name": "Nom",
+          "first_name": "Prénom",
+          "company": "Entreprise",
+          "email": "Email",
+          "phone": "Téléphone",
+          "address": "Adresse",
+          "postal_code": "Code postal",
+          "city": "Ville",
+          "notes": "Notes"
+        },
+        "import": {
+          "title": "Aperçu de l'importation",
+          "instructions": "Total de lignes à importer : {count}",
+          "options": {
+            "skip_duplicates": "Ignorer les doublons (basé sur l'email)",
+            "update_existing": "Mettre à jour les clients existants"
+          },
+          "preview": "Aperçu des 5 premières lignes:",
+          "success": "Importation terminée :\n\n✅ {imported} clients importés\n🔄 {updated} clients mis à jour\n⏭️ {skipped} clients ignorés (doublons)\n❌ {errors} erreurs"
+        }
+      },
+      "templates": {
+        "management": "Modèles de documents",
+        "new_template": "Nouveau modèle",
+        "edit_template": "Modifier le modèle",
+        "use_template": "Utiliser",
+        "import_template": "Importer",
+        "delete_template": "Supprimer le modèle",
+        "delete_templates": "Supprimer les modèles sélectionnés",
+        "search_placeholder": "Rechercher un modèle...",
+        "no_templates": "Aucun modèle disponible. Créez ou importez un modèle pour commencer.",
+        "no_results": "Aucun modèle ne correspond aux critères de recherche.",
+        "selected_templates": "{count} sélectionné(s)",
+        "confirm_delete": {
+          "title": "Confirmer la suppression",
+          "message": "Vous êtes sur le point de supprimer {count} modèle(s).",
+          "warning": "Cette action est irréversible et les modèles supprimés ne pourront pas être récupérés.",
+          "button": "Supprimer {count} modèle(s)"
+        },
+        "deletion_success": "Suppression effectuée avec succès",
+        "fields": {
+          "name": "Nom",
+          "type": "Type",
+          "description": "Description",
+          "content": "Contenu",
+          "variables": "Variables",
+          "variables_placeholder": "Ex: nom, date, montant (séparés par des virgules)"
+        },
+        "types": {
+          "contract": "Contrat",
+          "invoice": "Facture",
+          "proposal": "Proposition",
+          "report": "Rapport",
+          "other": "Autre"
+        },
+        "import": {
+          "title": "Importer un modèle",
+          "instructions": "Sélectionnez un fichier de modèle à importer.\nFormats supportés : .docx, .txt",
+          "file_too_large": "Le fichier de modèle est trop volumineux.",
+          "success": "Modèle importé avec succès"
+        },
+        "variables_heading": "Variables standards disponibles:",
+        "variables_info": "Utilisez {variable} pour insérer des variables dans le contenu"
+      },
+      "documents": {
+        "management": "Bibliothèque de documents",
+        "new_document": "Nouveau document",
+        "import_document": "Importer",
+        "delete_document": "Supprimer le document",
+        "delete_documents": "Supprimer les documents sélectionnés",
+        "search_placeholder": "Rechercher un document...",
+        "no_documents": "Aucun document disponible. Créez un nouveau document pour commencer.",
+        "no_results": "Aucun document ne correspond aux critères de recherche.",
+        "selected_documents": "{count} sélectionné(s)",
+        "confirm_delete": {
+          "title": "Confirmer la suppression",
+          "message": "Vous êtes sur le point de supprimer {count} document(s).",
+          "warning": "Cette action est irréversible et les documents supprimés ne pourront pas être récupérés.",
+          "button": "Supprimer {count} document(s)"
+        },
+        "deletion_success": "Suppression effectuée avec succès",
+        "fields": {
+          "title": "Titre",
+          "type": "Type",
+          "date": "Date",
+          "client": "Client",
+          "description": "Description",
+          "template": "Modèle",
+          "variables": "Variables"
+        },
+        "actions": {
+          "open": "Ouvrir",
+          "download": "Télécharger",
+          "print": "Imprimer",
+          "share": "Partager"
+        },
+        "filters": {
+          "all_clients": "Tous les clients",
+          "all_types": "Tous les types"
+        },
+        "creator": {
+          "title": "Création de document",
+          "step1": "1. Sélectionner un modèle",
+          "step2": "2. Sélectionner un client",
+          "step3": "3. Informations du document",
+          "step4": "4. Variables du modèle"
+        }
+      },
+      "settings": {
+        "general": "Paramètres généraux",
+        "paths": "Dossiers par défaut",
+        "security": "Sécurité",
+        "document_format": "Format des documents",
+        "backup": "Sauvegarde et restauration",
+        "fields": {
+          "company_name": {
+            "label": "Nom de l'entreprise",
+            "description": "Nom qui apparaîtra sur les documents"
+          },
+          "company_logo": {
+            "label": "Logo de l'entreprise",
+            "description": "Image qui apparaîtra sur les documents"
+          },
+          "theme": {
+            "label": "Thème",
+            "description": "Apparence de l'application"
+          },
+          "language": {
+            "label": "Langue",
+            "description": "Langue de l'interface"
+          },
+          "auto_save": {
+            "label": "Sauvegarde automatique",
+            "description": "Enregistrer automatiquement les modifications"
+          },
+          "save_interval": {
+            "label": "Intervalle de sauvegarde",
+            "description": "Minutes entre chaque sauvegarde automatique"
+          },
+          "documents_folder": {
+            "label": "Dossier des documents",
+            "description": "Emplacement des documents générés"
+          },
+          "templates_folder": {
+            "label": "Dossier des modèles",
+            "description": "Emplacement des modèles de documents"
+          },
+          "password_protection": {
+            "label": "Protection par mot de passe",
+            "description": "Demander un mot de passe au démarrage"
+          },
+          "auto_lock": {
+            "label": "Verrouillage automatique",
+            "description": "Verrouiller après une période d'inactivité"
+          },
+          "lock_time": {
+            "label": "Délai de verrouillage",
+            "description": "Minutes d'inactivité avant verrouillage"
+          },
+          "default_format": {
+            "label": "Format par défaut",
+            "description": "Format utilisé lors de la génération de documents"
+          },
+          "filename_pattern": {
+            "label": "Modèle de nom de fichier",
+            "description": "Pattern pour nommer les fichiers (ex: {document_type}_{client_name}_{date})"
+          },
+          "date_format": {
+            "label": "Format de date",
+            "description": "Format des dates dans les noms de fichiers"
+          }
+        },
+        "themes": {
+          "system": "Système",
+          "light": "Clair",
+          "dark": "Sombre"
+        },
+        "languages": {
+          "en": "Anglais",
+          "fr": "Français"
+        },
+        "password": {
+          "setup_title": "Configuration du mot de passe",
+          "requirements": "Le mot de passe doit contenir au moins:\n- 6 caractères\n- 1 chiffre\n- 1 caractère spécial (!@#$%^&*)",
+          "protection_enabled": "La protection par mot de passe a été activée avec succès."
+        },
+        "backup": {
+          "create": "Créer une sauvegarde",
+          "restore": "Restaurer une sauvegarde",
+          "reset": "Réinitialiser",
+          "save_settings": "Enregistrer les paramètres",
+          "insufficient_space": "L'espace disque disponible est insuffisant pour créer la sauvegarde.",
+          "backup_created": "Sauvegarde créée avec succès:\n{path}",
+          "backup_creation_error": "Impossible de créer la sauvegarde.",
+          "file_too_large": "Le fichier de sauvegarde est trop volumineux.",
+          "corrupted_file": "Le fichier de sauvegarde est corrompu",
+          "invalid_file": "Le fichier n'est pas une sauvegarde valide",
+          "confirm_restore": {
+            "title": "Confirmer la restauration",
+            "message": "Restaurer une sauvegarde remplacera toutes vos données actuelles. Cette action est irréversible.\n\nÊtes-vous sûr de vouloir continuer?"
+          },
+          "restore_success": "La sauvegarde a été restaurée avec succès.\nVeuillez redémarrer l'application pour appliquer les changements.",
+          "restore_error": "Impossible de restaurer la sauvegarde.",
+          "confirm_reset": {
+            "title": "Confirmer la réinitialisation",
+            "message": "Êtes-vous sûr de vouloir réinitialiser tous les paramètres aux valeurs par défaut ?"
+          },
+          "reset_success": "Les paramètres ont été réinitialisés aux valeurs par défaut.",
+          "settings_saved": "Les paramètres ont été enregistrés avec succès."
+        },
+        "validation": {
+          "required_field": "Ce champ est obligatoire",
+          "path_must_be_absolute": "Le chemin {path} doit être absolu",
+          "invalid_path": "Chemin invalide pour {path}",
+          "save_interval_range": "L'intervalle de sauvegarde doit être entre 1 et 30 minutes",
+          "save_interval_integer": "L'intervalle de sauvegarde doit être un nombre entier",
+          "lock_time_range": "Le délai de verrouillage doit être entre 1 et 60 minutes",
+          "lock_time_integer": "Le délai de verrouillage doit être un nombre entier",
+          "date_format_empty": "Le format de date ne peut pas être vide",
+          "date_format_invalid": "Format de date invalide: {error}",
+          "filename_pattern_empty": "Le modèle de nom de fichier ne peut pas être vide",
+          "filename_pattern_missing": "Le modèle de nom de fichier doit contenir {document_type}, {client_name} et {date}",
+          "filename_pattern_invalid": "Le modèle de nom de fichier contient des caractères interdits: {chars}"
+        }
+      },
+      "common": {
+        "required_field": "* Champs obligatoires",
+        "loading": "Chargement...",
+        "actions": "Actions",
+        "or": "ou",
+        "all": "Tous",
+        "none": "Aucun",
+        "unknown": "Inconnu",
+        "not_found": "Non trouvé",
+        "created_at": "Créé le",
+        "updated_at": "Mis à jour le",
+        "variables": "Variables: {list}",
+        "and_others": "et {count} autres...",
+        "no_client": "Aucun client",
+        "no_template": "Aucun modèle",
+        "no_description": "Aucune description",
+        "delete_confirmation": "Cette action est irréversible. Êtes-vous sûr de vouloir continuer ?",
+        "date_format": "dd/mm/yyyy",
+        "unsaved_changes": "Vous avez des modifications non enregistrées. Voulez-vous les sauvegarder avant de quitter ?"
+      },
+      "errors": {
+        "general": "Une erreur est survenue",
+        "form_validation": "Veuillez corriger les erreurs dans le formulaire",
+        "required_field": "{field} est requis",
+        "server_error": "Erreur serveur: {message}",
+        "not_found": "Élément non trouvé",
+        "already_exists": "Cet élément existe déjà",
+        "unexpected_error": "Une erreur inattendue s'est produite: {error}",
+        "file_not_found": "Fichier non trouvé: {file}",
+        "invalid_file_format": "Format de fichier invalide",
+        "insufficient_permissions": "Permissions insuffisantes",
+        "initialization_error": "Erreur d'initialisation: {error}",
+        "loading_error": "Erreur lors du chargement: {error}",
+        "saving_error": "Erreur lors de l'enregistrement: {error}",
+        "deletion_error": "Erreur lors de la suppression: {error}",
+        "operation_failed": "L'opération a échoué: {error}",
+        "invalid_argument": "Argument invalide: {argument}",
+        "login_required": "Vous devez être connecté pour effectuer cette action"
+      },
+      "tooltips": {
+        "add": "Ajouter",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "search": "Rechercher",
+        "filter": "Filtrer",
+        "import": "Importer",
+        "export": "Exporter",
+        "refresh": "Actualiser",
+        "settings": "Paramètres",
+        "help": "Aide",
+        "logout": "Déconnexion",
+        "back": "Retour",
+        "next": "Suivant",
+        "finish": "Terminer",
+        "new_document": "Créer un nouveau document",
+        "add_client": "Ajouter un nouveau client",
+        "create_template": "Créer un nouveau modèle",
+        "use_template": "Utiliser ce modèle",
+        "open_document": "Ouvrir ce document",
+        "download_document": "Télécharger ce document"
+      }
+    },
+    "en": {
+      "app": {
+        "name": "Vynal Docs Automator",
+        "version": "Version {version}",
+        "company_name": "Vynal Agency LTD",
+        "loading": "Loading...",
+        "error": "Error",
+        "success": "Success",
+        "warning": "Warning",
+        "info": "Information",
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "save": "Save",
+        "edit": "Edit",
+        "delete": "Delete",
+        "close": "Close",
+        "back": "Back",
+        "next": "Next",
+        "finish": "Finish",
+        "yes": "Yes",
+        "no": "No",
+        "ok": "OK",
+        "browse": "Browse"
+      },
+      "navigation": {
+        "dashboard": "Dashboard",
+        "clients": "Clients",
+        "templates": "Templates",
+        "documents": "Documents",
+        "settings": "Settings"
+      },
+      "auth": {
+        "login": "Login",
+        "login_title": "Login to your account",
+        "register": "Register",
+        "register_title": "Create an account",
+        "logout": "Logout",
+        "account": "My Account",
+        "password": "Password",
+        "confirm_password": "Confirm Password",
+        "remember_me": "Remember me",
+        "forgot_password": "Forgot password?",
+        "email": "Email address",
+        "email_placeholder": "Your email address",
+        "password_placeholder": "Your password",
+        "confirm_password_placeholder": "Confirm your password",
+        "no_account": "Don't have an account?",
+        "create_account": "Create an account",
+        "already_account": "Already have an account?",
+        "login_button": "Login",
+        "register_button": "Register",
+        "login_with_google": "Login with Google",
+        "register_with_google": "Register with Google",
+        "full_name": "Full name",
+        "full_name_placeholder": "Your full name",
+        "terms": "I agree to the ",
+        "terms_link": "terms of service",
+        "password_requirements": "Password must contain at least:\n- 6 characters\n- 1 number\n- 1 special character (!@#$%^&*)",
+        "password_strength": {
+          "weak": "Weak",
+          "medium": "Medium",
+          "strong": "Strong"
+        },
+        "errors": {
+          "email_required": "Email address is required",
+          "invalid_email": "Invalid email format",
+          "password_required": "Password is required",
+          "password_min_length": "Password must be at least {length} characters",
+          "password_match": "Passwords do not match",
+          "login_failed": "Incorrect email or password",
+          "max_attempts": "Maximum number of attempts reached",
+          "max_attempts_timeout": "Too many attempts, try again in {minutes} minutes",
+          "email_already_used": "This email is already in use",
+          "accept_terms": "You must accept the terms of service"
+        },
+        "success": {
+          "login": "Login successful",
+          "logout": "Logout successful",
+          "register": "Registration successful!",
+          "password_reset": "A temporary password has been sent to your email address"
+        },
+        "password_reset": {
+          "title": "Password Reset",
+          "instructions": "Enter your email address to receive a temporary password",
+          "send_button": "Send",
+          "email_sent": "A reset email has been sent",
+          "email_not_authorized": "This email address is not authorized"
+        }
+      },
+      "dashboard": {
+        "overview": "Overview",
+        "quick_actions": "Quick Actions",
+        "recent_activities": "Recent Activities",
+        "no_activities": "No recent activities",
+        "stats": {
+          "clients": "Clients",
+          "templates": "Templates",
+          "documents": "Documents"
+        },
+        "actions": {
+          "new_document": "New Document",
+          "add_client": "Add Client",
+          "create_template": "Create Template"
+        }
+      },
+      "clients": {
+        "management": "Client Management",
+        "new_client": "New Client",
+        "edit_client": "Edit Client",
+        "import_clients": "Import",
+        "export_clients": "Export",
+        "delete_client": "Delete Client",
+        "delete_clients": "Delete Selected Clients",
+        "search_placeholder": "Search for a client...",
+        "no_clients": "No clients available. Add clients to get started.",
+        "no_results": "No clients match your search criteria.",
+        "selected_clients": "{count} selected",
+        "client_info": "Client information: {company}",
+        "confirm_delete": {
+          "title": "Confirm Deletion",
+          "message": "You are about to delete {count} client(s).",
+          "warning": "This action is irreversible and deleted clients cannot be recovered.",
+          "button": "Delete {count} client(s)"
+        },
+        "deletion_success": "Deletion completed successfully",
+        "fields": {
+          "name": "Name",
+          "first_name": "First Name",
+          "company": "Company",
+          "email": "Email",
+          "phone": "Phone",
+          "address": "Address",
+          "postal_code": "Postal Code",
+          "city": "City",
+          "notes": "Notes"
+        },
+        "import": {
+          "title": "Import Preview",
+          "instructions": "Total rows to import: {count}",
+          "options": {
+            "skip_duplicates": "Skip duplicates (based on email)",
+            "update_existing": "Update existing clients"
+          },
+          "preview": "Preview of first 5 rows:",
+          "success": "Import completed:\n\n✅ {imported} clients imported\n🔄 {updated} clients updated\n⏭️ {skipped} clients skipped (duplicates)\n❌ {errors} errors"
+        }
+      },
+      "templates": {
+        "management": "Document Templates",
+        "new_template": "New Template",
+        "edit_template": "Edit Template",
+        "use_template": "Use",
+        "import_template": "Import",
+        "delete_template": "Delete Template",
+        "delete_templates": "Delete Selected Templates",
+        "search_placeholder": "Search for a template...",
+        "no_templates": "No templates available. Create or import a template to get started.",
+        "no_results": "No templates match your search criteria.",
+        "selected_templates": "{count} selected",
+        "confirm_delete": {
+          "title": "Confirm Deletion",
+          "message": "You are about to delete {count} template(s).",
+          "warning": "This action is irreversible and deleted templates cannot be recovered.",
+          "button": "Delete {count} template(s)"
+        },
+        "deletion_success": "Deletion completed successfully",
+        "fields": {
+          "name": "Name",
+          "type": "Type",
+          "description": "Description",
+          "content": "Content",
+          "variables": "Variables",
+          "variables_placeholder": "Ex: name, date, amount (comma separated)"
+        },
+        "types": {
+          "contract": "Contract",
+          "invoice": "Invoice",
+          "proposal": "Proposal",
+          "report": "Report",
+          "other": "Other"
+        },
+        "import": {
+          "title": "Import Template",
+          "instructions": "Select a template file to import.\nSupported formats: .docx, .txt",
+          "file_too_large": "The template file is too large.",
+          "success": "Template imported successfully"
+        },
+        "variables_heading": "Standard variables available:",
+        "variables_info": "Use {variable} to insert variables in the content"
+      },
+      "documents": {
+        "management": "Document Library",
+        "new_document": "New Document",
+        "import_document": "Import",
+        "delete_document": "Delete Document",
+        "delete_documents": "Delete Selected Documents",
+        "search_placeholder": "Search for a document...",
+        "no_documents": "No documents available. Create a new document to get started.",
+        "no_results": "No documents match your search criteria.",
+        "selected_documents": "{count} selected",
+        "confirm_delete": {
+          "title": "Confirm Deletion",
+          "message": "You are about to delete {count} document(s).",
+          "warning": "This action is irreversible and deleted documents cannot be recovered.",
+          "button": "Delete {count} document(s)"
+        },
+        "deletion_success": "Deletion completed successfully",
+        "fields": {
+          "title": "Title",
+          "type": "Type",
+          "date": "Date",
+          "client": "Client",
+          "description": "Description",
+          "template": "Template",
+          "variables": "Variables"
+        },
+        "actions": {
+          "open": "Open",
+          "download": "Download",
+          "print": "Print",
+          "share": "Share"
+        },
+        "filters": {
+          "all_clients": "All clients",
+          "all_types": "All types"
+        },
+        "creator": {
+          "title": "Document Creation",
+          "step1": "1. Select a template",
+          "step2": "2. Select a client",
+          "step3": "3. Document information",
+          "step4": "4. Template variables"
+        }
+      },
+      "settings": {
+        "general": "General Settings",
+        "paths": "Default Folders",
+        "security": "Security",
+        "document_format": "Document Format",
+        "backup": "Backup and Restore",
+        "fields": {
+          "company_name": {
+            "label": "Company Name",
+            "description": "Name that will appear on documents"
+          },
+          "company_logo": {
+            "label": "Company Logo",
+            "description": "Image that will appear on documents"
+          },
+          "theme": {
+            "label": "Theme",
+            "description": "Application appearance"
+          },
+          "language": {
+            "label": "Language",
+            "description": "Interface language"
+          },
+          "auto_save": {
+            "label": "Auto Save",
+            "description": "Automatically save changes"
+          },
+          "save_interval": {
+            "label": "Save Interval",
+            "description": "Minutes between each automatic save"
+          },
+          "documents_folder": {
+            "label": "Documents Folder",
+            "description": "Location of generated documents"
+          },
+          "templates_folder": {
+            "label": "Templates Folder",
+            "description": "Location of document templates"
+          },
+          "password_protection": {
+            "label": "Password Protection",
+            "description": "Require a password at startup"
+          },
+          "auto_lock": {
+            "label": "Auto Lock",
+            "description": "Lock after a period of inactivity"
+          },
+          "lock_time": {
+            "label": "Lock Time",
+            "description": "Minutes of inactivity before locking"
+          },
+          "default_format": {
+            "label": "Default Format",
+            "description": "Format used when generating documents"
+          },
+          "filename_pattern": {
+            "label": "Filename Pattern",
+            "description": "Pattern for naming files (e.g.: {document_type}_{client_name}_{date})"
+          },
+          "date_format": {
+            "label": "Date Format",
+            "description": "Format of dates in filenames"
+          }
+        },
+        "themes": {
+          "system": "System",
+          "light": "Light",
+          "dark": "Dark"
+        },
+        "languages": {
+          "en": "English",
+          "fr": "French"
+        },
+        "password": {
+          "setup_title": "Password Setup",
+          "requirements": "Password must contain at least:\n- 6 characters\n- 1 number\n- 1 special character (!@#$%^&*)",
+          "protection_enabled": "Password protection has been successfully enabled."
+        },
+        "backup": {
+          "create": "Create Backup",
+          "restore": "Restore Backup",
+          "reset": "Reset",
+          "save_settings": "Save Settings",
+          "insufficient_space": "Insufficient disk space available to create the backup.",
+          "backup_created": "Backup created successfully:\n{path}",
+          "backup_creation_error": "Unable to create backup.",
+          "file_too_large": "The backup file is too large.",
+          "corrupted_file": "The backup file is corrupted",
+          "invalid_file": "The file is not a valid backup",
+          "confirm_restore": {
+            "title": "Confirm Restoration",
+            "message": "Restoring a backup will replace all your current data. This action is irreversible.\n\nAre you sure you want to continue?"
+          },
+          "restore_success": "The backup has been successfully restored.\nPlease restart the application to apply the changes.",
+          "restore_error": "Unable to restore the backup.",
+          "confirm_reset": {
+            "title": "Confirm Reset",
+            "message": "Are you sure you want to reset all settings to default values?"
+          },
+          "reset_success": "Settings have been reset to default values.",
+          "settings_saved": "Settings have been saved successfully."
+        },
+        "validation": {
+          "required_field": "This field is required",
+          "path_must_be_absolute": "The path {path} must be absolute",
+          "invalid_path": "Invalid path for {path}",
+          "save_interval_range": "Save interval must be between 1 and 30 minutes",
+          "save_interval_integer": "Save interval must be an integer",
+          "lock_time_range": "Lock time must be between 1 and 60 minutes",
+          "lock_time_integer": "Lock time must be an integer",
+          "date_format_empty": "Date format cannot be empty",
+          "date_format_invalid": "Invalid date format: {error}",
+          "filename_pattern_empty": "Filename pattern cannot be empty",
+          "filename_pattern_missing": "Filename pattern must contain {document_type}, {client_name}, and {date}",
+          "filename_pattern_invalid": "Filename pattern contains forbidden characters: {chars}"
+        }
+      },
+      "common": {
+        "required_field": "* Required fields",
+        "loading": "Loading...",
+        "actions": "Actions",
+        "or": "or",
+        "all": "All",
+        "none": "None",
+        "unknown": "Unknown",
+        "not_found": "Not found",
+        "created_at": "Created on",
+        "updated_at": "Updated on",
+        "variables": "Variables: {list}",
+        "and_others": "and {count} others...",
+        "no_client": "No client",
+        "no_template": "No template",
+        "no_description": "No description",
+        "delete_confirmation": "This action is irreversible. Are you sure you want to continue?",
+        "date_format": "mm/dd/yyyy",
+        "unsaved_changes": "You have unsaved changes. Do you want to save them before leaving?"
+      },
+      "errors": {
+        "general": "An error occurred",
+        "form_validation": "Please correct the errors in the form",
+        "required_field": "{field} is required",
+        "server_error": "Server error: {message}",
+        "not_found": "Item not found",
+        "already_exists": "This item already exists",
+        "unexpected_error": "An unexpected error occurred: {error}",
+        "file_not_found": "File not found: {file}",
+        "invalid_file_format": "Invalid file format",
+        "insufficient_permissions": "Insufficient permissions",
+        "initialization_error": "Initialization error: {error}",
+        "loading_error": "Loading error: {error}",
+        "saving_error": "Saving error: {error}",
+        "deletion_error": "Deletion error: {error}",
+        "operation_failed": "Operation failed: {error}",
+        "invalid_argument": "Invalid argument: {argument}",
+        "login_required": "You must be logged in to perform this action"
+      },
+      "tooltips": {
+        "add": "Add",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel",
+        "search": "Search",
+        "filter": "Filter",
+        "import": "Import",
+        "export": "Export",
+        "refresh": "Refresh",
+        "settings": "Settings",
+        "help": "Help",
+        "logout": "Logout",
+        "back": "Back",
+        "next": "Next",
+        "finish": "Finish",
+        "new_document": "Create a new document",
+        "add_client": "Add a new client",
+        "create_template": "Create a new template",
+        "use_template": "Use this template",
+        "open_document": "Open this document",
+        "download_document": "Download this document"
+      }
+    }
+  }
