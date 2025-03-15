@@ -1,0 +1,46 @@
+{
+    "version": "1.0.0",
+    "language": "fr",
+    "output_directory": "output",
+    "validation": {
+        "strict_mode": true,
+        "auto_correct": true,
+        "validate_dates": true,
+        "validate_amounts": true,
+        "validate_emails": true,
+        "validate_phones": true,
+        "validate_addresses": true
+    },
+    "document": {
+        "default_format": "pdf",
+        "auto_save": true,
+        "backup_enabled": true,
+        "max_recent_documents": 10
+    },
+    "app": {
+        "company_name": "Vynal Docs Automator",
+        "theme": "light",
+        "max_recent_activities": 50,
+        "auto_update": true,
+        "debug_mode": false
+    },
+    "auto_fill": {
+        "enabled": true,
+        "confidence_threshold": 0.8,
+        "auto_validate": true,
+        "show_preview": true,
+        "max_fields": 50,
+        "field_mapping": {
+            "client_name": ["nom", "name", "client"],
+            "client_company": ["company", "société", "entreprise"],
+            "client_email": ["email", "mail", "courriel"],
+            "client_phone": ["phone", "téléphone", "tel"],
+            "client_address": ["address", "adresse"],
+            "document_date": ["date", "date_document"],
+            "document_number": ["number", "numéro", "reference"],
+            "amount": ["montant", "amount", "prix", "total"],
+            "vat_amount": ["tva", "vat", "taxe"],
+            "due_date": ["due", "échéance", "date_échéance"]
+        }
+    }
+} 

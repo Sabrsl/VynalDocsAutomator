@@ -1,0 +1,54 @@
+[
+  {
+    "id": "doc_1_20250309160719",
+    "title": "Contrat - Jane Smith",
+    "type": "contrat",
+    "date": "2025-03-09",
+    "description": "",
+    "template_id": "87f37537-7dfe-47e8-9604-b0eccc83cfc8",
+    "client_id": "client_2",
+    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\contrat_Jane_Smith_2025-03-09.pdf",
+    "variables": {},
+    "created_at": "2025-03-09T16:07:19.118560",
+    "updated_at": "2025-03-09T16:07:19.118560"
+  },
+  {
+    "id": "de80ef52-7981-4cef-a492-16350cd3622c",
+    "title": "scqs",
+    "type": "autre",
+    "date": "2025-03-12",
+    "description": "",
+    "template_id": "624f9b25-5326-4895-ac44-8532adadb953",
+    "client_id": "client_4_20250312141956",
+    "file_path": "",
+    "variables": {},
+    "created_at": "2025-03-12T18:12:38.542704",
+    "updated_at": "2025-03-12T18:12:38.542704"
+  },
+  {
+    "id": "5ae47b42-2530-4ed2-8688-4143e4fdb1bf",
+    "title": "sqsq",
+    "type": "autre",
+    "date": "2025-03-12",
+    "description": "",
+    "template_id": "624f9b25-5326-4895-ac44-8532adadb953",
+    "client_id": "client_3",
+    "file_path": "",
+    "variables": {},
+    "created_at": "2025-03-12T18:13:13.137521",
+    "updated_at": "2025-03-12T18:13:13.137521"
+  },
+  {
+    "id": "96c86291-d099-42dc-8387-26f1c2e8d208",
+    "title": "llllll",
+    "type": "document",
+    "date": "2025-03-13",
+    "description": "",
+    "template_id": "575094ad-da8b-4c76-b705-e9e8e7a65bba",
+    "client_id": "client_2",
+    "file_path": "",
+    "variables": {},
+    "created_at": "2025-03-13T02:58:57.568074",
+    "updated_at": "2025-03-13T02:58:57.568074"
+  }
+]

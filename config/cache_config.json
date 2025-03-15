@@ -1,0 +1,34 @@
+{
+    "enabled": true,
+    "cache_types": {
+        "documents": {
+            "max_size": 5000,
+            "ttl": 1200,
+            "strategy": "lru"
+        },
+        "templates": {
+            "max_size": 1000,
+            "ttl": 3600,
+            "strategy": "lru"
+        },
+        "clients": {
+            "max_size": 500,
+            "ttl": 3600,
+            "strategy": "lru"
+        },
+        "search": {
+            "max_size": 200,
+            "ttl": 300,
+            "strategy": "lru"
+        }
+    },
+    "file_cache": {
+        "max_size_mb": 1024,
+        "cleanup_interval": 1800,
+        "compression": true
+    },
+    "memory_cache": {
+        "max_size_mb": 512,
+        "gc_threshold": 0.8
+    }
+} 

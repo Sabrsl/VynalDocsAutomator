@@ -1,0 +1,15 @@
+{
+    "temp_directory": "temp_docs",
+    "document_directory": "documents",
+    "supported_formats": {
+        "docx": true,
+        "pdf": true,
+        "txt": true,
+        "md": true
+    },
+    "encoding_priority": [
+        "utf-8",
+        "latin-1",
+        "cp1252"
+    ]
+} 
