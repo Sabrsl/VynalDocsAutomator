@@ -148,8 +148,10 @@ class TemplateView:
         if hasattr(self, 'folder_title_label'):
             self.folder_title_label.pack_forget()
         
-        # Réinitialiser le dossier sélectionné
+        # Réinitialiser le dossier sélectionné et les templates
         self.selected_folder = None
+        self.selected_templates = []
+        self.update_selection_ui()
         
         # Nettoyer la vue
         self.templates_grid.pack_forget()
@@ -254,57 +256,58 @@ class TemplateView:
         # Si un dossier est sélectionné, afficher ses modèles
         if self.selected_folder:
             templates = self.model.get_templates_by_folder(self.selected_folder)
-        else:
-            templates = self.model.templates
-        
-        # Trier les templates du plus récent au plus ancien
-        try:
-            templates.sort(
-                key=lambda t: parse_iso_datetime(t.get('created_at', datetime.min.isoformat())), 
-                reverse=True
-            )
-        except Exception as e:
-            logger.error(f"Erreur lors du tri des modèles : {e}")
-        
-        # Réinitialiser la liste des templates sélectionnés
-        self.selected_templates = []
-        self.update_selection_ui()
-        
-        # Afficher ou masquer le message "Aucun modèle"
-        if templates:
-            self.no_templates_label.pack_forget()
-            self.templates_grid.pack(fill=ctk.BOTH, expand=True, padx=0, pady=0)
             
-            # Appliquer les filtres
-            filtered_templates = self.apply_filters(templates)
+            # Trier les templates du plus récent au plus ancien
+            try:
+                templates.sort(
+                    key=lambda t: parse_iso_datetime(t.get('created_at', datetime.min.isoformat())), 
+                    reverse=True
+                )
+            except Exception as e:
+                logger.error(f"Erreur lors du tri des modèles : {e}")
             
-            # Nettoyer la grille
-            for widget in self.templates_grid.winfo_children():
-                widget.destroy()
+            # Réinitialiser la liste des templates sélectionnés
+            self.selected_templates = []
+            self.update_selection_ui()
             
-            # Remplir la grille avec les modèles filtrés
-            if filtered_templates:
-                row, col = 0, 0
-                for template in filtered_templates:
-                    self.create_template_card(template, row, col)
-                    col += 1
-                    if col >= 3:  # 3 cartes par ligne
-                        col = 0
-                        row += 1
+            # Afficher ou masquer le message "Aucun modèle"
+            if templates:
+                self.no_templates_label.pack_forget()
+                self.templates_grid.pack(fill=ctk.BOTH, expand=True, padx=0, pady=0)
+                
+                # Appliquer les filtres
+                filtered_templates = self.apply_filters(templates)
+                
+                # Nettoyer la grille
+                for widget in self.templates_grid.winfo_children():
+                    widget.destroy()
+                
+                # Remplir la grille avec les modèles filtrés
+                if filtered_templates:
+                    row, col = 0, 0
+                    for template in filtered_templates:
+                        self.create_template_card(template, row, col)
+                        col += 1
+                        if col >= 3:  # 3 cartes par ligne
+                            col = 0
+                            row += 1
+                else:
+                    # Aucun modèle après filtrage
+                    ctk.CTkLabel(
+                        self.templates_grid,
+                        text="Aucun modèle ne correspond aux critères de recherche.",
+                        font=ctk.CTkFont(size=12),
+                        fg_color="transparent",
+                        text_color="gray"
+                    ).grid(row=0, column=0, columnspan=3, pady=20)
             else:
-                # Aucun modèle après filtrage
-                ctk.CTkLabel(
-                    self.templates_grid,
-                    text="Aucun modèle ne correspond aux critères de recherche.",
-                    font=ctk.CTkFont(size=12),
-                    fg_color="transparent",
-                    text_color="gray"
-                ).grid(row=0, column=0, columnspan=3, pady=20)
+                self.templates_grid.pack_forget()
+                folder_name = self.model.template_folders.get(self.selected_folder, "ce dossier")
+                self.no_templates_label.configure(text=f"Aucun modèle disponible dans {folder_name}.")
+                self.no_templates_label.pack(pady=20)
         else:
-            self.templates_grid.pack_forget()
-            folder_name = self.model.template_folders.get(self.selected_folder, "ce dossier")
-            self.no_templates_label.configure(text=f"Aucun modèle disponible dans {folder_name}.")
-            self.no_templates_label.pack(pady=20)
+            # Si aucun dossier n'est sélectionné, montrer la vue des dossiers
+            self.show_folders_view()
         
         logger.info("TemplateView mise à jour")
     

@@ -1445,10 +1445,10 @@ class DocumentView:
         for widget in self.documents_grid.winfo_children():
             widget.destroy()
         
-        # Trier les documents par date de création (du plus récent au plus ancien)
+        # Trier les documents par date et heure de création (du plus récent au plus ancien)
         sorted_documents = sorted(
             documents,
-            key=lambda x: x.get('created_at', ''),
+            key=lambda x: (x.get('date', ''), x.get('created_at', '')),
             reverse=True  # True pour trier du plus récent au plus ancien
         )
         
@@ -1563,17 +1563,30 @@ class DocumentView:
         )
         title_label.pack(fill=ctk.X, padx=10, pady=5)
         
-        # Date
+        # Date et heure
         date_str = document.get("date", "")
+        created_at = document.get("created_at", "")
+        formatted_date = "Date inconnue"
+        formatted_time = ""
+        
         try:
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-            formatted_date = date_obj.strftime("%d/%m/%Y")
+            if date_str:
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                formatted_date = date_obj.strftime("%d/%m/%Y")
+            
+            if created_at:
+                time_obj = datetime.fromisoformat(created_at)
+                formatted_time = time_obj.strftime("%H:%M")
         except:
-            formatted_date = date_str
+            pass
+        
+        date_text = formatted_date
+        if formatted_time:
+            date_text = f"{formatted_date} à {formatted_time}"
         
         date_label = ctk.CTkLabel(
             content_frame,
-            text=f"Date: {formatted_date}",
+            text=f"Date: {date_text}",
             font=ctk.CTkFont(size=12),
             text_color="gray"
         )
