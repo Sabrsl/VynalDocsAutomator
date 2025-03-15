@@ -94,7 +94,7 @@ class DashboardView:
         self.new_doc_btn = ctk.CTkButton(
             self.action_buttons_frame,
             text="Nouveau document",
-            width=200,
+            width=150,
             command=self._new_document_callback
         )
         self.new_doc_btn.pack(side=ctk.LEFT, padx=5, pady=5)
@@ -103,7 +103,7 @@ class DashboardView:
         self.add_client_btn = ctk.CTkButton(
             self.action_buttons_frame,
             text="Ajouter un client",
-            width=200,
+            width=150,
             command=self._add_client_callback
         )
         self.add_client_btn.pack(side=ctk.LEFT, padx=5, pady=5)
@@ -112,7 +112,7 @@ class DashboardView:
         self.new_template_btn = ctk.CTkButton(
             self.action_buttons_frame,
             text="Créer un modèle",
-            width=200,
+            width=150,
             command=self._new_template_callback
         )
         self.new_template_btn.pack(side=ctk.LEFT, padx=5, pady=5)

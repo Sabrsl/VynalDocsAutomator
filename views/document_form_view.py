@@ -93,7 +93,13 @@ class DocumentFormView:
             default_types = ["contrat", "facture", "proposition", "rapport", "autre"]
             types.update(default_types)
             
-            # Récupérer les types depuis les modèles
+            # Ajouter les types depuis les dossiers de modèles
+            if hasattr(self.model, 'template_folders'):
+                folder_types = self.model.template_folders.values()
+                types.update(folder_types)
+                logger.debug(f"Types ajoutés depuis les dossiers de modèles: {folder_types}")
+            
+            # Récupérer les types depuis les modèles pour la rétrocompatibilité
             if hasattr(self.model, 'templates'):
                 if isinstance(self.model.templates, list):
                     for template in self.model.templates:
@@ -106,7 +112,7 @@ class DocumentFormView:
                         if template_type:
                             types.add(template_type)
             
-            # Récupérer les types des documents existants
+            # Récupérer les types des documents existants pour la rétrocompatibilité
             if hasattr(self.model, 'documents'):
                 if isinstance(self.model.documents, list):
                     for doc in self.model.documents:
@@ -128,7 +134,8 @@ class DocumentFormView:
             logger.warning(f"Erreur lors de la récupération des types: {e}")
             types = ["contrat", "facture", "proposition", "rapport", "autre"]
         
-        type_menu = ctk.CTkOptionMenu(type_frame, values=types, variable=self.type_var, width=400)
+        type_menu = ctk.CTkOptionMenu(type_frame, values=types, variable=self.type_var, width=400,
+                                     command=lambda x: self._update_template_info())
         type_menu.pack(side=ctk.LEFT, padx=10)
         
         # Sélection du modèle
@@ -265,24 +272,71 @@ class DocumentFormView:
     def _update_template_info(self, value=None):
         """Met à jour les informations du modèle sélectionné"""
         selected_name = self.template_combo.get()
+        selected_type = self.type_var.get().strip()
         
         if selected_name == "Sélectionner un modèle":
             self.template_info_label.configure(text="Sélectionnez un modèle pour voir les détails")
             for widget in self.variables_frame.winfo_children():
                 widget.destroy()
+            
+            # Mettre à jour la liste des modèles pour le type sélectionné
+            template_options = ["Sélectionner un modèle"]
+            if hasattr(self.model, 'templates'):
+                templates_to_show = []
+                
+                # Récupérer tous les modèles dans une liste
+                if isinstance(self.model.templates, list):
+                    templates_to_show = self.model.templates
+                elif isinstance(self.model.templates, dict):
+                    templates_to_show = list(self.model.templates.values())
+                
+                # Filtrer les modèles par type
+                for template in templates_to_show:
+                    show_template = False
+                    
+                    # Vérifier d'abord le dossier si disponible
+                    if hasattr(self.model, 'template_folders'):
+                        folder_id = str(template.get('folder', ''))
+                        for fid, fname in self.model.template_folders.items():
+                            if str(fid) == folder_id and fname.lower() == selected_type.lower():
+                                show_template = True
+                                break
+                    
+                    # Si pas de correspondance par dossier, vérifier le type (rétrocompatibilité)
+                    if not show_template and template.get('type', '').lower() == selected_type.lower():
+                        show_template = True
+                    
+                    if show_template:
+                        name = template.get('name', '')
+                        if name:
+                            template_options.append(f"{name} ({template.get('type', '')})")
+            
+            # Mettre à jour le combobox
+            self.template_combo.configure(values=template_options)
             return
             
         # Trouver le modèle correspondant
         template = None
         if hasattr(self.model, 'templates'):
+            templates_to_check = []
+            
             if isinstance(self.model.templates, list):
-                for t in self.model.templates:
-                    if t.get('name') and selected_name.startswith(t.get('name')):
-                        template = t
-                        break
+                templates_to_check = self.model.templates
             elif isinstance(self.model.templates, dict):
-                for t_id, t in self.model.templates.items():
-                    if t.get('name') and selected_name.startswith(t.get('name')):
+                templates_to_check = list(self.model.templates.values())
+            
+            for t in templates_to_check:
+                if t.get('name') and selected_name.startswith(t.get('name')):
+                    # Vérifier d'abord le dossier si disponible
+                    if hasattr(self.model, 'template_folders'):
+                        folder_id = str(t.get('folder', ''))
+                        for fid, fname in self.model.template_folders.items():
+                            if str(fid) == folder_id and fname.lower() == selected_type.lower():
+                                template = t
+                                break
+                    
+                    # Si pas de correspondance par dossier, vérifier le type (rétrocompatibilité)
+                    if not template and t.get('type', '').lower() == selected_type.lower():
                         template = t
                         break
         
