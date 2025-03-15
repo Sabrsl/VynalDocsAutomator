@@ -337,9 +337,33 @@ class DocumentFormView:
         client_company = client.get('company', 'Non spécifié')
         client_email = client.get('email', 'Non spécifié')
         client_phone = client.get('phone', 'Non spécifié')
+        client_address = client.get('address', 'Non spécifié')
         
         info_text = f"Nom: {client_name}\nEntreprise: {client_company}\nEmail: {client_email}\nTéléphone: {client_phone}"
+        if client_address != 'Non spécifié':
+            info_text += f"\nAdresse: {client_address}"
         self.client_info_label.configure(text=info_text)
+        
+        # Pré-remplir les variables du client si elles existent dans notre formulaire
+        if hasattr(self, 'variable_entries') and self.variable_entries:
+            # Mapping des variables client vers les champs du formulaire
+            client_vars = {
+                'client_name': client_name,
+                'client_company': client_company,
+                'client_email': client_email,
+                'client_phone': client_phone,
+                'client_address': client_address,
+                'nom_client': client_name,
+                'entreprise_client': client_company,
+                'email_client': client_email,
+                'telephone_client': client_phone,
+                'adresse_client': client_address
+            }
+            
+            # Remplir les variables correspondantes
+            for var_name, var_var in self.variable_entries.items():
+                if var_name in client_vars and client_vars[var_name] != 'Non spécifié':
+                    var_var.set(client_vars[var_name])
     
     def _show_template_variables(self):
         """Affiche les champs pour les variables présentes dans le contenu du document"""

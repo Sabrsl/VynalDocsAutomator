@@ -20,6 +20,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:30.094618",
     "updated_at": "2025-03-13T19:13:30.094618"
@@ -32,6 +33,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:32.627278",
     "updated_at": "2025-03-13T19:13:32.627278"
@@ -44,7 +46,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:08.298151",
     "updated_at": "2025-03-13T19:14:08.298151"
@@ -57,7 +58,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:10.827485",
     "updated_at": "2025-03-13T19:14:10.827485"
@@ -70,7 +70,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.071471",
     "updated_at": "2025-03-13T19:14:11.071471"
@@ -83,7 +82,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.244019",
     "updated_at": "2025-03-13T19:14:11.244019"
@@ -96,7 +94,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.399706",
     "updated_at": "2025-03-13T19:14:11.399706"
@@ -109,7 +106,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.586035",
     "updated_at": "2025-03-13T19:14:11.586035"
@@ -297,11 +293,9 @@
     "id": "6b0dd342-b312-4af7-ab83-d16c5ccdaae6",
     "title": "ssss",
     "type": "contrat",
-    "date": "2025-03-15",
-    "description": "",
-    "template_id": "contrat_prestation_services",
     "client_id": "client_4_20250314075025",
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf",
+    "template_id": "contrat_prestation_services",
+    "folder_id": null,
     "variables": {
       "adresse_client": "ABG",
       "adresse_prestataire": "",
@@ -326,47 +320,14 @@
       "taux_penalites": "",
       "variable": ""
     },
-    "created_at": "2025-03-15T01:51:25.602106",
-    "updated_at": "2025-03-15T01:51:25.680058"
-  },
-  {
-    "id": "b032b12c-d9db-40c5-8e60-636b09df47d6",
-    "title": "s",
-    "type": "autre",
-    "client_id": "client_4_20250314075025",
-    "template_id": "contrat_prestation_services",
-    "folder_id": null,
-    "variables": {
-      "nom_client": "Alioune Badara GUEYE",
-      "adresse_client": "71-75 Shelton Street, Covent Garden, London, UK",
-      "fonction_client": "",
-      "nom_prestataire": "",
-      "adresse_prestataire": "",
-      "numero_rc_prestataire": "",
-      "description_prestation": "",
-      "duree_prestation": "",
-      "lieu_execution": "",
-      "montant_contrat": "",
-      "conditions_paiement": "",
-      "iban_prestataire": "",
-      "montant_acompte": "",
-      "montant_solde": "",
-      "taux_penalites": "",
-      "date_debut": "",
-      "date_fin": "",
-      "delai_resiliation": "",
-      "nom_tribunal": "",
-      "lieu_signature": "",
-      "date_signature": ""
-    },
     "date": "2025-03-15",
-    "created_at": "2025-03-15T03:02:17.065372",
+    "created_at": "2025-03-15T01:51:25.602106",
     "classification": {
       "client": {
         "id": "client_4_20250314075025",
         "name": "Alioune Badara GUEYE"
       },
-      "type": "autre",
+      "type": "contrat",
       "date": {
         "year": "2025",
         "month": "03",
@@ -374,12 +335,12 @@
       }
     },
     "file_paths": {
-      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\s_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\s_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\autre\\s_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\s_Alioune_Badara_GUEYE_2025-03-15.pdf"
+      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\contrat\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf"
     },
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\s_Alioune_Badara_GUEYE_2025-03-15.pdf",
-    "updated_at": "2025-03-15T03:02:17.136815"
+    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\ssss_Alioune_Badara_GUEYE_2025-03-15.pdf",
+    "updated_at": "2025-03-15T01:51:25.680058"
   }
 ]

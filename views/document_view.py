@@ -1445,19 +1445,26 @@ class DocumentView:
         for widget in self.documents_grid.winfo_children():
             widget.destroy()
         
+        # Trier les documents par date de création (du plus récent au plus ancien)
+        sorted_documents = sorted(
+            documents,
+            key=lambda x: x.get('created_at', ''),
+            reverse=True  # True pour trier du plus récent au plus ancien
+        )
+        
         # Calculer la pagination
-        total_docs = len(documents)
+        total_docs = len(sorted_documents)
         self.total_documents = total_docs
         
         start_idx = self.current_page * self.page_size
         end_idx = min(start_idx + self.page_size, total_docs)
         
-        paginated_docs = documents[start_idx:end_idx]
+        paginated_docs = sorted_documents[start_idx:end_idx]
         print(f"Affichage des documents {start_idx+1} à {end_idx} sur {total_docs}")
         
         # Mettre en cache les documents pour cette vue
         key = f"folder_{self.selected_folder}_{self.current_subfolder}"
-        self.documents_cache[key] = documents
+        self.documents_cache[key] = sorted_documents
         
         # Remplir la grille avec les documents paginés (méthode corrigée)
         self._populate_documents_grid(paginated_docs)
