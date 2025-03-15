@@ -88,47 +88,55 @@ class DocumentFormView:
         
         # Obtenir les types de documents disponibles
         types = set()  # Utiliser un set pour éviter les doublons
+        normalized_types = {}  # Dictionnaire pour stocker la forme normalisée -> forme originale
+        
+        def add_type(type_str):
+            """Ajoute un type en évitant les doublons quelle que soit la casse"""
+            if not type_str:
+                return
+            type_str = type_str.strip()
+            if not type_str:
+                return
+            normalized = type_str.lower()
+            # On garde la première version rencontrée (priorité aux dossiers de modèles)
+            if normalized not in normalized_types:
+                normalized_types[normalized] = type_str
+        
         try:
-            # Types par défaut toujours disponibles
-            default_types = ["contrat", "facture", "proposition", "rapport", "autre"]
-            types.update(default_types)
-            
-            # Ajouter les types depuis les dossiers de modèles
+            # Ajouter d'abord les types depuis les dossiers de modèles (priorité)
             if hasattr(self.model, 'template_folders'):
                 folder_types = self.model.template_folders.values()
-                types.update(folder_types)
+                for folder_type in folder_types:
+                    add_type(folder_type)
                 logger.debug(f"Types ajoutés depuis les dossiers de modèles: {folder_types}")
             
             # Récupérer les types depuis les modèles pour la rétrocompatibilité
             if hasattr(self.model, 'templates'):
                 if isinstance(self.model.templates, list):
                     for template in self.model.templates:
-                        template_type = template.get('type', '').strip()
-                        if template_type:
-                            types.add(template_type)
+                        add_type(template.get('type', ''))
                 elif isinstance(self.model.templates, dict):
                     for template_id, template in self.model.templates.items():
-                        template_type = template.get('type', '').strip()
-                        if template_type:
-                            types.add(template_type)
+                        add_type(template.get('type', ''))
             
             # Récupérer les types des documents existants pour la rétrocompatibilité
             if hasattr(self.model, 'documents'):
                 if isinstance(self.model.documents, list):
                     for doc in self.model.documents:
-                        doc_type = doc.get("type", "").strip()
-                        if doc_type:
-                            types.add(doc_type)
+                        add_type(doc.get('type', ''))
                 elif isinstance(self.model.documents, dict):
                     for doc_id, doc in self.model.documents.items():
-                        doc_type = doc.get("type", "").strip()
-                        if doc_type:
-                            types.add(doc_type)
+                        add_type(doc.get('type', ''))
             
-            # Convertir en liste triée
-            types = sorted(list(types))
+            # Ajouter les types par défaut en dernier (si pas déjà présents)
+            default_types = ["contrat", "facture", "proposition", "rapport", "autre"]
+            for default_type in default_types:
+                add_type(default_type)
             
-            logger.debug(f"Types de documents disponibles : {types}")
+            # Obtenir la liste finale des types uniques dans leur forme originale
+            types = sorted(normalized_types.values())
+            
+            logger.debug(f"Types de documents disponibles (uniques) : {types}")
             
         except Exception as e:
             logger.warning(f"Erreur lors de la récupération des types: {e}")
@@ -169,6 +177,15 @@ class DocumentFormView:
             command=self._update_template_info
         )
         template_combo.pack(side=ctk.LEFT, padx=10)
+        
+        # Ajouter le message d'aide en italique
+        help_label = ctk.CTkLabel(
+            form_frame,
+            text="⚠️ Veuillez sélectionner à nouveau un client si vous changez de modèle",
+            text_color="gray60",  # Couleur plus claire pour indiquer que c'est un message d'aide
+            font=ctk.CTkFont(size=12, slant="italic")  # Police en italique et plus petite
+        )
+        help_label.pack(pady=(0, 10))  # Petit espacement en bas
         
         # Cadre pour les informations du modèle
         self.template_info_frame = ctk.CTkFrame(form_frame)
