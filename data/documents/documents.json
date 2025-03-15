@@ -20,7 +20,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:30.094618",
     "updated_at": "2025-03-13T19:13:30.094618"
@@ -33,7 +32,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:32.627278",
     "updated_at": "2025-03-13T19:13:32.627278"
@@ -46,6 +44,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:08.298151",
     "updated_at": "2025-03-13T19:14:08.298151"
@@ -58,6 +57,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:10.827485",
     "updated_at": "2025-03-13T19:14:10.827485"
@@ -70,6 +70,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.071471",
     "updated_at": "2025-03-13T19:14:11.071471"
@@ -82,6 +83,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.244019",
     "updated_at": "2025-03-13T19:14:11.244019"
@@ -94,6 +96,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.399706",
     "updated_at": "2025-03-13T19:14:11.399706"
@@ -106,6 +109,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.586035",
     "updated_at": "2025-03-13T19:14:11.586035"
@@ -364,9 +368,11 @@
     "id": "bd0af890-7b44-4bdc-856b-ee0365ed09de",
     "title": "jkggggggggggg",
     "type": "contrat",
-    "client_id": "client_4_20250314075025",
+    "date": "2025-03-15",
+    "description": "",
     "template_id": "contrat_prestation_services",
-    "folder_id": null,
+    "client_id": "client_4_20250314075025",
+    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf",
     "variables": {
       "nom_client": "ABG",
       "adresse_client": "",
@@ -390,14 +396,25 @@
       "lieu_signature": "",
       "date_signature": ""
     },
-    "date": "2025-03-15",
     "created_at": "2025-03-15T04:32:17.112338",
+    "updated_at": "2025-03-15T04:32:17.187087"
+  },
+  {
+    "id": "f82c82a3-82ea-44ce-a7a9-295988702a6d",
+    "title": "Autre - L'aviation écologique en Afrique _ Vers un transport aérien durable et innovant  (1) - 15/03/2025",
+    "type": "autre",
+    "client_id": "client_4_20250314075025",
+    "template_id": "60033d64-eb08-4416-b1f4-8e8d3e691098",
+    "folder_id": null,
+    "variables": {},
+    "date": "2025-03-15",
+    "created_at": "2025-03-15T05:23:56.922459",
     "classification": {
       "client": {
         "id": "client_4_20250314075025",
         "name": "Alioune Badara GUEYE"
       },
-      "type": "contrat",
+      "type": "autre",
       "date": {
         "year": "2025",
         "month": "03",
@@ -405,12 +422,12 @@
       }
     },
     "file_paths": {
-      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\contrat\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf",
-      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf"
+      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\Autre_-_L'aviation_écologique_en_Afrique___Vers_un_transport_aérien_durable_et_innovant__(1)_-_15032025_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\Autre_-_L'aviation_écologique_en_Afrique___Vers_un_transport_aérien_durable_et_innovant__(1)_-_15032025_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\autre\\Autre_-_L'aviation_écologique_en_Afrique___Vers_un_transport_aérien_durable_et_innovant__(1)_-_15032025_Alioune_Badara_GUEYE_2025-03-15.pdf",
+      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\Autre_-_L'aviation_écologique_en_Afrique___Vers_un_transport_aérien_durable_et_innovant__(1)_-_15032025_Alioune_Badara_GUEYE_2025-03-15.pdf"
     },
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\jkggggggggggg_Alioune_Badara_GUEYE_2025-03-15.pdf",
-    "updated_at": "2025-03-15T04:32:17.187087"
+    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Alioune_Badara_GUEYE\\Autre_-_L'aviation_écologique_en_Afrique___Vers_un_transport_aérien_durable_et_innovant__(1)_-_15032025_Alioune_Badara_GUEYE_2025-03-15.pdf",
+    "updated_at": "2025-03-15T05:23:56.974372"
   }
 ]

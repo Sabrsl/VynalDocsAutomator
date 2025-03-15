@@ -74,13 +74,6 @@ class DocumentFormView:
         )
         title_label.pack(pady=(0, 20))
         
-        # Titre du document
-        name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        name_frame.pack(fill=ctk.X, pady=5)
-        ctk.CTkLabel(name_frame, text="Titre*:", width=100).pack(side=ctk.LEFT)
-        title_entry = ctk.CTkEntry(name_frame, textvariable=self.title_var, width=400)
-        title_entry.pack(side=ctk.LEFT, padx=10)
-        
         # Type de document
         type_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         type_frame.pack(fill=ctk.X, pady=5)
@@ -178,6 +171,13 @@ class DocumentFormView:
         )
         template_combo.pack(side=ctk.LEFT, padx=10)
         
+        # Titre du document
+        name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        name_frame.pack(fill=ctk.X, pady=5)
+        ctk.CTkLabel(name_frame, text="Titre*:", width=100).pack(side=ctk.LEFT)
+        title_entry = ctk.CTkEntry(name_frame, textvariable=self.title_var, width=400)
+        title_entry.pack(side=ctk.LEFT, padx=10)
+        
         # Ajouter le message d'aide en italique
         help_label = ctk.CTkLabel(
             form_frame,
@@ -203,42 +203,115 @@ class DocumentFormView:
         client_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         client_frame.pack(fill=ctk.X, pady=5)
         ctk.CTkLabel(client_frame, text="Client*:", width=100).pack(side=ctk.LEFT)
-        
+
+        # Créer un sous-frame pour la recherche et le combo
+        client_input_frame = ctk.CTkFrame(client_frame, fg_color="transparent")
+        client_input_frame.pack(side=ctk.LEFT, fill=ctk.X, expand=True)
+
+        # Champ de recherche
+        self.client_search_var = ctk.StringVar()
+        search_entry = ctk.CTkEntry(
+            client_input_frame,
+            placeholder_text="🔍 Rechercher un client...",
+            textvariable=self.client_search_var,
+            width=400
+        )
+        search_entry.pack(fill=ctk.X, padx=10, pady=(0, 5))
+
         # Préparer les options des clients
+        self.all_clients = []  # Pour stocker tous les clients
         client_options = ["Sélectionner un client"]
+        recent_clients = []  # Pour stocker les 5 clients les plus récents
+        
         try:
             # Gérer les cas où clients est une liste ou un dictionnaire
             if hasattr(self.model, 'clients'):
+                clients_list = []
+                
                 if isinstance(self.model.clients, list):
-                    for client in self.model.clients:
-                        name = client.get('name', '')
-                        if name:
-                            if client.get('company'):
-                                name += f" ({client.get('company')})"
-                            client_options.append(name)
+                    clients_list = self.model.clients
                 elif isinstance(self.model.clients, dict):
-                    for client_id, client in self.model.clients.items():
-                        name = client.get('name', '')
-                        if name:
-                            if client.get('company'):
-                                name += f" ({client.get('company')})"
-                            client_options.append(name)
+                    clients_list = [
+                        {**client, 'id': cid} 
+                        for cid, client in self.model.clients.items()
+                    ]
+                
+                # Trier par date de création si disponible
+                sorted_clients = sorted(
+                    clients_list,
+                    key=lambda c: c.get('created_at', ''),
+                    reverse=True
+                )
+                
+                # Collecter tous les clients et les 5 plus récents
+                for client in sorted_clients:
+                    name = client.get('name', '')
+                    if name:
+                        display_name = name
+                        if client.get('company'):
+                            display_name += f" ({client.get('company')})"
+                        
+                        # Stocker pour la recherche
+                        self.all_clients.append({
+                            'id': client.get('id'),
+                            'display': display_name,
+                            'name': name.lower(),
+                            'company': client.get('company', '').lower(),
+                            'email': client.get('email', '').lower(),
+                            'phone': client.get('phone', '').lower()
+                        })
+                        
+                        # Ajouter aux clients récents si dans les 5 premiers
+                        if len(recent_clients) < 5:
+                            recent_clients.append(display_name)
+                
+                # Ajouter les clients récents en premier
+                client_options.extend(recent_clients)
+                
         except Exception as e:
             logger.warning(f"Erreur lors de la récupération des clients: {e}")
-        
+
         # Créer le combobox pour les clients
         client_combo = ctk.CTkComboBox(
-            client_frame, 
+            client_input_frame, 
             width=400,
             values=client_options,
             command=self._update_client_info
         )
-        client_combo.pack(side=ctk.LEFT, padx=10)
-        
+        client_combo.pack(fill=ctk.X, padx=10)
+
+        # Configurer la recherche
+        def filter_clients(*args):
+            search_text = self.client_search_var.get().lower()
+            if not search_text:
+                # Afficher les clients récents
+                options = ["Sélectionner un client"]
+                options.extend(recent_clients)
+            else:
+                # Filtrer les clients selon le texte de recherche
+                filtered = [
+                    c['display'] for c in self.all_clients
+                    if search_text in c['name'] or
+                       search_text in c['company'] or
+                       search_text in c['email'] or
+                       search_text in c['phone']
+                ]
+                options = ["Sélectionner un client"]
+                options.extend(filtered)
+            
+            current_value = client_combo.get()
+            client_combo.configure(values=options)
+            # Restaurer la valeur si elle existe toujours dans les options
+            if current_value in options:
+                client_combo.set(current_value)
+
+        # Lier la recherche au champ de texte
+        self.client_search_var.trace("w", filter_clients)
+
         # Cadre pour les informations du client
         self.client_info_frame = ctk.CTkFrame(form_frame)
         self.client_info_frame.pack(fill=ctk.X, pady=10, padx=10)
-        
+
         # Étiquette pour les informations du client
         self.client_info_label = ctk.CTkLabel(
             self.client_info_frame,
@@ -374,6 +447,24 @@ class DocumentFormView:
         if not self.type_var.get() and template_type:
             self.type_var.set(template_type)
         
+        # Auto-remplir le titre si le champ est vide
+        current_title = self.title_var.get().strip()
+        if not current_title:
+            # Générer un titre automatique basé sur le type et le nom du modèle
+            selected_type = self.type_var.get()
+            template_name = template.get('name', '')
+            
+            # Récupérer la date actuelle au format JJ/MM/AAAA
+            from datetime import datetime
+            current_date = datetime.now().strftime("%d/%m/%Y")
+            
+            # Générer un titre avec format: [Type] - [Nom du modèle] - [Date]
+            auto_title = f"{selected_type.capitalize()} - {template_name} - {current_date}"
+            
+            # Mettre à jour le champ titre
+            self.title_var.set(auto_title)
+            logger.info(f"Titre auto-généré: {auto_title}")
+        
         # Afficher les variables du modèle
         self._show_template_variables()
     
@@ -507,7 +598,7 @@ class DocumentFormView:
             self.variable_entries[var_name] = var_var
     
     def get_selected_client(self):
-        """Récupère le client sélectionné - Version corrigée avec journalisation détaillée"""
+        """Récupère le client sélectionné - Version améliorée avec support de la recherche"""
         selected_name = self.client_combo.get()
         
         # Journalisation pour le débogage
@@ -517,14 +608,16 @@ class DocumentFormView:
             logger.warning("Aucun client sélectionné")
             return None
         
-        # Trouver le client en fonction du type de structure
+        # D'abord, essayer de trouver le client dans la nouvelle structure
+        if hasattr(self, 'all_clients') and self.all_clients:
+            for client in self.all_clients:
+                if client['display'] == selected_name:
+                    logger.info(f"Client trouvé dans la nouvelle structure: {client['name']}, ID: {client['id']}")
+                    return client['id']
+        
+        # Si non trouvé ou si ancienne structure, utiliser la méthode originale
         if hasattr(self.model, 'clients'):
-            # Log la structure des clients pour le débogage
-            logger.debug(f"Type de la structure clients: {type(self.model.clients)}")
-            
             if isinstance(self.model.clients, list):
-                logger.debug(f"Recherche dans une liste de {len(self.model.clients)} clients")
-                
                 for client in self.model.clients:
                     client_name = client.get('name', '')
                     if client.get('company'):
@@ -532,19 +625,15 @@ class DocumentFormView:
                     else:
                         full_name = client_name
                     
-                    # Plus flexible: vérifie si le texte sélectionné correspond au début du nom du client
                     if client_name and selected_name.startswith(client_name):
                         logger.info(f"Client trouvé par nom: {client_name}, ID: {client.get('id')}")
                         return client.get('id')
                     
-                    # Vérification additionnelle avec le nom complet
                     if full_name and selected_name.startswith(full_name):
                         logger.info(f"Client trouvé par nom complet: {full_name}, ID: {client.get('id')}")
                         return client.get('id')
                     
             elif isinstance(self.model.clients, dict):
-                logger.debug(f"Recherche dans un dictionnaire de {len(self.model.clients)} clients")
-                
                 for client_id, client in self.model.clients.items():
                     client_name = client.get('name', '')
                     if client.get('company'):
@@ -552,21 +641,16 @@ class DocumentFormView:
                     else:
                         full_name = client_name
                     
-                    # Plus flexible: vérifie si le texte sélectionné correspond au début du nom du client
                     if client_name and selected_name.startswith(client_name):
                         logger.info(f"Client trouvé par nom: {client_name}, ID: {client_id}")
                         return client_id
                     
-                    # Vérification additionnelle avec le nom complet
                     if full_name and selected_name.startswith(full_name):
                         logger.info(f"Client trouvé par nom complet: {full_name}, ID: {client_id}")
                         return client_id
-        else:
-            logger.error("Le modèle n'a pas d'attribut 'clients'")
         
         # Méthode alternative: extraction de l'ID du client à partir du texte
         try:
-            # Cas où le nom affiché contient un ID entre parenthèses
             import re
             match = re.search(r'\(ID: ([^)]+)\)', selected_name)
             if match:
