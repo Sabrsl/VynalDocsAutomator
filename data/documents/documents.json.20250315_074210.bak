@@ -20,6 +20,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:30.094618",
     "updated_at": "2025-03-13T19:13:30.094618"
@@ -32,6 +33,7 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
+    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:13:32.627278",
     "updated_at": "2025-03-13T19:13:32.627278"
@@ -44,7 +46,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:08.298151",
     "updated_at": "2025-03-13T19:14:08.298151"
@@ -57,7 +58,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:10.827485",
     "updated_at": "2025-03-13T19:14:10.827485"
@@ -70,7 +70,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.071471",
     "updated_at": "2025-03-13T19:14:11.071471"
@@ -83,7 +82,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.244019",
     "updated_at": "2025-03-13T19:14:11.244019"
@@ -96,7 +94,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.399706",
     "updated_at": "2025-03-13T19:14:11.399706"
@@ -109,7 +106,6 @@
     "description": "",
     "template_id": "Rupture de Contrat _ Sab Agency LTD (document)",
     "client_id": "Alioune Badara GUEYE (Sab Agency LTD)",
-    "file_path": null,
     "variables": {},
     "created_at": "2025-03-13T19:14:11.586035",
     "updated_at": "2025-03-13T19:14:11.586035"
@@ -1046,117 +1042,12 @@
     "id": "5afd09d5-0edb-46c2-bae4-bf07ca2f4de8",
     "title": "Contrats - Contrat de Prestation de Services - 15/03/2025",
     "type": "Contrats",
-    "date": "2025-03-15",
-    "description": "",
-    "template_id": "contrat_prestation_services",
     "client_id": "client_4_20250314080743",
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\John_Doee\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
-    "variables": {
-      "nom_client": "John Doee",
-      "adresse_client": "123 Main St, Anytown, USA",
-      "fonction_client": "",
-      "nom_prestataire": "",
-      "adresse_prestataire": "",
-      "numero_rc_prestataire": "",
-      "description_prestation": "",
-      "duree_prestation": "",
-      "lieu_execution": "",
-      "montant_contrat": "",
-      "conditions_paiement": "",
-      "iban_prestataire": "",
-      "montant_acompte": "",
-      "montant_solde": "",
-      "taux_penalites": "",
-      "date_debut": "",
-      "date_fin": "",
-      "delai_resiliation": "",
-      "nom_tribunal": "",
-      "lieu_signature": "",
-      "date_signature": ""
-    },
-    "created_at": "2025-03-15T07:39:50.126827",
-    "updated_at": "2025-03-15T07:39:50.195449"
-  },
-  {
-    "id": "3055f3a6-9bcf-4bad-bff9-a816f5ce6911",
-    "title": "Contrats - Contrat de Prestation de Services - 15/03/2025",
-    "type": "Contrats",
-    "date": "2025-03-15",
-    "description": "",
-    "template_id": "contrat_prestation_services",
-    "client_id": "client_5_20250314232601",
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Senator_Amadou_Thiam\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf",
-    "variables": {
-      "nom_client": "Senator Amadou Thiam",
-      "adresse_client": "Dakar, Sénégal",
-      "fonction_client": "",
-      "nom_prestataire": "",
-      "adresse_prestataire": "",
-      "numero_rc_prestataire": "",
-      "description_prestation": "",
-      "duree_prestation": "",
-      "lieu_execution": "",
-      "montant_contrat": "",
-      "conditions_paiement": "",
-      "iban_prestataire": "",
-      "montant_acompte": "",
-      "montant_solde": "",
-      "taux_penalites": "",
-      "date_debut": "",
-      "date_fin": "",
-      "delai_resiliation": "",
-      "nom_tribunal": "",
-      "lieu_signature": "",
-      "date_signature": ""
-    },
-    "created_at": "2025-03-15T07:42:10.687056",
-    "updated_at": "2025-03-15T07:42:10.756930"
-  },
-  {
-    "id": "ee04a020-6e26-457a-9b17-561c0eff88ab",
-    "title": "Contrats - Contrat de Prestation de Services - 15/03/2025",
-    "type": "Contrats",
-    "date": "2025-03-15",
-    "description": "",
-    "template_id": "contrat_prestation_services",
-    "client_id": "client_4_20250314080743",
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\John_Doee\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
-    "variables": {
-      "nom_client": "John Doee",
-      "adresse_client": "123 Main St, Anytown, USA",
-      "fonction_client": "",
-      "nom_prestataire": "",
-      "adresse_prestataire": "",
-      "numero_rc_prestataire": "",
-      "description_prestation": "",
-      "duree_prestation": "",
-      "lieu_execution": "",
-      "montant_contrat": "",
-      "conditions_paiement": "",
-      "iban_prestataire": "",
-      "montant_acompte": "",
-      "montant_solde": "",
-      "taux_penalites": "",
-      "date_debut": "",
-      "date_fin": "",
-      "delai_resiliation": "",
-      "nom_tribunal": "",
-      "lieu_signature": "",
-      "date_signature": ""
-    },
-    "created_at": "2025-03-15T07:46:23.900214",
-    "updated_at": "2025-03-15T07:46:23.970015"
-  },
-  {
-    "id": "686b8b5c-5e19-41cd-986d-c59c05b228f5",
-    "title": "Contrats - Contrat de Prestation de Services - 15/03/2025",
-    "type": "Contrats",
-    "client_id": "client_5_20250314232601",
     "template_id": "contrat_prestation_services",
     "folder_id": null,
     "variables": {
-      "nom_client": "Senator Amadou Thiam",
-      "adresse_client": "Dakar, Sénégal",
+      "nom_client": "John Doee",
+      "adresse_client": "123 Main St, Anytown, USA",
       "fonction_client": "",
       "nom_prestataire": "",
       "adresse_prestataire": "",
@@ -1178,11 +1069,11 @@
       "date_signature": ""
     },
     "date": "2025-03-15",
-    "created_at": "2025-03-15T07:51:01.788392",
+    "created_at": "2025-03-15T07:39:50.126827",
     "classification": {
       "client": {
-        "id": "client_5_20250314232601",
-        "name": "Senator Amadou Thiam"
+        "id": "client_4_20250314080743",
+        "name": "John Doee"
       },
       "type": "Contrats",
       "date": {
@@ -1192,12 +1083,12 @@
       }
     },
     "file_paths": {
-      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Senator_Amadou_Thiam\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf",
-      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Senator_Amadou_Thiam\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf",
-      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\Contrats\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf",
-      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf"
+      "main": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\John_Doee\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
+      "by_client": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\John_Doee\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
+      "by_type": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\types\\Contrats\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
+      "by_date": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\dates\\2025\\03\\15\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf"
     },
-    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\Senator_Amadou_Thiam\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_Senator_Amadou_Thiam_2025-03-15.pdf",
-    "updated_at": "2025-03-15T07:51:01.857628"
+    "file_path": "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\clients\\John_Doee\\Contrats_-_Contrat_de_Prestation_de_Services_-_15032025_John_Doee_2025-03-15.pdf",
+    "updated_at": "2025-03-15T07:39:50.195449"
   }
 ]

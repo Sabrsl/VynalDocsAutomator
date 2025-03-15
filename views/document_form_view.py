@@ -26,20 +26,12 @@ class DocumentFormView:
         self.import_mode = import_mode
         self.on_save_callback = on_save_callback
         
-        # Créer la boîte de dialogue
+        # Créer la boîte de dialogue mais la cacher jusqu'à ce qu'elle soit prête
         self.dialog = ctk.CTkToplevel(parent)
+        self.dialog.withdraw()  # Cache la fenêtre pendant le chargement
         self.dialog.title("Nouveau document" if not import_mode else "Importer un document")
         self.dialog.geometry("800x600")
         self.dialog.resizable(True, True)
-        self.dialog.grab_set()
-        
-        # Centrer la fenêtre
-        self.dialog.update_idletasks()
-        screen_width = self.dialog.winfo_screenwidth()
-        screen_height = self.dialog.winfo_screenheight()
-        x = (screen_width - self.dialog.winfo_width()) // 2
-        y = (screen_height - self.dialog.winfo_height()) // 2
-        self.dialog.geometry(f"+{x}+{y}")
         
         # Initialiser les variables de formulaire
         self.title_var = ctk.StringVar(value=document_data.get("title", ""))
@@ -53,6 +45,19 @@ class DocumentFormView:
         
         # Créer le contenu du formulaire
         self._create_form()
+        
+        # Après avoir créé tout le contenu, centrer et afficher la fenêtre
+        self.dialog.update_idletasks()  # Force le calcul des dimensions
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        x = (screen_width - self.dialog.winfo_width()) // 2
+        y = (screen_height - self.dialog.winfo_height()) // 2
+        self.dialog.geometry(f"+{x}+{y}")
+        
+        # Maintenant que tout est prêt, afficher la fenêtre et capturer le focus
+        self.dialog.deiconify()  # Rend la fenêtre visible
+        self.dialog.grab_set()  # Capture le focus
+        self.dialog.focus_force()  # Force le focus sur cette fenêtre
         
         logger.info("Formulaire de document initialisé")
     
@@ -191,6 +196,7 @@ class DocumentFormView:
         self.template_info_frame = ctk.CTkFrame(form_frame)
         self.template_info_frame.pack(fill=ctk.X, pady=10, padx=10)
         
+        
         # Étiquette pour les informations du modèle
         self.template_info_label = ctk.CTkLabel(
             self.template_info_frame,
@@ -212,11 +218,23 @@ class DocumentFormView:
         self.client_search_var = ctk.StringVar()
         search_entry = ctk.CTkEntry(
             client_input_frame,
-            placeholder_text="🔍 Rechercher un client...",
+            placeholder_text="Rechercher un client...",
             textvariable=self.client_search_var,
-            width=400
+            width=370  # Légèrement réduit pour faire place au bouton X
         )
-        search_entry.pack(fill=ctk.X, padx=10, pady=(0, 5))
+        search_entry.pack(side=ctk.LEFT, padx=(10, 2), pady=(0, 5))
+
+        # Bouton X pour effacer la recherche
+        clear_button = ctk.CTkButton(
+            client_input_frame,
+            text="✕",
+            width=25,
+            height=25,
+            fg_color="transparent",
+            hover_color="#E0E0E0",
+            command=lambda: [self.client_search_var.set(""), search_entry.focus_set()]
+        )
+        clear_button.pack(side=ctk.LEFT, padx=(0, 10), pady=(0, 5))
 
         # Préparer les options des clients
         self.all_clients = []  # Pour stocker tous les clients
@@ -307,7 +325,13 @@ class DocumentFormView:
 
         # Lier la recherche au champ de texte
         self.client_search_var.trace("w", filter_clients)
-
+        
+        # Ouvrir le menu déroulant quand on clique dans le champ de recherche
+        search_entry.bind("<FocusIn>", lambda e: filter_clients())
+        
+        # Ajouter la détection de fermeture du menu déroulant
+        client_combo.bind("<FocusOut>", lambda e: setattr(self, '_dropdown_showing', False) if hasattr(self, '_dropdown_showing') else None)
+        
         # Cadre pour les informations du client
         self.client_info_frame = ctk.CTkFrame(form_frame)
         self.client_info_frame.pack(fill=ctk.X, pady=10, padx=10)
@@ -988,24 +1012,59 @@ class DocumentFormView:
                     "warning"
                 )
             else:
-                # Afficher un message de succès
+                # Définir une fonction de callback pour fermer la fenêtre et exécuter le callback utilisateur
+                def on_message_close():
+                    # Récupérer les informations complètes du client
+                    client_id = document.get('client_id')
+                    client_name = None
+                    
+                    # Chercher le nom du client dans la structure appropriée
+                    if hasattr(self.model, 'clients'):
+                        if isinstance(self.model.clients, list):
+                            for client in self.model.clients:
+                                if str(client.get('id')) == str(client_id):
+                                    client_name = client.get('name')
+                                    break
+                        elif isinstance(self.model.clients, dict):
+                            client = self.model.clients.get(str(client_id))
+                            if client:
+                                client_name = client.get('name')
+                    
+                    # Préparer les données pour la navigation
+                    navigation_data = {
+                        'document_id': document_id,
+                        'client_id': client_id,
+                        'client_name': client_name,
+                        'highlight': True,  # Indiquer qu'il faut mettre en évidence le document
+                        'redirect_to_client': True  # Indiquer qu'il faut rediriger vers le dossier client
+                    }
+                    
+                    logger.info(f"Navigation préparée vers document {document_id} du client {client_name} (ID: {client_id})")
+                    
+                    self.dialog.destroy()
+                    # Appeler le callback si fourni avec les données de navigation
+                    if self.on_save_callback:
+                        try:
+                            self.on_save_callback(**navigation_data)
+                            logger.info("Callback exécuté avec succès avec les données de navigation")
+                        except TypeError:
+                            # Si le callback ne supporte pas les nouveaux paramètres, utiliser l'appel original
+                            try:
+                                self.on_save_callback()
+                                logger.info("Callback exécuté avec succès (mode compatibilité)")
+                            except Exception as callback_error:
+                                logger.error(f"Erreur lors de l'exécution du callback: {callback_error}")
+                        except Exception as callback_error:
+                            logger.error(f"Erreur lors de l'exécution du callback: {callback_error}")
+                
+                # Afficher le message de succès avec le callback
                 DialogUtils.show_message(
                     self.dialog,
                     "Succès",
                     f"Le document '{title}' a été créé avec succès",
-                    "success"
+                    "success",
+                    callback=on_message_close
                 )
-            
-            # Fermer la fenêtre après un court délai
-            self.dialog.after(1500, self.dialog.destroy)
-            
-            # Appeler le callback si fourni
-            if self.on_save_callback:
-                try:
-                    self.on_save_callback()
-                    logger.info("Callback exécuté avec succès")
-                except Exception as callback_error:
-                    logger.error(f"Erreur lors de l'exécution du callback: {callback_error}")
             
             logger.info(f"Document '{title}' créé avec succès (ID: {document_id})")
             

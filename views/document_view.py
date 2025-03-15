@@ -1533,6 +1533,9 @@ class DocumentView:
         card.configure(width=240, height=320)  # Dimensions fixes
         card.grid_propagate(False)  # CRUCIAL: empêche le redimensionnement
         
+        # Attacher le document à la carte pour pouvoir le retrouver plus tard
+        card.document = document
+        
         # Conteneur interne pour centrer le contenu
         content_frame = ctk.CTkFrame(card, fg_color="transparent")
         content_frame.pack(expand=True, fill="both", padx=10, pady=10)
@@ -1548,10 +1551,9 @@ class DocumentView:
             checkbox_width=16,
             checkbox_height=16,
             corner_radius=3,
-            border_width=1,
-            command=lambda d=document, v=var: self.toggle_document_selection(d, v)
+            command=lambda: self.toggle_document_selection(document, var)
         )
-        checkbox.place(x=10, y=10)
+        checkbox.pack(anchor="nw")
         
         # Type de document avec icône
         doc_type = document.get("type", "").lower()
@@ -2276,34 +2278,194 @@ class DocumentView:
                 "error"
             )
     
-    def on_document_saved(self, document_id=None):
-        """Callback appelé après la sauvegarde d'un document"""
+    def on_document_saved(self, document_id=None, client_id=None, client_name=None, highlight=False, redirect_to_client=False, **kwargs):
+        """
+        Callback appelé après la sauvegarde d'un document
+        
+        Args:
+            document_id: ID du document sauvegardé
+            client_id: ID du client
+            client_name: Nom du client
+            highlight: Si True, met en évidence le document
+            redirect_to_client: Si True, redirige vers le dossier du client
+            **kwargs: Arguments supplémentaires ignorés
+        """
+        logger.info(f"Document sauvegardé: {document_id} pour le client {client_name} (ID: {client_id})")
+        
         # Recharger les documents
         self.model.load_documents()
         
-        # Mettre à jour la vue
-        self.update_view()
-        
-        # Si le document à été créé et que nous sommes dans un dossier spécifique,
-        # et que le document correspondrait à ce dossier, nous restons dans le dossier
-        # Sinon, nous revenons à la vue des dossiers
-        if document_id and self.selected_folder:
-            document = next((d for d in self.model.documents if d.get("id") == document_id), None)
-            if document:
-                # Vérifier si le document correspond au dossier actuel
-                if self._document_matches_current_folder(document):
+        if document_id and redirect_to_client and client_id:
+            logger.info(f"Redirection vers le dossier client {client_id}")
+            
+            # Définir le dossier client comme dossier actif
+            self.selected_folder = "client"
+            
+            def after_navigation():
+                # D'abord afficher le dossier "Par client"
+                self.show_folder_documents("client")
+                
+                def show_client_docs():
+                    # Ensuite afficher les documents du client spécifique
+                    self.show_documents_by_client(
+                        client_id,
+                        client_name or self._get_client_name_cached(client_id)
+                    )
+                    
+                    def do_highlight():
+                        # Si on doit mettre en évidence le document, le faire après un délai
+                        if highlight:
+                            logger.info(f"Mise en évidence du document {document_id}")
+                            self._highlight_document(document_id)
+                    
+                    # Attendre que les documents soient affichés
+                    self.parent.after(1000, do_highlight)
+                
+                # Attendre que la vue des dossiers soit prête
+                self.parent.after(200, show_client_docs)
+            
+            # Exécuter la navigation après un court délai pour s'assurer que
+            # l'interface est prête
+            self.parent.after(100, after_navigation)
+        else:
+            # Comportement par défaut si pas de redirection demandée
+            if self.selected_folder:
+                document = next((d for d in self.model.documents if d.get("id") == document_id), None)
+                if document and self._document_matches_current_folder(document):
                     # Rester dans le dossier actuel et mettre à jour l'affichage
                     documents = self._get_filtered_documents()
                     self._display_documents(documents)
+                    
+                    # Si on doit mettre en évidence le document
+                    if highlight:
+                        self.parent.after(1000, lambda: self._highlight_document(document_id))
                 else:
                     # Revenir à la vue des dossiers
                     self.show_folders_view()
             else:
-                # Document non trouvé, revenir à la vue des dossiers
+                # Par défaut, revenir à la vue des dossiers
                 self.show_folders_view()
+    
+    def _highlight_document(self, document_id):
+        """Met en évidence un document avec un effet subtil qui préserve la lisibilité du texte"""
+        logger.info(f"Tentative de mise en évidence du document {document_id}")
+        
+        # Trouver le widget du document dans la grille
+        found = False
+        latest_card = None
+        latest_date = None
+        
+        # Parcourir toutes les cartes de document dans la grille
+        for card in self.documents_grid.winfo_children():
+            try:
+                if hasattr(card, 'document'):
+                    # Obtenir la date de création du document
+                    doc_date = card.document.get('created_at') or card.document.get('date')
+                    if doc_date:
+                        # Si c'est la première carte ou si c'est la plus récente
+                        if latest_date is None or doc_date > latest_date:
+                            latest_date = doc_date
+                            latest_card = card
+                            found = True
+            except Exception as e:
+                logger.warning(f"Erreur lors de la vérification d'une carte: {e}")
+                continue
+        
+        if found and latest_card:
+            logger.info(f"Document le plus récent trouvé, créé le {latest_date}")
+            
+            # Sauvegarder la couleur originale de la carte et du contenu
+            original_color = latest_card.cget('fg_color')
+            original_border = latest_card.cget('border_width')
+            
+            # Variable pour suivre si l'effet est en cours
+            highlight_active = True
+            
+            # Gestionnaire d'événement pour arrêter l'effet au clic
+            def stop_highlight(event):
+                nonlocal highlight_active
+                if highlight_active:
+                    highlight_active = False
+                    latest_card.configure(fg_color=original_color, border_width=original_border)
+                    logger.debug("Effet de mise en évidence arrêté par clic utilisateur")
+            
+            # Lier l'événement clic à toutes les parties de la carte
+            for widget in [latest_card] + latest_card.winfo_children():
+                widget.bind("<Button-1>", stop_highlight, add="+")
+            
+            # Créer un effet de bordure qui ne masque pas le texte
+            def apply_subtle_border_effect():
+                nonlocal highlight_active
+                
+                # Si l'effet a été arrêté manuellement ou la carte n'existe plus
+                if not highlight_active or not latest_card.winfo_exists():
+                    return
+                
+                # Au lieu de changer la couleur de fond, utiliser une bordure subtile
+                # qui n'affectera pas la lisibilité
+                
+                # Définir une bordure légèrement visible
+                latest_card.configure(border_width=2)
+                
+                # Couleurs de bordure selon le thème
+                if ctk.get_appearance_mode() == "Dark":
+                    border_colors = [
+                        "#4a6baf",  # Bleu subtil pour mode sombre
+                        "#5272b1",
+                        "#5a79b4",
+                        "#6280b6",
+                        "#6987b9",
+                        "#6280b6",
+                        "#5a79b4",
+                        "#5272b1",
+                        "#4a6baf",
+                    ]
+                else:
+                    border_colors = [
+                        "#7ba3e0",  # Bleu clair pour mode clair
+                        "#6f9ade",
+                        "#6391dc",
+                        "#5789da",
+                        "#4b80d8",
+                        "#5789da",
+                        "#6391dc",
+                        "#6f9ade",
+                        "#7ba3e0",
+                    ]
+                
+                # Durée totale de l'effet: environ 3 secondes
+                total_steps = len(border_colors)
+                interval = 300  # ms entre changements de couleur
+                
+                def step_effect(step=0):
+                    nonlocal highlight_active
+                    
+                    # Arrêter si l'effet n'est plus actif ou si on a terminé
+                    if not highlight_active or step >= total_steps or not latest_card.winfo_exists():
+                        # Restaurer l'état d'origine
+                        if latest_card.winfo_exists():
+                            latest_card.configure(border_width=original_border)
+                        highlight_active = False
+                        return
+                    
+                    # Appliquer la couleur de bordure courante
+                    latest_card.configure(border_color=border_colors[step])
+                    
+                    # Programmer l'étape suivante
+                    self.parent.after(interval, lambda: step_effect(step + 1))
+                
+                # Démarrer l'effet
+                step_effect()
+            
+            # Lancer l'effet subtil
+            apply_subtle_border_effect()
+            
+            # Arrêter automatiquement l'effet après 3 secondes
+            self.parent.after(3000, lambda: stop_highlight(None) if highlight_active else None)
         else:
-            # Par défaut, revenir à la vue des dossiers
-            self.show_folders_view()
+            logger.warning("Aucun document trouvé dans la vue pour la mise en évidence")
+            # Réessayer après un court délai
+            self.parent.after(500, lambda: self._highlight_document(document_id))
     
     def _document_matches_current_folder(self, document):
         """Vérifie si un document correspond au dossier actuel"""
