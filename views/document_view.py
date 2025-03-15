@@ -719,28 +719,33 @@ class DocumentView:
         for widget in self.folders_grid.winfo_children():
             widget.destroy()
         
-        # Analyser les documents par année-mois (au lieu de juste l'année)
-        months = {}
+        # Analyser les documents par année-mois
+        years = {}  # Dictionnaire pour regrouper par année
+        months = {}  # Dictionnaire pour regrouper par mois
         current_year = datetime.now().year
         
         for doc in self.model.documents:
             date_str = doc.get("date", "")
             if date_str and len(date_str) >= 7:  # Format YYYY-MM
+                year = date_str[:4]  # Prend "YYYY"
                 year_month = date_str[:7]  # Prend "YYYY-MM"
-                year = int(date_str[:4])
                 month = date_str[5:7]
                 
-                # Créer une clé qui combine année et mois pour le tri
-                # Nous ajoutons l'année pour garder l'ordre chronologique
+                # Regrouper par année
+                if year not in years:
+                    years[year] = []
+                years[year].append(doc)
+                
+                # Regrouper par mois
                 if year_month not in months:
                     months[year_month] = {
                         "docs": [],
-                        "year": year,
+                        "year": int(year),
                         "month": month,
                     }
                 months[year_month]["docs"].append(doc)
         
-        # Noms des mois
+        # Noms des mois en français
         months_names = {
             "01": "Janvier", "02": "Février", "03": "Mars",
             "04": "Avril", "05": "Mai", "06": "Juin",
@@ -748,7 +753,8 @@ class DocumentView:
             "10": "Octobre", "11": "Novembre", "12": "Décembre"
         }
         
-        # Trier les mois par ordre décroissant (plus récent d'abord)
+        # Trier les années et les mois par ordre décroissant (plus récent d'abord)
+        sorted_years = sorted(years.keys(), reverse=True)
         sorted_months = sorted(months.keys(), reverse=True)
         
         if not sorted_months:
@@ -759,13 +765,34 @@ class DocumentView:
             self.no_documents_label.pack(pady=20)
             return
         
-        # Créer les cards des mois
+        # Créer les cards des mois, groupées par année
         row, col = 0, 0
+        current_year = None
+        
         for year_month in sorted_months:
             month_data = months[year_month]
-            year = month_data["year"]
+            year = str(month_data["year"])
             month = month_data["month"]
             docs = month_data["docs"]
+            
+            # Si on change d'année, ajouter un séparateur
+            if year != current_year:
+                if col != 0:  # Si on n'est pas au début d'une ligne
+                    row += 1
+                    col = 0
+                
+                # Ajouter le titre de l'année
+                year_label = ctk.CTkLabel(
+                    self.folders_grid,
+                    text=f"Année {year}",
+                    font=ctk.CTkFont(size=16, weight="bold")
+                )
+                year_label.grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(20, 10))
+                row += 1
+                current_year = year
+            
+            # Trier les documents du mois du plus récent au plus ancien
+            docs.sort(key=lambda x: (x.get('date', ''), x.get('created_at', '')), reverse=True)
             
             # Formater pour l'affichage: "Janvier 2023", "Février 2023", etc.
             month_name = months_names.get(month, month)

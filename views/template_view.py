@@ -260,7 +260,7 @@ class TemplateView:
             # Trier les templates du plus récent au plus ancien
             try:
                 templates.sort(
-                    key=lambda t: parse_iso_datetime(t.get('created_at', datetime.min.isoformat())), 
+                    key=lambda t: datetime.fromisoformat(t.get('created_at', datetime.min.isoformat())), 
                     reverse=True
                 )
             except Exception as e:
@@ -369,20 +369,20 @@ class TemplateView:
             font=ctk.CTkFont(size=14, weight="bold")
         ).pack(side=ctk.LEFT, padx=10, pady=5)
         
-        # Date de création
+        # Date et heure de création
         creation_date = template.get('created_at', '')
         if creation_date:
             try:
                 date_obj = datetime.fromisoformat(creation_date)
-                formatted_date = date_obj.strftime("%d/%m/%Y %H:%M")
+                formatted_date = date_obj.strftime("%d/%m/%Y à %H:%M")
                 ctk.CTkLabel(
                     header,
                     text=formatted_date,
                     font=ctk.CTkFont(size=10),
                     text_color="gray"
                 ).pack(side=ctk.RIGHT, padx=10, pady=5)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Erreur lors du formatage de la date : {e}")
         
         # Titre du modèle
         ctk.CTkLabel(

@@ -1,16 +1,5 @@
 [
     {
-        "id": "18db9812-a334-41dd-bf07-5ee248feaf33",
-        "name": "Rupture de Contrat _ Sab Agency LTD",
-        "type": "autre",
-        "description": "Modèle importé depuis Rupture de Contrat _ Sab Agency LTD.docx",
-        "folder": "contrats",
-        "variables": [],
-        "content": "<html><body><p>Rupture de Contrat</p><p></p><p>Entre :</p><p></p><p>Sab Agency LTD</p><p></p><p>71-75, Shelton Street, Covent Garden, London, WC2H 9JQ, UK</p><p></p><p>Représentée par : Alioune Badara GUEYE (CEO)</p><p></p><p>Email : contact@abgempire.com</p><p></p><p>Et :</p><p></p><p>Mme Mariama Mboup</p><p></p><p>Pays : Sénégal</p><p></p><p>Objet : Rupture du Contrat de Prestations de Services TikTok</p><p></p><p>Madame,</p><p></p><p>Nous vous informons par la présente que, conformément à votre demande formulée en date du 06 mars 2025, le contrat de prestations de services TikTok [CMB-TIKTOK-2024-158], conclu le 21 décembre 2024, est résilié avec effet à compter du 21 mars 2025, conformément au délai de préavis de 15 jours prévu à l'article 6.1 du contrat.</p><p></p><p>Conséquences de la rupture du contrat :</p><p></p><p>Aucun remboursement ne sera effectué pour les paiements déjà réalisés, conformément aux conditions contractuelles.</p><p></p><p>Aucune somme du par le client.</p><p></p><p>Vous êtes tenue de révoquer tous les accès accordés à Sab Agency LTD sur vos comptes TikTok, selon la procédure détaillée dans le document joint.</p><p></p><p>Nous vous prions de bien vouloir nous confirmer par écrit la bonne prise en compte de cette rupture ainsi que la réalisation effective des actions de sécurisation de vos comptes.</p><p></p><p>Restant à votre disposition pour toute information complémentaire, nous vous prions d'agréer, Madame, nos salutations distinguées.</p><p></p><p>Alioune Badara GUEYE</p><p></p><p>CEO, Sab Agency LTD</p><p></p><p>Fait à Casablanca le 08/03/2025</p><p></p><p>Sab Agency LTD</p><p></p><p>Adresse : 71-75, Shelton Street, Covent Garden, London, WC2H 9JQ, UNITED KINGDOM</p><p></p><p>Responsable Morale et CEO: Alioune Badara GUEYE</p><p></p><p>CNI : BK13768X Tel : +212691344062</p><p></p><p>ICE : 002892505000072 Email : contact@abgempire.com</p><p></p><p>Identifiant Fiscal : 50483938</p><p></p></body></html>",
-        "created_at": "2025-03-13T06:02:03.225773",
-        "updated_at": "2025-03-13T06:18:05.946096"
-    },
-    {
         "id": "60033d64-eb08-4416-b1f4-8e8d3e691098",
         "name": "L'aviation écologique en Afrique _ Vers un transport aérien durable et innovant  (1)",
         "type": "autre",
@@ -650,5 +639,38 @@
         "id": "template_11_20250315005621",
         "created_at": "2025-03-15T00:56:21.898513",
         "updated_at": "2025-03-15T00:56:21.898513"
+    },
+    {
+        "id": "contrat_prestation_services",
+        "name": "Contrat de Prestation de Services",
+        "type": "contrat",
+        "description": "Modèle de contrat définissant les obligations entre un prestataire et un client.",
+        "folder": "contrats",
+        "variables": [
+            "nom_client",
+            "adresse_client",
+            "fonction_client",
+            "nom_prestataire",
+            "adresse_prestataire",
+            "numero_rc_prestataire",
+            "description_prestation",
+            "duree_prestation",
+            "lieu_execution",
+            "montant_contrat",
+            "conditions_paiement",
+            "iban_prestataire",
+            "montant_acompte",
+            "montant_solde",
+            "taux_penalites",
+            "date_debut",
+            "date_fin",
+            "delai_resiliation",
+            "nom_tribunal",
+            "lieu_signature",
+            "date_signature"
+        ],
+        "content": "<h2>CONTRAT DE PRESTATION DE SERVICES</h2> <p><strong>Entre les soussignés :</strong></p> <p>1. <strong>{{nom_client}}</strong>, domicilié(e) à {{adresse_client}}, agissant en qualité de {{fonction_client}}, ci-après désigné <strong>\"le Client\"</strong>. 2. <strong>{{nom_prestataire}}</strong>, domicilié(e) à {{adresse_prestataire}}, enregistré(e) sous le numéro {{numero_rc_prestataire}}, ci-après désigné <strong>\"le Prestataire\"</strong>.</p> <h3>ARTICLE 1 - OBJET DU CONTRAT</h3> <p>Le présent contrat a pour objet de définir les conditions dans lesquelles le Prestataire réalise pour le Client la mission suivante :</p> <p><strong>📌 Nature de la prestation :</strong> {{description_prestation}}</p> <p><strong>📅 Durée estimée :</strong> {{duree_prestation}}</p> <p><strong>📍 Lieu d'exécution :</strong> {{lieu_execution}}</p> <h3>ARTICLE 2 - OBLIGATIONS DU PRESTATAIRE</h3> <p>Le Prestataire s’engage à : Exécuter la prestation avec diligence et professionnalisme, respecter les délais convenus, assurer la confidentialité des informations échangées.</p> <h3>ARTICLE 3 - OBLIGATIONS DU CLIENT</h3> <p>Le Client s’engage à : Fournir au Prestataire toutes les informations et ressources nécessaires, effectuer les paiements selon les termes définis, respecter les délais de validation et retour d’informations.</p> <h3>ARTICLE 4 - RÉMUNÉRATION ET MODALITÉS DE PAIEMENT</h3> <p><strong>💰 Montant total du contrat :</strong> {{montant_contrat}} €</p> <p><strong>📆 Conditions de paiement :</strong> {{conditions_paiement}}</p> <p><strong>🏦 Coordonnées bancaires :</strong> {{iban_prestataire}}</p> <p>Les paiements s’effectueront selon le calendrier suivant : <strong>Acompte :</strong> {{montant_acompte}} € à la signature du contrat, <strong>Solde :</strong> {{montant_solde}} € à la livraison. Tout retard de paiement entraînera des pénalités fixées à <strong>{{taux_penalites}}%</strong> du montant dû.</p> <h3>ARTICLE 5 - CONFIDENTIALITÉ</h3> <p>Les parties s’engagent à ne pas divulguer les informations sensibles obtenues dans le cadre du présent contrat.</p> <h3>ARTICLE 6 - RESPONSABILITÉS ET ASSURANCES</h3> <p>Le Prestataire est responsable de la bonne exécution de sa mission. Toute faute professionnelle engage sa responsabilité civile et professionnelle.</p> <h3>ARTICLE 7 - DURÉE ET RÉSILIATION</h3> <p><strong>📅 Durée du contrat :</strong> {{date_debut}} au {{date_fin}}</p> <p><strong>⚠ Résiliation anticipée :</strong> En cas de force majeure, en cas de manquement grave aux obligations du contrat, en cas de non-paiement du Client sous {{delai_resiliation}} jours.</p> <h3>ARTICLE 8 - LITIGES ET DROIT APPLICABLE</h3> <p>En cas de litige, les parties privilégieront une <strong>médiation amiable</strong>. Si aucun accord n’est trouvé, la juridiction compétente sera <strong>{{nom_tribunal}}</strong>.</p> <h3>ARTICLE 9 - SIGNATURES</h3> <p>Fait à <strong>{{lieu_signature}}</strong>, le <strong>{{date_signature}}</strong>.</p> <p><strong>🔹 Pour le Client</strong> Nom : _____________________ Signature : _____________________</p> <p><strong>🔹 Pour le Prestataire</strong> Nom : _____________________ Signature : _____________________</p>",
+        "created_at": "2025-03-15T14:30:00Z",
+        "updated_at": "2025-03-15T14:30:00Z"
     }
 ]
