@@ -37,7 +37,7 @@ class DashboardView:
         self.new_document: Callable[[], None] = lambda: logger.info("Action: Nouveau document (non implémentée)")
         self.add_client: Callable[[], None] = lambda: logger.info("Action: Ajouter un client (non implémentée)")
         self.new_template: Callable[[], None] = lambda: logger.info("Action: Créer un modèle (non implémentée)")
-        self.process_document: Callable[[], None] = lambda: logger.info("Action: Traiter un document (non implémentée)")
+        self.process_document: Callable[[], None] = lambda: logger.info("Action: Nouveau document (non implémentée)")
         
         # Charger les icônes
         self.load_icons()

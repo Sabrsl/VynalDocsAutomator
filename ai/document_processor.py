@@ -1071,14 +1071,41 @@ Conserve la mise en forme.
     def _analyze_section_simplified(self, content: str) -> Dict[str, Any]:
         try:
             prompt = f"""
-Extrais les variables clés de ce texte au format JSON. Exemples de variables à chercher:
-- nom, prénom, société
-- adresse, ville, code_postal, pays
-- email, téléphone
-- date, référence, montant
-- objet, type_document
+Tu es un expert en extraction de variables personnalisables dans les documents. Extrais tous les champs qui devraient être remplacés par des informations du client.
 
-Analyse le texte suivant:
+Exemples de variables personnalisables à identifier:
+1. Informations personnelles:
+   - nom, prénom, civilité (M./Mme/etc.)
+   - société, entreprise, organisation
+   - fonction, poste, titre professionnel
+
+2. Coordonnées:
+   - adresse complète, rue, numéro, ville, code_postal, pays
+   - email, téléphone, mobile, fax
+   - site_web
+
+3. Données financières:
+   - montant, prix, total, sous_total
+   - devise, taux_tva, montant_tva
+   - reduction, remise, acompte
+   - prix_unitaire, quantité
+
+4. Dates et références:
+   - date (toute date dans le document)
+   - date_creation, date_emission, date_echeance
+   - reference, numero_commande, numero_client
+   - numero_facture, identifiant
+
+5. Contenu contextuel:
+   - objet, sujet, titre_document
+   - description, details, motif
+   - lieu, emplacement
+   - conditions, termes
+
+Ne retourne que les variables qui sont clairement identifiables comme des champs à personnaliser.
+Assure-toi que chaque variable soit correctement nommée et catégorisée.
+
+Analyse le texte suivant et identifie toutes les variables personnalisables:
 -----
 {content}
 -----
@@ -1086,13 +1113,16 @@ Analyse le texte suivant:
 Réponds uniquement avec un objet JSON de la forme:
 {{
   "variables": {{
-    "nom": "Valeur",
-    "email": "Valeur",
+    "nom_variable": {{
+      "valeur": "Valeur actuelle extraite du document",
+      "type": "Type de variable (nom, date, montant, etc.)",
+      "description": "Description brève de la variable"
+    }},
     ...
   }}
 }}
 """
-            response = self._call_ollama(prompt, timeout=10)
+            response = self._call_ollama(prompt, timeout=15)
             
             if not response:
                 return {}
@@ -1156,34 +1186,176 @@ Réponds uniquement avec un objet JSON de la forme:
         """
         logger.info("Utilisation de la méthode de secours pour l'analyse")
         try:
-            # Extraire des informations basiques du texte
+            # Utiliser un prompt simplifié pour Mistral avec moins de complexité
+            prompt = f"""
+Analyse ce document et identifie tous les champs personnalisables qui devraient être remplacés par les informations d'un client.
+Ne retourne qu'un objet JSON simple sans explication.
+
+Document:
+---
+{content[:2000]}  # Limiter à 2000 caractères pour garantir une réponse
+---
+
+Format de réponse attendu:
+{{
+  "variables": {{
+    "nom_variable": "valeur_actuelle",
+    ...
+  }}
+}}
+"""
+            # Essayer d'abord avec Mistral
+            try:
+                response = self._call_ollama(prompt, timeout=10)
+                if response:
+                    # Tenter d'extraire le JSON
+                    json_match = re.search(r'({.*})', response.replace('\n', ''), re.DOTALL)
+                    if json_match:
+                        try:
+                            extracted_data = json.loads(json_match.group(1))
+                            if isinstance(extracted_data, dict) and "variables" in extracted_data:
+                                logger.info(f"Analyse de secours via Mistral réussie, {len(extracted_data['variables'])} variables extraites")
+                                return extracted_data
+                        except:
+                            logger.warning("Erreur d'analyse JSON de la réponse Mistral")
+            except Exception as e:
+                logger.warning(f"Erreur lors de l'utilisation de Mistral pour l'analyse de secours: {e}")
+            
+            # Si Mistral échoue, utiliser une analyse par expressions régulières
             variables = {}
             
-            # Rechercher des dates (format JJ/MM/AAAA ou JJ-MM-AAAA)
-            dates = re.findall(r'\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b', content)
+            # Rechercher des dates (format JJ/MM/AAAA ou JJ-MM-AAAA ou AAAA-MM-JJ)
+            dates = re.findall(r'\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b', content)
             if dates:
                 variables['date'] = dates[0]
+                # Chercher plus de contexte pour identifier le type de date
+                date_contexts = {
+                    'date_emission': ['émis', 'établi', 'création', 'facture du'],
+                    'date_echeance': ['échéance', 'paiement', 'règlement', 'due', 'limite'],
+                    'date_livraison': ['livraison', 'livré', 'expédition']
+                }
+                
+                content_lower = content.lower()
+                for date in dates[:3]:  # Limiter aux 3 premières dates
+                    for date_type, contexts in date_contexts.items():
+                        # Chercher le contexte avant et après la date
+                        for context in contexts:
+                            if re.search(f"{context}.{{0,30}}{re.escape(date)}", content_lower) or \
+                               re.search(f"{re.escape(date)}.{{0,30}}{context}", content_lower):
+                                variables[date_type] = date
+                                break
             
-            # Rechercher des montants
-            amounts = re.findall(r'\b\d+(?:[,.]\d{1,2})?(?:\s?[€$]|EUR)?\b', content)
-            if amounts:
-                variables['montant'] = amounts[0]
+            # Rechercher des montants (avec ou sans devise)
+            amount_patterns = [
+                r'\b\d+(?:[,.]\d{1,3})?(?:\s?[€$£]|EUR|USD|GBP)\b',  # Montants avec devise
+                r'\b\d+(?:[,.]\d{2})(?:\s?HT|\s?TTC)?\b',  # Montants avec HT/TTC
+                r'total\s*:?\s*\d+(?:[,.]\d{1,3})?'  # Totaux
+            ]
+            
+            for pattern in amount_patterns:
+                amounts = re.findall(pattern, content, re.IGNORECASE)
+                if amounts:
+                    # Identifier le contexte pour chaque montant
+                    amount_contexts = {
+                        'montant_total': ['total', 'net à payer', 'montant'],
+                        'montant_ht': ['HT', 'hors taxe'],
+                        'montant_ttc': ['TTC', 'toutes taxes', 'TVA incluse'],
+                        'acompte': ['acompte', 'avance', 'versement initial']
+                    }
+                    
+                    content_lower = content.lower()
+                    for amount in amounts[:5]:  # Limiter aux 5 premiers montants
+                        amount_clean = amount.strip()
+                        for amount_type, contexts in amount_contexts.items():
+                            for context in contexts:
+                                if re.search(f"{context}.{{0,50}}{re.escape(amount_clean)}", content_lower, re.IGNORECASE) or \
+                                   re.search(f"{re.escape(amount_clean)}.{{0,50}}{context}", content_lower, re.IGNORECASE):
+                                    variables[amount_type] = amount_clean
+                                    break
+                                    
+                    # Si aucun contexte spécifique n'a été trouvé pour le premier montant
+                    if 'montant_total' not in variables and 'montant_ht' not in variables and 'montant_ttc' not in variables:
+                        variables['montant'] = amounts[0]
             
             # Rechercher des emails
             emails = re.findall(r'\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\b', content)
             if emails:
                 variables['email'] = emails[0]
+                
+                # Vérifier s'il y a plusieurs emails et les classifier
+                if len(emails) > 1:
+                    email_contexts = {
+                        'email_contact': ['contact', 'info', 'renseignement'],
+                        'email_facturation': ['facture', 'facturation', 'compta', 'finance'],
+                        'email_support': ['support', 'aide', 'assistance', 'sav']
+                    }
+                    
+                    content_lower = content.lower()
+                    for i, email in enumerate(emails[:3]):  # Limiter aux 3 premiers emails
+                        for email_type, contexts in email_contexts.items():
+                            for context in contexts:
+                                if re.search(f"{context}.{{0,50}}{re.escape(email)}", content_lower, re.IGNORECASE) or \
+                                   re.search(f"{re.escape(email)}.{{0,50}}{context}", content_lower, re.IGNORECASE):
+                                    variables[email_type] = email
+                                    break
             
-            # Rechercher des numéros de téléphone
-            phones = re.findall(r'\b(?:0\d[\s.-]?){4,5}\d{2}\b', content)
-            if phones:
-                variables['telephone'] = phones[0]
+            # Rechercher des numéros de téléphone (formats internationaux inclus)
+            phone_patterns = [
+                r'\b(?:0\d[\s.-]?){4,5}\d{2}\b',  # Format français
+                r'\b\+\d{2}[\s.-]?(?:\d[\s.-]?){8,11}\b',  # Format international
+                r'\b(?:\d{2}[\s.-]?){4,5}\b'  # Format général
+            ]
+            
+            for pattern in phone_patterns:
+                phones = re.findall(pattern, content)
+                if phones:
+                    variables['telephone'] = phones[0]
+                    # Identifier différents types de téléphones
+                    if len(phones) > 1:
+                        phone_contexts = {
+                            'telephone_mobile': ['mobile', 'portable', 'cell'],
+                            'telephone_fixe': ['fixe', 'bureau'],
+                            'fax': ['fax', 'télécopie']
+                        }
+                        
+                        content_lower = content.lower()
+                        for i, phone in enumerate(phones[:3]):  # Limiter aux 3 premiers numéros
+                            for phone_type, contexts in phone_contexts.items():
+                                for context in contexts:
+                                    if re.search(f"{context}.{{0,30}}{re.escape(phone)}", content_lower, re.IGNORECASE) or \
+                                       re.search(f"{re.escape(phone)}.{{0,30}}{context}", content_lower, re.IGNORECASE):
+                                        variables[phone_type] = phone
+                                        break
+                    break
+            
+            # Rechercher des adresses (codes postaux et villes)
+            # Format français: code postal à 5 chiffres suivi de ville
+            cp_city_matches = re.findall(r'\b(\d{5})\s+([A-Z][A-Za-zÀ-ÿ\s-]{2,})\b', content)
+            if cp_city_matches:
+                cp, city = cp_city_matches[0]
+                variables['code_postal'] = cp
+                variables['ville'] = city
+                
+                # Chercher une rue associée (avant le code postal)
+                content_parts = content.split(cp)
+                if len(content_parts) > 1:
+                    before_cp = content_parts[0]
+                    # Chercher la dernière ligne contenant "rue", "avenue", etc.
+                    address_indicators = ['rue', 'avenue', 'boulevard', 'place', 'chemin', 'allée', 'impasse', 'route']
+                    for indicator in address_indicators:
+                        addr_match = re.findall(f'\\b\\d+[\\s,]*{indicator}[\\sA-Za-zÀ-ÿ,\\-\']+', before_cp, re.IGNORECASE)
+                        if addr_match:
+                            variables['adresse'] = addr_match[-1].strip()
+                            break
             
             # Essayer d'identifier le type de document
             doc_types = {
                 'contrat': ['contrat', 'convention', 'accord', 'engagement'],
                 'facture': ['facture', 'paiement', 'règlement', 'montant', 'total', 'tva'],
+                'devis': ['devis', 'estimation', 'proposition', 'offre'],
                 'lettre': ['madame', 'monsieur', 'cordialement', 'sincères salutations'],
+                'rapport': ['rapport', 'analyse', 'étude', 'synthèse'],
+                'attestation': ['atteste', 'certification', 'confirme', 'attester'],
                 'cv': ['expérience', 'compétences', 'formation', 'diplôme', 'curriculum vitae']
             }
             
@@ -1195,36 +1367,67 @@ Réponds uniquement avec un objet JSON de la forme:
             else:
                 variables['type_document'] = 'document'
             
+            # Rechercher des références de document
+            ref_patterns = [
+                r'\b(?:ref|référence|n°)(?:\s|:)+([a-zA-Z0-9-_/]+)',
+                r'\b(?:facture|devis|commande|bon)(?:\s|:)+n°\s*([a-zA-Z0-9-_/]+)',
+                r'\b(?:identifiant|id|numéro)(?:\s|:)+([a-zA-Z0-9-_/]+)'
+            ]
+            
+            for pattern in ref_patterns:
+                refs = re.findall(pattern, content, re.IGNORECASE)
+                if refs:
+                    variables['reference'] = refs[0].strip()
+                    break
+            
             # Rechercher un nom ou une entité
             name_patterns = [
-                r'M(?:\.|onsieur)\s+([A-Z][a-zA-Zéèêëàâäôöûüç\s-]+)',
-                r'Mme(?:\.|adame)\s+([A-Z][a-zA-Zéèêëàâäôöûüç\s-]+)',
-                r'Société\s+([A-Z][a-zA-Zéèêëàâäôöûüç\s-]+)'
+                r'M(?:\.|onsieur)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)',
+                r'Mme(?:\.|adame)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)',
+                r'(?:Société|SARL|SAS|SA|EURL|SASU)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)'
             ]
             
             for pattern in name_patterns:
                 matches = re.findall(pattern, content)
                 if matches:
-                    variables['nom'] = matches[0].strip()
+                    if 'Monsieur' in pattern:
+                        variables['civilite'] = 'M.'
+                        variables['nom'] = matches[0].strip()
+                    elif 'Madame' in pattern:
+                        variables['civilite'] = 'Mme'
+                        variables['nom'] = matches[0].strip()
+                    else:
+                        variables['societe'] = matches[0].strip()
                     break
-                    
-            # Si pas de nom trouvé, essayer une approche simple
-            if 'nom' not in variables:
-                # Extraire des mots commençant par une majuscule et qui ne sont pas au début d'une phrase
-                cap_words = re.findall(r'(?<=[^\.\?\!]\s)[A-Z][a-zA-Zéèêëàâäôöûüç]+', content)
+            
+            # Si aucun nom ou société, chercher des mots commençant par majuscule
+            if 'nom' not in variables and 'societe' not in variables:
+                cap_words_pattern = r'(?<=[^\.\?\!]\s)[A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]{3,}'
+                cap_words = re.findall(cap_words_pattern, content)
                 if cap_words:
-                    # Prendre le mot qui apparaît le plus fréquemment
+                    # Prendre les mots qui apparaissent au moins deux fois
                     from collections import Counter
                     word_counts = Counter(cap_words)
-                    most_common = word_counts.most_common(1)
-                    if most_common:
-                        variables['entite'] = most_common[0][0]
+                    for word, count in word_counts.most_common(3):
+                        if count >= 2 and len(word) > 3:  # Au moins 2 occurrences et 4 caractères
+                            if re.match(r'^[A-Z][a-z]+$', word):  # Format typique pour un nom propre
+                                variables['nom'] = word
+                                break
+            
+            # Créer un résultat structuré
+            structured_variables = {}
+            for key, value in variables.items():
+                structured_variables[key] = {
+                    "valeur": value,
+                    "type": self._get_variable_type(key),
+                    "description": self._get_variable_description(key)
+                }
             
             # Créer le résultat final
             result = {
-                'variables': variables,
-                'detection_method': 'fallback',
-                'confidence': 'low'
+                'variables': structured_variables,
+                'detection_method': 'fallback_enhanced',
+                'confidence': 'medium'
             }
             
             logger.info(f"Analyse de secours terminée, {len(variables)} variables extraites")
@@ -1235,11 +1438,78 @@ Réponds uniquement avec un objet JSON de la forme:
             # Retourner un résultat minimal mais valide
             return {
                 'variables': {
-                    'type_document': 'document'
+                    'type_document': {
+                        "valeur": "document",
+                        "type": "categorie",
+                        "description": "Type de document"
+                    }
                 },
                 'detection_method': 'fallback_error',
                 'error': str(e)
             }
+
+    def _get_variable_type(self, key: str) -> str:
+        """
+        Détermine le type d'une variable en fonction de sa clé
+        
+        Args:
+            key: Nom de la variable
+            
+        Returns:
+            Type de la variable
+        """
+        type_mapping = {
+            'nom': 'identite', 'prenom': 'identite', 'civilite': 'identite',
+            'societe': 'organisation', 'entreprise': 'organisation', 
+            'adresse': 'coordonnees', 'ville': 'coordonnees', 'code_postal': 'coordonnees', 'pays': 'coordonnees',
+            'email': 'contact', 'telephone': 'contact', 'telephone_mobile': 'contact', 'telephone_fixe': 'contact',
+            'date': 'temporel', 'date_emission': 'temporel', 'date_echeance': 'temporel', 'date_livraison': 'temporel',
+            'montant': 'financier', 'montant_ht': 'financier', 'montant_ttc': 'financier', 'tva': 'financier',
+            'reference': 'identifiant', 'numero_facture': 'identifiant', 'numero_client': 'identifiant',
+            'type_document': 'categorie', 'objet': 'contenu', 'description': 'contenu'
+        }
+        return type_mapping.get(key, 'autre')
+    
+    def _get_variable_description(self, key: str) -> str:
+        """
+        Fournit une description pour une variable en fonction de sa clé
+        
+        Args:
+            key: Nom de la variable
+            
+        Returns:
+            Description de la variable
+        """
+        description_mapping = {
+            'nom': 'Nom de famille ou nom complet',
+            'prenom': 'Prénom de la personne',
+            'civilite': 'Civilité (M., Mme, etc.)',
+            'societe': 'Nom de la société ou organisation',
+            'entreprise': 'Nom de l\'entreprise',
+            'adresse': 'Adresse postale',
+            'ville': 'Ville de l\'adresse',
+            'code_postal': 'Code postal',
+            'pays': 'Pays de l\'adresse',
+            'email': 'Adresse email principale',
+            'telephone': 'Numéro de téléphone',
+            'telephone_mobile': 'Numéro de téléphone mobile',
+            'telephone_fixe': 'Numéro de téléphone fixe',
+            'date': 'Date générique mentionnée dans le document',
+            'date_emission': 'Date d\'émission du document',
+            'date_echeance': 'Date d\'échéance de paiement',
+            'date_livraison': 'Date de livraison prévue',
+            'montant': 'Montant global',
+            'montant_ht': 'Montant hors taxes',
+            'montant_ttc': 'Montant toutes taxes comprises',
+            'tva': 'Montant ou taux de TVA',
+            'reference': 'Référence du document',
+            'numero_facture': 'Numéro de facture',
+            'numero_client': 'Numéro ou identifiant client',
+            'type_document': 'Type ou catégorie du document',
+            'objet': 'Objet ou sujet du document',
+            'description': 'Description ou détails'
+        }
+        return description_mapping.get(key, f'Valeur de {key}')
 
     def diagnose_analysis_issues(self, file_path: str) -> Dict[str, Any]:
         """
@@ -1290,10 +1560,6 @@ Réponds uniquement avec un objet JSON de la forme:
                 diagnostics["issues"].append("Aucun texte n'a pu être extrait du document")
                 diagnostics["recommendations"].append("Vérifiez que le document contient du texte et pas seulement des images")
                 
-            elif diagnostics["text_length"] < 50:
-                diagnostics["issues"].append("Le texte extrait est très court")
-                diagnostics["recommendations"].append("Vérifiez que le document contient suffisamment de texte pour l'analyse")
-                
         except Exception as e:
             diagnostics["text_extraction"] = "failed"
             diagnostics["issues"].append(f"Erreur lors de l'extraction du texte: {str(e)}")
@@ -1338,3 +1604,205 @@ Réponds uniquement avec un objet JSON de la forme:
             
         logger.info(f"Diagnostic terminé, statut: {diagnostics['status']}")
         return diagnostics
+
+    def _split_document_into_sections(self, content: str) -> List[str]:
+        """
+        Divise un document en sections logiques pour analyse
+        
+        Args:
+            content: Contenu du document à diviser
+            
+        Returns:
+            Liste des sections du document
+        """
+        try:
+            logger.info("Division du document en sections pour analyse")
+            
+            # Si le contenu est très court, le traiter comme une seule section
+            if len(content) < 1000:
+                return [content]
+                
+            # Tentative de division basée sur les titres et les sauts de ligne
+            sections = []
+            
+            # Identifier les marqueurs de séparation de sections
+            section_markers = [
+                # Titres numérotés (1. Introduction, 1.1 Contexte, etc.)
+                r'\n\s*(?:\d+\.)+\s*[A-Z][^\n]{3,}',
+                # Titres en majuscules
+                r'\n\s*[A-Z][A-Z\s]{5,}[A-Z]\s*\n',
+                # Titres avec formatage spécial (encadrés par des astérisques, soulignés, etc.)
+                r'\n\s*[\*\-=_]{2,}[^\n]{3,}[\*\-=_]{2,}',
+                # Séparateurs horizontaux
+                r'\n\s*[\-=_\*]{3,}\s*\n',
+                # Doubles sauts de ligne suivis d'un mot en majuscule
+                r'\n\s*\n\s*[A-Z][^\n]{3,}',
+                # Mots-clés spécifiques qui indiquent souvent un changement de section
+                r'\n(?:ARTICLE|ANNEXE|SECTION|CHAPITRE|PARTIE)[^\n]*'
+            ]
+            
+            # Combiner tous les marqueurs en une seule expression régulière
+            combined_pattern = '|'.join(section_markers)
+            
+            # Trouver tous les points de séparation
+            split_points = []
+            for m in re.finditer(combined_pattern, content):
+                split_points.append(m.start())
+                
+            # Ajouter le début et la fin du document
+            split_points = [0] + split_points + [len(content)]
+            
+            # Créer les sections
+            for i in range(len(split_points) - 1):
+                start = split_points[i]
+                end = split_points[i + 1]
+                section_content = content[start:end].strip()
+                
+                # Ne pas ajouter de sections vides
+                if section_content:
+                    sections.append(section_content)
+                    
+            # Si aucune section n'a été identifiée, diviser le document en paragraphes
+            if len(sections) <= 1:
+                paragraphs = re.split(r'\n\s*\n', content)
+                
+                # Regrouper les paragraphes en sections d'environ 1000 caractères
+                current_section = ""
+                for para in paragraphs:
+                    if para.strip():
+                        if len(current_section) + len(para) > 1000:
+                            if current_section:
+                                sections.append(current_section)
+                                current_section = para
+                            else:
+                                sections.append(para)
+                        else:
+                            current_section += "\n\n" + para if current_section else para
+                
+                # Ajouter la dernière section
+                if current_section:
+                    sections.append(current_section)
+            
+            # Si le document est très long mais qu'on n'a pas trouvé beaucoup de sections,
+            # diviser en morceaux de taille similaire
+            if len(content) > 5000 and len(sections) < 3:
+                # Réinitialiser les sections
+                sections = []
+                
+                # Diviser en sections de 1000 caractères environ
+                section_size = 1000
+                for i in range(0, len(content), section_size):
+                    section = content[i:i + section_size]
+                    if section.strip():
+                        sections.append(section)
+                
+            logger.info(f"Document divisé en {len(sections)} sections")
+            return sections
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de la division du document en sections: {e}")
+            # En cas d'erreur, retourner le document entier comme une seule section
+            return [content]
+
+    def _fallback_personalization(self, content: str, variables: Dict[str, Any]) -> str:
+        """
+        Méthode de personnalisation de secours pour remplacer les variables par leurs valeurs
+        
+        Args:
+            content: Contenu du document à personnaliser
+            variables: Dictionnaire des variables à remplacer
+            
+        Returns:
+            Document personnalisé
+        """
+        logger.info("Utilisation de la méthode de personnalisation de secours")
+        try:
+            result = content
+            
+            # Préparer les variables pour le remplacement
+            replace_dict = {}
+            for var_name, var_info in variables.items():
+                value = ""
+                
+                # Extraire la valeur selon le format (dict ou valeur simple)
+                if isinstance(var_info, dict):
+                    if "valeur" in var_info:
+                        value = var_info["valeur"]
+                    elif "current_value" in var_info:
+                        value = var_info["current_value"]
+                else:
+                    value = str(var_info)
+                    
+                if value:
+                    # Créer différentes variantes de recherche pour le nom de variable
+                    patterns = [
+                        r'\{' + re.escape(var_name) + r'\}',  # {nom_variable}
+                        r'\{\{' + re.escape(var_name) + r'\}\}',  # {{nom_variable}}
+                        r'\[\[' + re.escape(var_name) + r'\]\]',  # [[nom_variable]]
+                        r'<' + re.escape(var_name) + r'>',  # <nom_variable>
+                        r'%' + re.escape(var_name) + r'%',  # %nom_variable%
+                        r'\$' + re.escape(var_name) + r'\$',  # $nom_variable$
+                        r'\$\{' + re.escape(var_name) + r'\}',  # ${nom_variable}
+                        r'\b' + re.escape(var_name) + r'\b'  # nom_variable (mot entier)
+                    ]
+                    
+                    # Ajouter aussi la version avec des underscores remplacés par des espaces
+                    if '_' in var_name:
+                        space_name = var_name.replace('_', ' ')
+                        patterns.append(r'\b' + re.escape(space_name) + r'\b')
+                    
+                    # Pour certaines variables spécifiques, ajouter des variantes courantes
+                    special_cases = {
+                        'nom': ['NOM', 'Nom'],
+                        'prenom': ['PRENOM', 'Prénom', 'PRÉNOM'],
+                        'adresse': ['ADRESSE', 'Adresse'],
+                        'ville': ['VILLE', 'Ville'],
+                        'code_postal': ['CODE POSTAL', 'Code postal', 'CP', 'cp'],
+                        'date': ['DATE', 'Date']
+                    }
+                    
+                    if var_name.lower() in special_cases:
+                        for variant in special_cases[var_name.lower()]:
+                            patterns.append(r'\b' + re.escape(variant) + r'\b')
+                    
+                    # Appliquer tous les motifs de recherche
+                    for pattern in patterns:
+                        result = re.sub(pattern, value, result)
+            
+            # Recherche avancée pour les variables non explicitement marquées
+            # Par exemple, pour capturer "Nom: ________" ou "Adresse: ______"
+            common_fields = {
+                'nom': [r'Nom\s*:\s*_{3,}', r'Nom\s*:\s*\.{3,}', r'Nom\s*:(?:\s*$|\s{10,})'],
+                'prenom': [r'Pr[ée]nom\s*:\s*_{3,}', r'Pr[ée]nom\s*:\s*\.{3,}', r'Pr[ée]nom\s*:(?:\s*$|\s{10,})'],
+                'adresse': [r'Adresse\s*:\s*_{3,}', r'Adresse\s*:\s*\.{3,}', r'Adresse\s*:(?:\s*$|\s{10,})'],
+                'ville': [r'Ville\s*:\s*_{3,}', r'Ville\s*:\s*\.{3,}', r'Ville\s*:(?:\s*$|\s{10,})'],
+                'code_postal': [r'Code postal\s*:\s*_{3,}', r'Code postal\s*:\s*\.{3,}', r'Code postal\s*:(?:\s*$|\s{10,})'],
+                'email': [r'E-?mail\s*:\s*_{3,}', r'E-?mail\s*:\s*\.{3,}', r'E-?mail\s*:(?:\s*$|\s{10,})'],
+                'telephone': [r'T[ée]l[ée]phone\s*:\s*_{3,}', r'T[ée]l[ée]phone\s*:\s*\.{3,}', r'T[ée]l[ée]phone\s*:(?:\s*$|\s{10,})']
+            }
+            
+            for field, patterns in common_fields.items():
+                # Vérifier si nous avons une valeur pour ce champ
+                value = ""
+                for var_name, var_info in variables.items():
+                    if var_name.lower() == field or var_name.lower().endswith('_' + field):
+                        if isinstance(var_info, dict):
+                            if "valeur" in var_info:
+                                value = var_info["valeur"]
+                            elif "current_value" in var_info:
+                                value = var_info["current_value"]
+                        else:
+                            value = str(var_info)
+                        break
+                
+                if value:
+                    for pattern in patterns:
+                        result = re.sub(pattern, f"{field.capitalize()}: {value}", result, flags=re.IGNORECASE)
+            
+            logger.info("Personnalisation de secours terminée")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la personnalisation de secours: {e}")
+            # En cas d'erreur, retourner le document original
+            return content

@@ -11,10 +11,13 @@ import customtkinter as ctk
 from typing import Any, Dict, List, Optional
 import json
 import os
-from PIL import Image
 import threading
+import shutil
 import tkinter.filedialog as filedialog
 from ai.document_processor import AIDocumentProcessor
+from PIL import Image
+import datetime
+import re
 
 logger = logging.getLogger("VynalDocsAutomator.DocumentCreatorView")
 
@@ -255,7 +258,7 @@ class DocumentCreatorView:
         template_btn = ctk.CTkButton(
             buttons_frame,
             text="📂\n\nUtiliser un modèle\nexistant",
-            command=lambda: self.show_step(1),  # Aller à la sélection de modèle
+            command=self._use_existing_template,  # Nouvelle méthode pour utiliser un modèle existant
             width=250,
             height=250,
             corner_radius=10,
@@ -284,6 +287,41 @@ class DocumentCreatorView:
         
         # Mettre à jour la navigation pour s'assurer que les boutons sont affichés
         self.update_navigation()
+    
+    def _use_existing_template(self) -> None:
+        """
+        Redirige vers le formulaire de création de document dans la vue Documents
+        """
+        try:
+            # Masquer cette vue
+            self.hide()
+            
+            # Afficher la vue documents
+            if hasattr(self.model, 'show_view'):
+                # Afficher la vue documents
+                self.model.show_view("documents")
+                
+                # Accéder à la vue documents
+                if hasattr(self.model, 'views') and "documents" in self.model.views:
+                    documents_view = self.model.views["documents"]
+                    
+                    # Vérifier si la vue documents a la méthode new_document
+                    if hasattr(documents_view, "new_document"):
+                        # Appeler la méthode pour créer un nouveau document
+                        logger.info("Redirection vers le formulaire de création de document dans Documents")
+                        documents_view.new_document()
+                    else:
+                        logger.error("La méthode new_document n'existe pas dans la vue documents")
+                        self.show_error("La fonctionnalité de création de document n'est pas disponible")
+                else:
+                    logger.error("La vue documents n'est pas disponible")
+                    self.show_error("La vue documents n'est pas disponible")
+            else:
+                logger.error("Impossible d'accéder à la vue documents")
+                self.show_error("Impossible d'accéder à la vue documents")
+        except Exception as e:
+            logger.error(f"Erreur lors de la redirection vers le formulaire de document: {e}")
+            self.show_error(f"Erreur: {str(e)}")
 
     def show_document_types(self) -> None:
         """
@@ -1629,6 +1667,59 @@ class DocumentCreatorView:
         Confirme la création du document et passe à l'étape de finalisation
         """
         try:
+            # Simuler la génération du document et obtenir le chemin du fichier généré
+            # En production, cela devrait appeler le générateur de documents réel
+            
+            # Pour un test, créons un chemin fictif vers un document PDF
+            output_dir = os.path.join("data", "documents", "outputs")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Créer un nom de fichier basé sur le template et le client
+            template_name = self.selected_template.get('name', 'document')
+            client_name = "client"
+            if hasattr(self, 'client_info') and self.client_info:
+                client_name = self.client_info.get('nom', '') or self.client_info.get('name', '') or self.client_info.get('société', '') or "client"
+            
+            # Générer un nom de fichier unique
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{template_name}_{client_name}_{timestamp}.pdf"
+            
+            # Nettoyer le nom du fichier (enlever les caractères spéciaux)
+            import re
+            filename = re.sub(r'[^\w\-_\. ]', '_', filename)
+            
+            # Stocker le chemin du document généré
+            self.generated_document_path = os.path.join(output_dir, filename)
+            
+            # En conditions réelles, on génèrerait le document ici:
+            # 1. Extraire les variables du modèle
+            # 2. Appliquer les variables personnalisées
+            # 3. Générer le document avec les infos du client
+            
+            # Pour simuler un document, créons un fichier texte simple
+            try:
+                with open(self.generated_document_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Document simulé pour {client_name}\n")
+                    f.write(f"Modèle: {template_name}\n")
+                    f.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                    
+                    # Ajouter les variables (si disponibles)
+                    if hasattr(self, 'document_data') and self.document_data and 'variables' in self.document_data:
+                        f.write("Variables:\n")
+                        for var_name, var_info in self.document_data.get('variables', {}).items():
+                            if isinstance(var_info, dict):
+                                value = var_info.get('current_value', '')
+                            else:
+                                value = str(var_info)
+                            f.write(f"{var_name}: {value}\n")
+                
+                logger.info(f"Document simulé créé: {self.generated_document_path}")
+            except Exception as e:
+                logger.error(f"Erreur lors de la création du document simulé: {e}")
+                self.show_error(f"Erreur lors de la génération du document: {str(e)}")
+                return
+            
             # Passer à l'étape de finalisation
             self.show_step(5)
             
@@ -1848,6 +1939,15 @@ class DocumentCreatorView:
             )
             download_button.pack(pady=5)
             
+            # Bouton pour voir le document
+            view_button = ctk.CTkButton(
+                buttons_frame,
+                text="Voir le document",
+                command=self._view_document,
+                width=200
+            )
+            view_button.pack(pady=5)
+            
             # Bouton pour envoyer le document par email
             email_button = ctk.CTkButton(
                 buttons_frame,
@@ -1893,12 +1993,80 @@ class DocumentCreatorView:
         Télécharge le document créé
         """
         try:
-            # Implémenter la logique de téléchargement
-            logger.info("Téléchargement du document")
-            self.show_error("Cette fonctionnalité n'est pas encore implémentée")
+            # Vérifier que le document a été généré et existe
+            if not hasattr(self, 'generated_document_path') or not hasattr(self, 'selected_template'):
+                logger.error("Pas de document généré disponible pour le téléchargement")
+                self.show_error("Le document n'a pas encore été généré ou n'est pas disponible pour le téléchargement.")
+                return
+                
+            file_path = self.generated_document_path
+            
+            # Vérifier si le fichier existe
+            if not os.path.exists(file_path):
+                logger.error(f"Le fichier du document est introuvable: {file_path}")
+                self.show_error("Le fichier du document est introuvable.")
+                return
+                
+            # Déterminer l'extension du fichier
+            _, ext = os.path.splitext(file_path)
+            
+            # Ouvrir une boîte de dialogue pour choisir l'emplacement de sauvegarde
+            dest_path = filedialog.asksaveasfilename(
+                title="Enregistrer le document",
+                defaultextension=ext,
+                initialfile=os.path.basename(file_path),
+                filetypes=[(f"Fichiers {ext.upper()}", f"*{ext}"), ("Tous les fichiers", "*.*")]
+            )
+            
+            if not dest_path:
+                return
+                
+            # Copier le fichier
+            shutil.copy2(file_path, dest_path)
+            
+            logger.info(f"Document téléchargé: {dest_path}")
+            self.show_message("Succès", "Document téléchargé avec succès", "info")
             
         except Exception as e:
             logger.error(f"Erreur lors du téléchargement du document: {e}")
+            self.show_error(f"Erreur lors du téléchargement: {str(e)}")
+            
+    def _view_document(self) -> None:
+        """
+        Ouvre le document pour visualisation
+        """
+        try:
+            # Vérifier que le document a été généré et existe
+            if not hasattr(self, 'generated_document_path') or not hasattr(self, 'selected_template'):
+                logger.error("Pas de document généré disponible pour la visualisation")
+                self.show_error("Le document n'a pas encore été généré ou n'est pas disponible pour la visualisation.")
+                return
+                
+            file_path = self.generated_document_path
+            
+            # Vérifier si le fichier existe
+            if not os.path.exists(file_path):
+                logger.error(f"Le fichier du document est introuvable: {file_path}")
+                self.show_error("Le fichier du document est introuvable.")
+                return
+                
+            # Ouvrir le fichier avec l'application par défaut du système
+            try:
+                import subprocess
+                
+                if os.name == 'nt':  # Windows
+                    os.startfile(file_path)
+                elif os.name == 'posix':  # macOS ou Linux
+                    subprocess.call(('open' if os.uname().sysname == 'Darwin' else 'xdg-open', file_path))
+                
+                logger.info(f"Document ouvert pour visualisation: {file_path}")
+                
+            except Exception as e:
+                logger.error(f"Erreur lors de l'ouverture du document: {e}")
+                self.show_error(f"Erreur lors de l'ouverture du document: {str(e)}")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la visualisation du document: {e}")
             self.show_error(f"Erreur: {str(e)}")
             
     def _send_email(self) -> None:
@@ -1913,6 +2081,35 @@ class DocumentCreatorView:
         except Exception as e:
             logger.error(f"Erreur lors de l'envoi du document par email: {e}")
             self.show_error(f"Erreur: {str(e)}")
+    
+    def show_message(self, title: str, message: str, message_type: str = "info") -> None:
+        """
+        Affiche un message dans une boîte de dialogue
+        
+        Args:
+            title: Titre de la boîte de dialogue
+            message: Message à afficher
+            message_type: Type de message (info, error, warning)
+        """
+        try:
+            # Utiliser DialogUtils si disponible
+            if 'DialogUtils' in globals():
+                DialogUtils.show_message(self.parent, title, message, message_type)
+            else:
+                # Fallback avec messagebox standard
+                from tkinter import messagebox
+                
+                if message_type == "error":
+                    messagebox.showerror(title, message)
+                elif message_type == "warning":
+                    messagebox.showwarning(title, message)
+                else:
+                    messagebox.showinfo(title, message)
+        except Exception as e:
+            logger.error(f"Erreur lors de l'affichage du message: {e}")
+            # Dernier recours
+            from tkinter import messagebox
+            messagebox.showerror("Erreur", message)
 
     def _reset_client_selection(self) -> None:
         """
