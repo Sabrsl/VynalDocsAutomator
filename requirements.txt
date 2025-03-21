@@ -1,0 +1,12 @@
+fastapi>=0.109.0  # API REST
+uvicorn>=0.27.0  # Serveur ASGI pour FastAPI
+python-multipart>=0.0.20  # Support des fichiers uploadés
+python-docx>=1.0.0  # Manipulation de documents Word
+pandas>=2.0.0  # Traitement de données
+Pillow>=10.0.0  # Traitement d'image
+pytesseract>=0.3.10  # OCR pour l'extraction de texte
+python-magic-bin>=0.4.14  # Détection du type de fichier (Windows)
+python-dateutil>=2.8.2  # Traitement des dates
+spacy>=3.7.0  # Traitement du langage naturel
+nltk>=3.8.1  # Outils de traitement du langage naturel
+reportlab>=4.0.0  # Génération de PDF

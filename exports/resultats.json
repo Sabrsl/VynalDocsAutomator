@@ -1,0 +1,44 @@
+{
+  "id": "19bf11d7-c52a-49ce-97c0-f7390d1e8118",
+  "doc_type": "inconnu",
+  "title": "FACTURE N°2024-001",
+  "reference": "REF-19bf11d7",
+  "creation_date": "2025-03-16T10:24:53.230986",
+  "last_modified": "2025-03-16T10:24:53.230986",
+  "status": "brouillon",
+  "language": "fr",
+  "content_fields": {},
+  "metadata": {},
+  "parties": [
+    {
+      "name": "ACME CONSULTING SARL",
+      "role": "auteur",
+      "details": {}
+    },
+    {
+      "name": "12345678901234",
+      "role": "destinataire",
+      "details": {}
+    },
+    {
+      "name": "XYZ INDUSTRIES",
+      "role": "destinataire",
+      "details": {}
+    },
+    {
+      "name": "98765432109876",
+      "role": "destinataire",
+      "details": {}
+    }
+  ],
+  "important_dates": {
+    "creation": "2025-03-16T10:24:53.230986",
+    "signature": null,
+    "expiration": null,
+    "effective": null
+  },
+  "files": {
+    "main_document": null,
+    "attachments": []
+  }
+}

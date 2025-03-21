@@ -1,0 +1,35 @@
+FACTURE N°2024-001
+
+ENTRE:
+ACME CONSULTING SARL
+SIRET: 12345678901234
+TVA: FR12123456789
+123 rue de la République
+75001 Paris
+Tél: 01 23 45 67 89
+Email: contact@acme-consulting.fr
+
+ET:
+XYZ INDUSTRIES
+789 avenue des Champs-Élysées
+75008 Paris
+SIRET: 98765432109876
+TVA: FR98987654321
+
+PRESTATIONS:
+- Développement application web: 5000€
+- Formation utilisateurs: 2000€
+- Support technique (3 mois): 1500€
+
+MONTANT HT: 8500€
+TVA (20%): 1700€
+MONTANT TTC: 10200€
+
+Date d'émission: 15/03/2024
+Date d'échéance: 14/04/2024
+
+Fait à Paris, le 15/03/2024
+
+ACME CONSULTING SARL
+Jean DUPONT
+Gérant 

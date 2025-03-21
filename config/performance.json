@@ -1,0 +1,24 @@
+{
+    "mode": "speed",
+    "extraction_depth": "basic",
+    "confidence_threshold": 0.5,
+    "parallel_processing": true,
+    "max_workers": 4,
+    "batch_size": 20,
+    "save_temp_files": false,
+    "validation": {
+        "strict_mode": false,
+        "auto_correct": true
+    },
+    "startup": {
+        "skip_integrity_check": true,
+        "lazy_load_templates": true,
+        "lazy_load_clients": true,
+        "minimal_validation": true
+    },
+    "ocr": {
+        "preprocess_images": false,
+        "dpi": 300,
+        "tesseract_fast_mode": true
+    }
+} 

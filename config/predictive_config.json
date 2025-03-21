@@ -1,0 +1,33 @@
+{
+    "enabled": true,
+    "max_history_size": 50,
+    "prediction_threshold": 0.85,
+    "cleanup_interval": 7200,
+    "history_retention": 43200,
+    "preload_batch_size": 5,
+    "navigation_patterns": {
+        "client_details": ["documents"],
+        "document_creation": ["templates"],
+        "template_edit": ["documents"]
+    },
+    "preload_priorities": {
+        "clients": {
+            "active_threshold": 604800,
+            "max_preload": 10
+        },
+        "documents": {
+            "recent_threshold": 2592000,
+            "max_preload": 15
+        },
+        "templates": {
+            "popular_threshold": 0.7,
+            "max_preload": 8
+        }
+    },
+    "performance_settings": {
+        "thread_pool_size": 2,
+        "max_concurrent_preloads": 1,
+        "preload_timeout": 3,
+        "cache_warmup_interval": 600
+    }
+} 

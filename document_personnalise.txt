@@ -1,0 +1,42 @@
+CONTRAT DE PRESTATION DE SERVICES
+
+ENTRE :
+
+La société Tech Solutions SARL, au capital de 13 500 euros
+Siège social : Paris
+SIRET : XXXXXXXXXXXX
+Représentée par Marie Dupont en qualité de Directrice Générale
+Ci-après dénommée « Le Prestataire »
+
+ET
+
+J. Martin
+Domicilié(e) XXXXXXXXXXXX
+Email : XXXXXXXXXXXX
+Téléphone : XXXXXXXXXXXX
+Ci-après dénommé(e) « Le Client »
+
+ARTICLE 1 - OBJET DU CONTRAT
+
+Le Client confie au Prestataire, qui accepte, la mission suivante :
+Développement et mise en place d'une solution de gestion de documents intelligente, comprenant :\n- Analyse automatique des documents\n- Extraction des données pertinentes\n- Interface utilisateur intuitive\n- Formation des utilisateurs
+
+ARTICLE 2 - DURÉE ET DÉLAIS
+
+La mission débutera le 1er avril 2024 et s'achèvera le 30 septembre 2024.
+Le Prestataire s'engage à respecter ce délai et à livrer les prestations selon le calendrier suivant :
+
+- Phase 1 (Analyse) : 1er avril - 30 avril 2024\n- Phase 2 (Développement) : 1er mai - 31 juillet 2024\n- Phase 3 (Tests) : 1er août - 31 août 2024\n- Phase 4 (Déploiement) : 1er septembre - 30 septembre 2024
+
+ARTICLE 3 - CONDITIONS FINANCIÈRES
+
+En contrepartie de la réalisation des prestations, le Client versera au Prestataire la somme forfaitaire 
+de 13 500 euros HT.
+Les modalités de paiement sont les suivantes :
+- Acompte de 6 750 euros à la signature
+- Solde selon l'échéancier suivant : XXXXXXXXXXXX
+
+Fait à Paris, le 19 mars 2024, en deux exemplaires.
+
+Le Prestataire                    Le Client
+Marie Dupont                    J. Martin

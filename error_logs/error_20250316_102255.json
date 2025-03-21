@@ -1,0 +1,9 @@
+{
+  "type": "TypeError",
+  "message": "validate_document_format() missing 2 required positional arguments: 'sub_type' and 'document_data'",
+  "timestamp": "2025-03-16T10:22:55.058010",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\main.py\", line 45, in main\n    is_valid = format_handler.validate_document_format(\"FR\", \"facture\")\nTypeError: validate_document_format() missing 2 required positional arguments: 'sub_type' and 'document_data'\n",
+  "context": {
+    "context": "test_main"
+  }
+}

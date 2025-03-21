@@ -1,0 +1,44 @@
+FACTURE N° 2024-001
+
+ENTREPRISE ABC SARL
+123 Avenue des Champs-Élysées
+75008 Paris, France
+SIRET: 12345678901234
+N° TVA: FR12345678901
+
+Date: 15/03/2024
+
+DESTINATAIRE:
+XYZ Corporation
+456 Rue de la Paix
+75001 Paris
+SIRET: 98765432109876
+
+DÉTAILS DE LA FACTURE:
+
+Description                  Quantité    Prix unitaire HT    Total HT
+------------------------------------------------------------------------
+Consultation technique           5           150,00 €        750,00 €
+Développement logiciel         20           200,00 €      4.000,00 €
+Support technique              10            80,00 €        800,00 €
+------------------------------------------------------------------------
+                                        Total HT:         5.550,00 €
+                                        TVA (20%):        1.110,00 €
+                                        Total TTC:        6.660,00 €
+
+Mode de paiement: Virement bancaire
+IBAN: FR76 1234 5678 9012 3456 7890 123
+BIC: ABCDEFGHXXX
+
+Échéance: 14/04/2024
+
+Conditions de paiement:
+- Paiement à 30 jours
+- Pénalités de retard: taux légal en vigueur
+- Escompte pour paiement anticipé: néant
+
+Pour toute question, contactez-nous:
+Email: contact@abc-sarl.fr
+Tél: +33 1 23 45 67 89
+
+Document généré électroniquement - Dispensé de signature 

@@ -1,0 +1,30 @@
+{
+    "thresholds": {
+        "performance": {
+            "avg_processing_time": 10,
+            "success_rate": 0.9,
+            "timeout_rate": 0.1
+        },
+        "resources": {
+            "cache_size": 1000,
+            "memory_usage": 0.8,
+            "cpu_usage": 0.7
+        },
+        "quality": {
+            "variable_detection_rate": 0.8,
+            "false_positive_rate": 0.05
+        }
+    },
+    "monitoring": {
+        "check_interval": 300,
+        "stats_retention": 7,
+        "alert_cooldown": 1800
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "monitoring/system.log",
+        "max_size": 10485760,
+        "backup_count": 5
+    },
+    "stats_file": "monitoring/system_stats.json"
+} 

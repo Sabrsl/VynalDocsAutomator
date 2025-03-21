@@ -1,0 +1,9 @@
+
+[Setup]
+Lang=default
+Dir=C:\Program Files\Tesseract-OCR
+Group=Tesseract-OCR
+NoIcons=0
+SetupType=custom
+Components=main,fra,eng
+Tasks=

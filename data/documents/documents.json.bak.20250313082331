@@ -1,0 +1,15 @@
+﻿{
+    "id":  "doc_1_20250309160719",
+    "title":  "Contrat - Jane Smith",
+    "type":  "contrat",
+    "date":  "2025-03-09",
+    "description":  "",
+    "template_id":  "87f37537-7dfe-47e8-9604-b0eccc83cfc8",
+    "client_id":  "client_2",
+    "file_path":  "C:\\Users\\badza\\Desktop\\VynalDocsAutomator-main\\data\\documents\\contrat_Jane_Smith_2025-03-09.pdf",
+    "variables":  {
+
+                  },
+    "created_at":  "2025-03-09T16:07:19.118560",
+    "updated_at":  "2025-03-09T16:07:19.118560"
+}

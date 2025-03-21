@@ -1,0 +1,196 @@
+{
+    "version": 1,
+    "disable_existing_loggers": true,
+    "formatters": {
+        "minimal": {
+            "format": "%(message)s"
+        }
+    },
+    "handlers": {
+        "null": {
+            "class": "logging.NullHandler"
+        }
+    },
+    "loggers": {
+        "root": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "Vynal Docs Automator": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "Vynal Docs Automator.doc_analyzer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "Vynal Docs Automator.views": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "Vynal Docs Automator.doc_analyzer.utils": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Utils": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Utils.OCR": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Views": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Models": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Controllers": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.MainView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.ConfigManager": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.CacheManager": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.AppModel": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.UsageTracker": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DashboardView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.ClientView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.TemplateView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocumentView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.SettingsView": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.RichTextEditor": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.PersonalData": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.IdentityDocs": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.BusinessDocs": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.PhoneRecognizer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.NameRecognizer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Recognizers.IDRecognizer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocAnalyzer.AddressRecognizer": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.Views.Analysis": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.AppController": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.ClientController": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.DocumentController": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        },
+        "VynalDocsAutomator.TemplateController": {
+            "level": "CRITICAL",
+            "handlers": ["null"],
+            "propagate": false
+        }
+    },
+    "root": {
+        "level": "CRITICAL",
+        "handlers": ["null"],
+        "propagate": false
+    }
+} 

@@ -1,0 +1,13 @@
+{
+    "first_run": false,
+    "tesseract_installed": true,
+    "installation_date": "2024-03-16 17:57:34.225854",
+    "checks_completed": {
+        "first_run": true,
+        "directories": true,
+        "ocr": true,
+        "extractors": true,
+        "recognizers": true
+    },
+    "skip_startup_checks": true
+}

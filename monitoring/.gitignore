@@ -1,0 +1,20 @@
+# Logs
+*.log
+*.log.*
+
+# Rapports générés
+reports/*
+!reports/.gitkeep
+
+# Fichiers de statistiques
+system_stats.json
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/ 

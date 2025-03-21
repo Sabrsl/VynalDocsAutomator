@@ -1,0 +1,59 @@
+{
+    "skip_checks": {
+        "first_run": true,
+        "directories": true,
+        "ocr": true,
+        "extractors": true,
+        "recognizers": true
+    },
+    "lazy_loading": {
+        "enabled": true,
+        "modules": ["ocr", "extractors", "recognizers", "doc_analyzer"]
+    },
+    "startup_order": [
+        "directories",
+        "ocr",
+        "extractors",
+        "recognizers"
+    ],
+    "initialization_delay": {
+        "ocr": 5,
+        "extractors": 2,
+        "recognizers": 2
+    },
+    "ui_first": true,
+    "background_loading": {
+        "enabled": true,
+        "delay_after_ui": 0,
+        "silent": true,
+        "order": [
+            {
+                "module": "ocr",
+                "delay": 0,
+                "silent": true,
+                "required": false
+            },
+            {
+                "module": "tesseract",
+                "delay": 0,
+                "silent": true,
+                "required": false
+            },
+            {
+                "module": "doc_analyzer",
+                "delay": 0,
+                "silent": true,
+                "components": ["extractors", "recognizers", "processors"]
+            }
+        ]
+    },
+    "logging": {
+        "suppress_startup": true,
+        "hide_module_init": true,
+        "min_level": "CRITICAL"
+    },
+    "display": {
+        "show_loading": false,
+        "hide_init_messages": true
+    }
+} 

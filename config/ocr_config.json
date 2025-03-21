@@ -1,0 +1,37 @@
+{
+    "skip_startup_check": true,
+    "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+    "lazy_loading": true,
+    "default_language": "fra",
+    "available_languages": ["fra", "eng"],
+    "initialization": {
+        "check_on_startup": false,
+        "verify_installation": false,
+        "load_languages": false,
+        "skip_module_check": true,
+        "disable_warnings": true
+    },
+    "error_handling": {
+        "suppress_warnings": true,
+        "ignore_missing_tesseract": true,
+        "ignore_import_errors": true,
+        "silent_mode": true
+    },
+    "modules": {
+        "ocr": {
+            "enabled": false,
+            "required": false
+        },
+        "extractors": {
+            "skip_ocr_check": true
+        },
+        "recognizers": {
+            "skip_ocr_check": true
+        }
+    },
+    "environment": {
+        "TESSERACT_SKIP_CHECK": "true",
+        "PYTESSERACT_SILENT": "true",
+        "OCR_DISABLE_WARNINGS": "true"
+    }
+} 

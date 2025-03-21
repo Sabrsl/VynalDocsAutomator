@@ -1,0 +1,55 @@
+{
+    "enabled": true,
+    "cache_types": {
+        "documents": {
+            "max_size": 200,
+            "ttl": 3600,
+            "strategy": "lru",
+            "preload_batch_size": 10,
+            "preload_priority": "high"
+        },
+        "templates": {
+            "max_size": 100,
+            "ttl": 7200,
+            "strategy": "lru",
+            "preload_batch_size": 5,
+            "preload_priority": "medium"
+        },
+        "clients": {
+            "max_size": 50,
+            "ttl": 7200,
+            "strategy": "lru",
+            "preload_batch_size": 8,
+            "preload_priority": "high"
+        },
+        "search": {
+            "max_size": 50,
+            "ttl": 300,
+            "strategy": "lru"
+        }
+    },
+    "predictive_loading": {
+        "enabled": true,
+        "max_history_size": 50,
+        "prediction_threshold": 0.85,
+        "cleanup_interval": 7200,
+        "history_retention": 43200,
+        "preload_batch_size": 5,
+        "thread_pool_size": 2,
+        "max_concurrent_preloads": 1,
+        "preload_timeout": 3,
+        "cache_warmup_interval": 600
+    },
+    "file_cache": {
+        "enabled": true,
+        "directory": "cache",
+        "max_size": 500,
+        "cleanup_interval": 7200
+    },
+    "memory_cache": {
+        "enabled": true,
+        "max_size": 500,
+        "gc_threshold": 200,
+        "cleanup_interval": 600
+    }
+} 

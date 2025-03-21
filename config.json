@@ -1,0 +1,25 @@
+{
+    "temp_directory": "temp_docs",
+    "document_directory": "documents",
+    "supported_formats": {
+        "docx": true,
+        "pdf": true,
+        "txt": true,
+        "md": true
+    },
+    "encoding_priority": [
+        "utf-8",
+        "latin-1",
+        "cp1252"
+    ],
+    "app": {
+        "name": "Document Generator",
+        "version": "1.0.0",
+        "theme": "dark",
+        "language": "fr",
+        "company_name": "",
+        "company_logo": "",
+        "auto_save": true,
+        "save_interval": 5
+    }
+} 

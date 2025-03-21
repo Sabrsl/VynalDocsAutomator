@@ -1,0 +1,22 @@
+Champ,Valeur
+id,19bf11d7-c52a-49ce-97c0-f7390d1e8118
+doc_type,inconnu
+title,FACTURE N°2024-001
+reference,REF-19bf11d7
+creation_date,2025-03-16T10:24:53.230986
+last_modified,2025-03-16T10:24:53.230986
+status,brouillon
+language,fr
+parties[0].name,ACME CONSULTING SARL
+parties[0].role,auteur
+parties[1].name,12345678901234
+parties[1].role,destinataire
+parties[2].name,XYZ INDUSTRIES
+parties[2].role,destinataire
+parties[3].name,98765432109876
+parties[3].role,destinataire
+important_dates.creation,2025-03-16T10:24:53.230986
+important_dates.signature,None
+important_dates.expiration,None
+important_dates.effective,None
+files.main_document,None

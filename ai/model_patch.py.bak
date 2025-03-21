@@ -1,0 +1,1784 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Patch pour le modèle d'IA afin d'améliorer la gestion des interactions utilisateur
+"""
+
+import logging
+import re
+import traceback
+import requests
+import time
+import socket
+import os
+
+logger = logging.getLogger("VynalDocsAutomator.AIModelPatch")
+
+# Créer une session HTTP persistante pour reduire la latence
+session = requests.Session()
+
+# Variable globale pour suivre les erreurs d'Ollama
+ollama_consecutive_failures = 0
+ollama_disabled_until = 0
+
+def should_use_ollama():
+    """
+    Détermine si Ollama doit être utilisé en fonction des échecs précédents.
+    
+    Returns:
+        bool: True si Ollama doit être utilisé, False sinon
+    """
+    global ollama_consecutive_failures, ollama_disabled_until
+    
+    # Si Ollama est temporairement désactivé
+    if time.time() < ollama_disabled_until:
+        return False
+    
+    # Si trop d'échecs consécutifs, vérifier Ollama
+    if ollama_consecutive_failures >= 3:
+        if check_ollama_running():
+            # Réinitialiser le compteur d'échecs
+            ollama_consecutive_failures = 0
+            return True
+        else:
+            # Désactiver Ollama pendant 60 secondes
+            ollama_disabled_until = time.time() + 60
+            logger.warning(f"Ollama désactivé pendant 60 secondes suite à {ollama_consecutive_failures} échecs consécutifs")
+            return False
+    
+    return True
+
+def check_ollama_running(url="http://localhost:11434/api/version", timeout=2):
+    """
+    Vérifie si Ollama est en cours d'exécution.
+    
+    Args:
+        url (str): URL pour vérifier Ollama
+        timeout (int): Délai d'attente en secondes
+        
+    Returns:
+        bool: True si Ollama fonctionne, False sinon
+    """
+    try:
+        response = session.get(url, timeout=timeout)
+        return response.status_code == 200
+    except (requests.RequestException, socket.error):
+        return False
+
+def patch_ai_model(AIModel):
+    """
+    Applique des patches au modèle d'IA pour améliorer la gestion des interactions utilisateur.
+    
+    Args:
+        AIModel (class): La classe du modèle d'IA à patcher
+    """
+    logger.info("Application des patches au modèle d'IA")
+    
+    # Sauvegarde des méthodes originales
+    original_generate_response = AIModel.generate_response
+    original_handle_user_choice = AIModel._handle_user_choice
+    original_handle_model_actions = AIModel._handle_model_actions
+    
+    # Ajouter une propriété pour suivre si un menu est affiché
+    AIModel.menu_displayed = False
+    
+    # Remplacer la méthode originale _normalize_input si elle existe
+    if hasattr(AIModel, '_normalize_input'):
+        original_normalize_input = AIModel._normalize_input
+        
+        def enhanced_normalize_input(self, text):
+            """
+            Version améliorée de _normalize_input qui normalise plus efficacement les entrées
+            """
+            if not text:
+                return ""
+                
+            # Appliquer la normalisation originale
+            result = original_normalize_input(self, text)
+            
+            # Normalisation supplémentaire pour les commandes courantes
+            result = result.lower().strip()
+            
+            # Normaliser les variantes de "compléter"
+            if result in ["completer", "compléter", "complété", "completé", "complete", "terminer"]:
+                return "completer"
+                
+            # Normaliser les variantes de "retour"
+            if result in ["retour", "back", "précédent", "precedent", "annuler", "cancel"]:
+                return "retour"
+                
+            # Normaliser les variantes de réinitialisation
+            if result in ["on reprend", "recommencer", "reset", "reinitialiser", "réinitialiser"]:
+                return "reset"
+                
+            return result
+            
+        AIModel._normalize_input = enhanced_normalize_input
+    
+    def patched_generate_response(self, message, stream=False):
+        """
+        Version améliorée de generate_response qui traite les remerciements et gère intelligemment
+        les entrées utilisateur à tout moment, tout en utilisant Llama pour répondre aux questions générales.
+        """
+        try:
+            # Ne pas traiter les messages vides
+            if not message or len(message.strip()) == 0:
+                return "Je n'ai pas compris votre message. Pourriez-vous reformuler?"
+            
+            # Vérifier si c'est une commande de complétion
+            if message.strip().lower() in ["completer", "compléter", "complété", "terminer", "fini", "fin", "complete", "done", "finish", "end"]:
+                logger.info("Commande de complétion détectée")
+                
+                # Si nous sommes en train de collecter des informations pour un formulaire
+                if self.current_context["state"] == "collecting_form_info" and self.current_context.get("category") and self.current_context.get("model"):
+                    logger.info("Complétion du formulaire demandée")
+                    
+                    # CRITIQUE: Vérifier si un _form_thread est déjà en cours - éviter les doubles appels
+                    if getattr(self, '_form_thread_started', False):
+                        logger.warning("Un thread de formulaire est déjà en cours")
+                        return "Je suis encore en train de traiter votre demande précédente. Veuillez patienter un instant."
+                    
+                    # IMPORTANT: Réinitialiser le contexte AVANT de lancer le traitement
+                    # Cela garantit que même si une exception se produit, le contexte est déjà réinitialisé
+                    category = self.current_context.get("category")
+                    selected_model = self.current_context.get("model")
+                    form_info = self.current_context.get("form_info", [])
+                    
+                    # Réinitialiser le contexte maintenant
+                    logger.info("Réinitialisation du contexte AVANT de traiter la complétion du document")
+                    self.current_context = {
+                        "state": "initial",
+                        "last_action": "document_filled",
+                        "subject": None,
+                        "details": {},
+                        "document_type": None,
+                        "category": None,
+                        "model": None,
+                        "form_info": []
+                    }
+                    
+                    # Lancer un thread pour le traitement du formulaire
+                    # Cela évite de bloquer l'interface utilisateur
+                    self._form_thread_started = True
+                    
+                    import threading
+                    
+                    # Définir la fonction à exécuter dans le thread
+                    def launch_form_async():
+                        try:
+                            # 1. Essayer d'utiliser directement TemplateFormView
+                            form_launched = False
+                            try:
+                                from views.template_view import TemplateFormView
+                                
+                                # Trouver la fenêtre racine (root)
+                                root = None
+                                if hasattr(self, 'root'):
+                                    root = self.root
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root'):
+                                    root = self.appmodel.root
+                                
+                                if root:
+                                    logger.info("Tentative d'ouverture directe de TemplateFormView")
+                                    # Préparer les données de template
+                                    base_filename, extension = os.path.splitext(selected_model)
+                                    template_data = {
+                                        "name": f"{base_filename}",
+                                        "type": category,
+                                        "description": f"Document basé sur {selected_model}",
+                                        "content": "",
+                                        "variables": self._convert_form_info_to_variables(form_info),
+                                        "original_file": document_path,
+                                        "from_ai": True,
+                                        "force_display": True,
+                                        "show_dialog": True
+                                    }
+                                    
+                                    # Instantier directement la vue
+                                    template_form = TemplateFormView(
+                                        root,
+                                        self.appmodel if hasattr(self, 'appmodel') else self,
+                                        template_data=template_data,
+                                        update_view_callback=None
+                                    )
+                                    form_launched = True
+                                    logger.info("TemplateFormView ouvert avec succès")
+                            except Exception as form_error:
+                                logger.error(f"Erreur lors de l'ouverture directe de TemplateFormView: {form_error}")
+                            
+                            # 2. Essayer via le bouton du dashboard (simulation de clic)
+                            if not form_launched:
+                                logger.info("Tentative de simulation du clic sur bouton 'Créer un modèle'")
+                                button_clicked = self.simulate_create_template_button_click()
+                                if button_clicked:
+                                    logger.info("Bouton 'Créer un modèle' cliqué avec succès")
+                                    form_launched = True
+                            
+                            # 3. Essayer via l'appmodel
+                            if not form_launched:
+                                # Si available, lancer le formulaire
+                                if hasattr(self, 'appmodel'):
+                                    for method_name in ['create_template', 'edit_template', 'show_template_form']:
+                                        if hasattr(self.appmodel, method_name) and not form_launched:
+                                            method = getattr(self.appmodel, method_name)
+                                            try:
+                                                # Préparer les données
+                                                base_filename, extension = os.path.splitext(selected_model)
+                                                template_data = {
+                                                    "name": f"{base_filename}",
+                                                    "type": category,
+                                                    "description": f"Document basé sur {selected_model}",
+                                                    "content": "",
+                                                    "variables": self._convert_form_info_to_variables(form_info),
+                                                    "original_file": document_path,
+                                                    "from_ai": True,
+                                                    "force_display": True,
+                                                    "show_dialog": True
+                                                }
+                                                
+                                                method(template_data)
+                                                logger.info(f"Formulaire lancé via appmodel.{method_name}")
+                                                form_launched = True
+                                                break
+                                            except Exception as e:
+                                                logger.error(f"Erreur avec appmodel.{method_name}: {e}")
+                                                continue
+                            
+                            # 4. Tenter d'accéder au dashboard directement pour utiliser le bouton "Créer un modèle"
+                            if not form_launched:
+                                logger.info("Recherche du dashboard pour créer un modèle")
+                                dashboard = None
+                                
+                                # Chercher dans tous les endroits possibles
+                                if hasattr(self, 'dashboard'):
+                                    dashboard = self.dashboard
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'dashboard'):
+                                    dashboard = self.appmodel.dashboard
+                                elif hasattr(self, 'root') and hasattr(self.root, 'dashboard'):
+                                    dashboard = self.root.dashboard
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root') and hasattr(self.appmodel.root, 'dashboard'):
+                                    dashboard = self.appmodel.root.dashboard
+                                
+                                # Si dashboard trouvé
+                                if dashboard:
+                                    logger.info("Dashboard trouvé, tentative d'utilisation")
+                                    
+                                    # Méthodes possibles qui pourraient lancer le formulaire
+                                    methods_to_try = [
+                                        'create_model', 'create_template', 'new_template', 'add_template',
+                                        'open_template_form', 'show_template_form', 'create_new_template',
+                                        'on_create_model_click', 'on_create_template_click', 'handle_create_model'
+                                    ]
+                                    
+                                    # Tester chaque méthode
+                                    for method_name in methods_to_try:
+                                        if hasattr(dashboard, method_name) and not form_launched:
+                                            try:
+                                                method = getattr(dashboard, method_name)
+                                                method()  # Essai sans paramètres
+                                                logger.info(f"Méthode dashboard.{method_name} appelée avec succès")
+                                                form_launched = True
+                                                break
+                                            except Exception as e:
+                                                logger.error(f"Erreur avec dashboard.{method_name}: {e}")
+                                    
+                                    # Simulation de clic sur le bouton si les méthodes directes échouent
+                                    if not form_launched:
+                                        # Chercher le bouton par attribut nommé
+                                        if hasattr(dashboard, 'create_template_button'):
+                                            logger.info("Bouton create_template_button trouvé")
+                                            try:
+                                                dashboard.create_template_button.invoke()
+                                                form_launched = True
+                                            except Exception as e:
+                                                logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                        elif hasattr(dashboard, 'new_template_btn'):
+                                            logger.info("Bouton new_template_btn trouvé")
+                                            try:
+                                                dashboard.new_template_btn.invoke()
+                                                form_launched = True
+                                            except Exception as e:
+                                                logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                            
+                                            # Chercher le bouton parmi les enfants du dashboard
+                                            if not form_launched and hasattr(dashboard, 'winfo_children'):
+                                                for child in dashboard.winfo_children():
+                                                    try:
+                                                        # Essayer d'obtenir le texte du widget
+                                                        child_text = ""
+                                                        if hasattr(child, 'cget') and callable(getattr(child, 'cget')):
+                                                            try:
+                                                                child_text = child.cget('text')
+                                                            except:
+                                                                pass
+                                                        
+                                                        # Si c'est le bouton, l'activer
+                                                        if 'créer' in str(child_text).lower() and 'modèle' in str(child_text).lower():
+                                                            if hasattr(child, 'invoke') and callable(getattr(child, 'invoke')):
+                                                                child.invoke()
+                                                                logger.info(f"Bouton 'Créer un modèle' trouvé et activé")
+                                                                form_launched = True
+                                                                break
+                                                    except Exception as e:
+                                                        logger.error(f"Erreur avec un widget enfant: {e}")
+                                                        continue
+                            
+                            # 5. Fallback: Ouvrir directement le document
+                            if not form_launched and os.path.exists(document_path):
+                                logger.warning("Aucune méthode n'a fonctionné, ouverture du document avec l'application par défaut")
+                                import platform
+                                system = platform.system()
+                                if system == 'Windows':
+                                    os.startfile(document_path)
+                                elif system == 'Darwin':  # macOS
+                                    import subprocess
+                                    subprocess.call(['open', document_path])
+                                else:  # Linux
+                                    import subprocess
+                                    subprocess.call(['xdg-open', document_path])
+                                logger.info(f"Document ouvert directement: {document_path}")
+                                
+                                # Informer l'utilisateur via une boîte de dialogue si possible
+                                try:
+                                    import tkinter as tk
+                                    from tkinter import messagebox
+                                    
+                                    # Créer une fenêtre temporaire (invisible)
+                                    temp_tk = tk.Tk()
+                                    temp_tk.withdraw()  # Cacher la fenêtre
+                                    
+                                    # Afficher le message
+                                    messagebox.showinfo(
+                                        "Ouverture du document",
+                                        f"Le document '{selected_model}' a été ouvert directement.\n\n"
+                                        "Pour le sauvegarder en tant que modèle, utilisez le bouton 'Créer un modèle' dans l'application principale."
+                                    )
+                                    
+                                    # Détruire la fenêtre temporaire
+                                    temp_tk.destroy()
+                                except Exception as tk_error:
+                                    logger.error(f"Erreur lors de l'affichage du message: {tk_error}")
+                        except Exception as e:
+                            logger.error(f"Erreur dans thread de formulaire: {e}")
+                            import traceback
+                            logger.error(traceback.format_exc())
+                    
+                    # Lancer le thread
+                    thread = threading.Thread(target=launch_form_async)
+                    thread.daemon = True
+                    thread.start()
+                    logger.info("Thread de lancement de formulaire démarré")
+                except Exception as thread_error:
+                    logger.error(f"Erreur lors du lancement du thread: {thread_error}")
+                    self._form_thread_started = False
+            
+            # Traiter les remerciements simples pour terminer poliment
+            if self._is_simple_thanks(message) and not stream:
+                logger.info("Remerciement simple détecté")
+                if self.current_context["state"] != "initial":
+                    logger.info("Réinitialisation du contexte après remerciement")
+                    self._reset_context()
+                return "De rien ! C'est un plaisir de vous aider. N'hésitez pas si vous avez besoin d'autre chose."
+            
+            # Vérifier si l'utilisateur tente de donner plus d'informations pour un formulaire
+            if self.current_context["state"] == "collecting_form_info":
+                logger.info("Ajout d'informations au formulaire")
+                self.current_context["form_info"].append(message)
+                return "J'ai bien noté cette information. Souhaitez-vous ajouter autre chose, ou taper 'compléter' pour finaliser le document ?"
+            
+            # Parcourir le workflow défini
+            result = self._handle_workflow(message, stream)
+            if result:
+                return result
+                
+            # Si aucun workflow spécifique n'a été activé, générer une réponse via l'API Llama
+            return self._generate_llama_response(message, stream)
+        except Exception as e:
+            logger.error(f"Erreur dans patched_generate_response: {e}")
+            logger.error(traceback.format_exc())
+            return f"Une erreur s'est produite lors du traitement de votre demande. Veuillez réessayer ou contacter l'assistance."
+    
+    def patched_handle_user_choice(self, user_input):
+        """
+        Version améliorée de _handle_user_choice qui gère mieux les entrées de l'utilisateur
+        et les changements de contexte.
+        """
+        try:
+            # Vérifier si c'est une question simple ou salutation
+            msg_lower = user_input.lower().strip()
+            
+            # Vérifier les salutations
+            greeting_patterns = [
+                r'\bcava\b', r'\bça va\b', r'\bcomment ça va\b', r'\bcomment vas[\s-]tu\b', 
+                r'\bcomment tu vas\b', r'\bcomment tu va\b', r'\btu vas bien\b',
+                r'\bcomment cv\b', r'\bcv\??\b', r'\bbonjour\b', r'\bsalut\b', r'\bhello\b'
+            ]
+            
+            # Si c'est une simple salutation
+            if any(re.search(pattern, msg_lower) for pattern in greeting_patterns) and len(user_input.split()) <= 3:
+                current_state = self.current_context.get("state", "initial")
+                
+                # Si nous sommes au début
+                if current_state in ["initial", "greeting"]:
+                    self.current_context["state"] = "greeting"
+                    return "Je vais très bien, merci ! Comment puis-je vous aider avec vos documents aujourd'hui ?"
+                
+                # Si nous sommes au milieu d'un processus
+                if current_state == "choosing_category":
+                    return "Je vais bien, merci ! Pour continuer, veuillez choisir une catégorie de document parmi celles proposées."
+                elif current_state == "choosing_model":
+                    return "Je vais bien, merci ! Pour continuer, veuillez choisir un modèle de document parmi ceux proposés."
+                elif current_state == "model_selected":
+                    return "Je vais bien, merci ! Pour continuer, que souhaitez-vous faire avec le document sélectionné ?"
+                else:
+                    return "Je vais bien, merci ! Continuons avec votre document. Comment puis-je vous aider ?"
+            
+            # Vérifier si c'est une demande d'avis sur un document
+            opinion_doc_patterns = [
+                r'ton avis sur ce(tte)? doc(ument)?', r'penses[\s-]tu (de )?ce doc(ument)?',
+                r'avis sur (le|ce) (document|modèle|fichier|template)',
+                r'que penses[\s-]tu (de )?ce(tte)? (document|modèle|fichier|template)'
+            ]
+            
+            is_opinion_doc_request = any(re.search(pattern, msg_lower) for pattern in opinion_doc_patterns)
+            
+            # Si l'utilisateur demande un avis sur un document spécifique
+            current_state = self.current_context.get("state", "initial")
+            if is_opinion_doc_request and current_state in ["choosing_model", "model_selected"]:
+                # Extraire le document actuellement sélectionné s'il existe
+                current_model = self.current_context.get("model")
+                current_category = self.current_context.get("category")
+                
+                if current_model and current_category:
+                    # Vérifier si Ollama est disponible et fiable
+                    if should_use_ollama():
+                        try:
+                            # Créer un prompt adapté pour l'avis sur le document
+                            prompt = f"""Je suis un assistant IA qui aide à créer des documents. L'utilisateur me demande mon avis sur un document de type '{current_category}', nommé '{current_model}'. 
+Comment puis-je lui donner un avis professionnel et utile sur ce document sans l'avoir vu, en me basant sur son type et son nom?"""
+                            
+                            # Générer une réponse avec Llama avec un délai d'attente réduit
+                            llama_response = self._get_llama_response(prompt)
+                            
+                            # Si Llama a réussi à générer une réponse pertinente
+                            if llama_response and len(llama_response) > 15:
+                                context_reminder = "\n\nSi vous souhaitez utiliser ce document, vous pouvez :\n1️⃣ Le remplir maintenant\n2️⃣ L'utiliser tel quel\n\nVeuillez choisir en tapant 1 ou 2."
+                                full_response = llama_response + context_reminder
+                                
+                                # Mettre à jour l'état
+                                self.current_context["state"] = "model_selected"
+                                
+                                return full_response
+                        except Exception as e:
+                            logger.error(f"Erreur lors de la génération d'avis sur document: {e}")
+                            logger.error(traceback.format_exc())
+                    
+                    # Si Ollama n'est pas disponible ou a échoué, utiliser une réponse par défaut
+                    return f"Ce document '{current_model}' de la catégorie '{current_category}' semble être un bon choix pour votre besoin. Souhaitez-vous:\n1️⃣ Le remplir maintenant\n2️⃣ L'utiliser tel quel\n\nVeuillez choisir en tapant 1 ou 2."
+                else:
+                    # Si aucun document n'est encore sélectionné
+                    return "Veuillez d'abord sélectionner un document spécifique pour que je puisse vous donner mon avis dessus."
+            
+            # Vérifier si c'est une demande courte de document
+            doc_request_patterns = [
+                r'\bdoc(s|ument)?\b', r'\bmodele\b', r'\bmodèle\b', r'\bbesoin\b', r'\bveux\b', r'\bvoudrais\b'
+            ]
+            
+            is_doc_request = any(re.search(pattern, msg_lower) for pattern in doc_request_patterns)
+            
+            # Si c'est un message court du type "je veux un docs", le traiter comme une demande de document
+            if is_doc_request and len(user_input.split()) <= 5 and self.current_context.get("state") == "initial":
+                # Traiter comme une demande de document
+                self.current_context["state"] = "asking_document_type"
+                return """📌 Que souhaitez-vous faire ?
+
+1️⃣ Utiliser un modèle existant
+2️⃣ Créer un nouveau document
+
+Veuillez choisir une option en tapant 1 ou 2."""
+            
+            # Détecter s'il s'agit d'une question générale ou d'une demande d'information
+            general_question_patterns = [
+                r'\bpourquoi\b', r'\bcomment\b', r'\bquand\b', r'\boù\b', r'\bqui\b', 
+                r'\bquel\b', r'\bquelle\b', r'\bcombien\b', r'\bque\b', r'\bqu\'est(-ce)?(\s+que)?\b'
+            ]
+            
+            # Patterns pour les demandes d'avis
+            opinion_patterns = [
+                r'\bqu\'en penses[\s-]tu\b', r'\bton avis\b', r'\bpenses[\s-]tu\b', 
+                r'\bton opinion\b', r'\bque penses[\s-]tu\b'
+            ]
+            
+            is_general_question = any(re.search(pattern, msg_lower) for pattern in general_question_patterns)
+            is_opinion_request = any(re.search(pattern, msg_lower) for pattern in opinion_patterns)
+            
+            # Si c'est une question générale ou une demande d'avis pendant le processus
+            current_state = self.current_context.get("state", "initial")
+            if (is_opinion_request or (is_general_question and len(user_input.split()) > 3)) and current_state not in ["initial", "greeting"]:
+                # Utiliser Llama pour répondre tout en maintenant le contexte
+                try:
+                    # Vérifier si Ollama est disponible
+                    if not should_use_ollama():
+                        logger.warning("Ollama n'est pas disponible dans _handle_user_choice. Utilisation du comportement standard.")
+                        return original_handle_user_choice(self, user_input)
+                        
+                    # Adapter le prompt en fonction du type de question
+                    if is_opinion_request:
+                        prompt = f"L'utilisateur me demande mon avis pendant le processus de document: {user_input}. Réponds de façon sympathique et professionnelle."
+                    else:
+                        prompt = f"L'utilisateur me pose cette question pendant le processus de document: {user_input}. Réponds de façon concise et précise."
+                    
+                    # Générer une réponse avec Llama
+                    llama_response = self._get_llama_response(prompt)
+                    
+                    # Vérifier que la réponse est valide
+                    if llama_response and len(llama_response) > 15:
+                        # Déterminer un rappel du contexte basé sur l'état actuel
+                        if current_state == "choosing_category":
+                            context_reminder = "\n\nPour revenir à notre processus, veuillez choisir une catégorie de document."
+                        elif current_state == "choosing_model":
+                            context_reminder = "\n\nPour revenir à notre processus, veuillez choisir un modèle de document."
+                        elif current_state == "model_selected":
+                            context_reminder = "\n\nPour revenir à notre processus, veuillez indiquer ce que vous souhaitez faire avec le document."
+                        else:
+                            context_reminder = "\n\nMaintenant, revenons à votre document."
+                        
+                        return llama_response + context_reminder
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'appel à Llama dans _handle_user_choice: {e}")
+                    # En cas d'erreur, continuer avec le comportement normal
+            
+            # Pour toute autre entrée utilisateur pendant le processus, essayer d'utiliser Llama
+            if current_state not in ["initial", "greeting"] and len(user_input.split()) > 1:
+                try:
+                    # Vérifier si Ollama est disponible
+                    if not should_use_ollama():
+                        logger.warning("Ollama n'est pas disponible pour le traitement général dans _handle_user_choice. Utilisation du comportement standard.")
+                        return original_handle_user_choice(self, user_input)
+                        
+                    # Créer un prompt contextualisé
+                    prompt = f"Je suis un assistant IA qui aide à créer des documents. L'utilisateur est en train de {self._get_state_description(current_state)} et me dit: '{user_input}'. Comment dois-je interpréter cette entrée et y répondre de manière utile?"
+                    
+                    # Générer une réponse avec Llama
+                    llama_response = self._get_llama_response(prompt)
+                    
+                    # Si Llama a réussi à générer une réponse pertinente
+                    if llama_response and len(llama_response) > 15:
+                        # Ajouter un rappel contextuel
+                        if current_state == "choosing_category":
+                            context_reminder = "\n\nVeuillez choisir une catégorie de document pour continuer."
+                        elif current_state == "choosing_model":
+                            context_reminder = "\n\nVeuillez choisir un modèle de document pour continuer."
+                        elif current_state == "model_selected":
+                            context_reminder = "\n\nVeuillez indiquer ce que vous souhaitez faire avec le document."
+                        else:
+                            context_reminder = "\n\nContinuons avec votre document."
+                        
+                        return llama_response + context_reminder
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'appel général à Llama dans _handle_user_choice: {e}")
+                    # En cas d'erreur, continuer avec le comportement normal
+            
+            # Appliquer le comportement normal pour tous les autres cas
+            return original_handle_user_choice(self, user_input)
+            
+        except Exception as e:
+            # Capturer les erreurs et fournir une réponse utile
+            logger.error(f"Erreur dans _handle_user_choice: {e}")
+            logger.error(traceback.format_exc())
+            
+            # Réinitialiser le contexte et reprendre depuis le début
+            self.current_context["state"] = "asking_document_type"
+            return """Je suis désolé, j'ai perdu le contexte de notre conversation. Reprenons :
+
+1️⃣ Utiliser un modèle existant
+2️⃣ Créer un nouveau document
+
+Veuillez choisir une option en tapant 1 ou 2."""
+            
+    def patched_handle_model_actions(self, message):
+        """
+        Version améliorée de _handle_model_actions qui gère mieux les réponses aux questions
+        comme l'ouverture d'un document.
+        """
+        # Normaliser l'entrée pour la recherche
+        normalized_input = self._normalize_input(message) if hasattr(self, '_normalize_input') else message.lower().strip()
+        
+        # Variables du contexte actuelles
+        category = self.current_context.get("category", "")
+        selected_model = self.current_context.get("model", "")
+        last_action = self.current_context.get("last_action", "")
+        current_state = self.current_context.get("state", "")
+        
+        # Vérifier que le modèle et la catégorie sont définis
+        if not category or not selected_model:
+            self.current_context["state"] = "choosing_category"
+            return self._show_available_categories()
+        
+        # FORCER la réinitialisation immédiate pour les commandes de complétion
+        # Liste des commandes qui indiquent la fin du remplissage
+        completion_commands = [
+            "completer", "compléter", "complété", "completé", "complete", 
+            "terminer", "fini", "finir", "done", "valider", "ok", "c'est tout"
+        ]
+        
+        # Vérifier explicitement si l'utilisateur essaie de terminer le remplissage du formulaire
+        if last_action == "remplir_document" and normalized_input in completion_commands:
+            logger.info(f"🚨 COMMANDE DE COMPLÉTION CRITIQUE DÉTECTÉE: {message}")
+            
+            # Sauvegarder les informations essentielles avant la réinitialisation
+            saved_category = category
+            saved_model = selected_model
+            saved_form_info = self.current_context.get("form_info", []).copy()
+            
+            # IMPORTANT: RÉINITIALISATION IMMÉDIATE DU CONTEXTE AVANT TOUT TRAITEMENT
+            logger.info("🔄 RÉINITIALISATION CRITIQUE DU CONTEXTE AVANT TOUT")
+            self.current_context = {
+                "state": "initial",
+                "last_action": "document_completed", # Marquer spécifiquement cette action
+                "subject": None,
+                "details": {},
+                "document_type": None,
+                "category": None,
+                "model": None,
+                "form_info": []
+            }
+            
+            # Exécuter l'affichage du formulaire après la réinitialisation
+            logger.info(f"Tentative d'affichage du formulaire pour {saved_model} avec {len(saved_form_info)} infos")
+            document_path = self.get_model_path(saved_category, saved_model)
+            
+            # Lancer l'interface graphique de manière asynchrone
+            try:
+                import threading
+                
+                # Définir une fonction pour lancer le formulaire de manière asynchrone
+                def launch_form_async():
+                    try:
+                        # 1. Essayer d'utiliser directement TemplateFormView
+                        form_launched = False
+                        try:
+                            from views.template_view import TemplateFormView
+                            
+                            # Trouver la fenêtre racine (root)
+                            root = None
+                            if hasattr(self, 'root'):
+                                root = self.root
+                            elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root'):
+                                root = self.appmodel.root
+                            
+                            if root:
+                                logger.info("Tentative d'ouverture directe de TemplateFormView")
+                                # Préparer les données de template
+                                base_filename, extension = os.path.splitext(selected_model)
+                                template_data = {
+                                    "name": f"{base_filename}",
+                                    "type": category,
+                                    "description": f"Document basé sur {selected_model}",
+                                    "content": "",
+                                    "variables": self._convert_form_info_to_variables(saved_form_info),
+                                    "original_file": document_path,
+                                    "from_ai": True,
+                                    "force_display": True,
+                                    "show_dialog": True
+                                }
+                                
+                                # Instantier directement la vue
+                                template_form = TemplateFormView(
+                                    root,
+                                    self.appmodel if hasattr(self, 'appmodel') else self,
+                                    template_data=template_data,
+                                    update_view_callback=None
+                                )
+                                form_launched = True
+                                logger.info("TemplateFormView ouvert avec succès")
+                        except Exception as form_error:
+                            logger.error(f"Erreur lors de l'ouverture directe de TemplateFormView: {form_error}")
+                        
+                        # 2. Essayer via le bouton du dashboard (simulation de clic)
+                        if not form_launched:
+                            logger.info("Tentative de simulation du clic sur bouton 'Créer un modèle'")
+                            button_clicked = self.simulate_create_template_button_click()
+                            if button_clicked:
+                                logger.info("Bouton 'Créer un modèle' cliqué avec succès")
+                                form_launched = True
+                        
+                        # 3. Essayer via l'appmodel
+                        if not form_launched:
+                            # Si available, lancer le formulaire
+                            if hasattr(self, 'appmodel'):
+                                for method_name in ['create_template', 'edit_template', 'show_template_form']:
+                                    if hasattr(self.appmodel, method_name) and not form_launched:
+                                        method = getattr(self.appmodel, method_name)
+                                        try:
+                                            # Préparer les données
+                                            base_filename, extension = os.path.splitext(selected_model)
+                                            template_data = {
+                                                "name": f"{base_filename}",
+                                                "type": category,
+                                                "description": f"Document basé sur {selected_model}",
+                                                "content": "",
+                                                "variables": self._convert_form_info_to_variables(saved_form_info),
+                                                "original_file": document_path,
+                                                "from_ai": True,
+                                                "force_display": True,
+                                                "show_dialog": True
+                                            }
+                                            
+                                            method(template_data)
+                                            logger.info(f"Formulaire lancé via appmodel.{method_name}")
+                                            form_launched = True
+                                            break
+                                        except Exception as e:
+                                            logger.error(f"Erreur avec appmodel.{method_name}: {e}")
+                                            continue
+                        
+                        # 4. Tenter d'accéder au dashboard directement pour utiliser le bouton "Créer un modèle"
+                        if not form_launched:
+                            logger.info("Recherche du dashboard pour créer un modèle")
+                            dashboard = None
+                            
+                            # Chercher dans tous les endroits possibles
+                            if hasattr(self, 'dashboard'):
+                                dashboard = self.dashboard
+                            elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'dashboard'):
+                                dashboard = self.appmodel.dashboard
+                            elif hasattr(self, 'root') and hasattr(self.root, 'dashboard'):
+                                dashboard = self.root.dashboard
+                            elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root') and hasattr(self.appmodel.root, 'dashboard'):
+                                dashboard = self.appmodel.root.dashboard
+                            
+                            # Si dashboard trouvé
+                            if dashboard:
+                                logger.info("Dashboard trouvé, tentative d'utilisation")
+                                
+                                # Méthodes possibles qui pourraient lancer le formulaire
+                                methods_to_try = [
+                                    'create_model', 'create_template', 'new_template', 'add_template',
+                                    'open_template_form', 'show_template_form', 'create_new_template',
+                                    'on_create_model_click', 'on_create_template_click', 'handle_create_model'
+                                ]
+                                
+                                # Tester chaque méthode
+                                for method_name in methods_to_try:
+                                    if hasattr(dashboard, method_name) and not form_launched:
+                                        try:
+                                            method = getattr(dashboard, method_name)
+                                            method()  # Essai sans paramètres
+                                            logger.info(f"Méthode dashboard.{method_name} appelée avec succès")
+                                            form_launched = True
+                                            break
+                                        except Exception as e:
+                                            logger.error(f"Erreur avec dashboard.{method_name}: {e}")
+                                
+                                # Simulation de clic sur le bouton si les méthodes directes échouent
+                                if not form_launched:
+                                    # Chercher le bouton par attribut nommé
+                                    if hasattr(dashboard, 'create_template_button'):
+                                        logger.info("Bouton create_template_button trouvé")
+                                        try:
+                                            dashboard.create_template_button.invoke()
+                                            form_launched = True
+                                        except Exception as e:
+                                            logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                    elif hasattr(dashboard, 'new_template_btn'):
+                                        logger.info("Bouton new_template_btn trouvé")
+                                        try:
+                                            dashboard.new_template_btn.invoke()
+                                            form_launched = True
+                                        except Exception as e:
+                                            logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                        
+                                        # Chercher le bouton parmi les enfants du dashboard
+                                        if not form_launched and hasattr(dashboard, 'winfo_children'):
+                                            for child in dashboard.winfo_children():
+                                                try:
+                                                    # Essayer d'obtenir le texte du widget
+                                                    child_text = ""
+                                                    if hasattr(child, 'cget') and callable(getattr(child, 'cget')):
+                                                        try:
+                                                            child_text = child.cget('text')
+                                                        except:
+                                                            pass
+                                                    
+                                                    # Si c'est le bouton, l'activer
+                                                    if 'créer' in str(child_text).lower() and 'modèle' in str(child_text).lower():
+                                                        if hasattr(child, 'invoke') and callable(getattr(child, 'invoke')):
+                                                            child.invoke()
+                                                            logger.info(f"Bouton 'Créer un modèle' trouvé et activé")
+                                                            form_launched = True
+                                                            break
+                                                except Exception as e:
+                                                    logger.error(f"Erreur avec un widget enfant: {e}")
+                                                    continue
+                            
+                                # 5. Fallback: Ouvrir directement le document
+                                if not form_launched and os.path.exists(document_path):
+                                    logger.warning("Aucune méthode n'a fonctionné, ouverture du document avec l'application par défaut")
+                                    import platform
+                                    system = platform.system()
+                                    if system == 'Windows':
+                                        os.startfile(document_path)
+                                    elif system == 'Darwin':  # macOS
+                                        import subprocess
+                                        subprocess.call(['open', document_path])
+                                    else:  # Linux
+                                        import subprocess
+                                        subprocess.call(['xdg-open', document_path])
+                                    logger.info(f"Document ouvert directement: {document_path}")
+                                    
+                                    # Informer l'utilisateur via une boîte de dialogue si possible
+                                    try:
+                                        import tkinter as tk
+                                        from tkinter import messagebox
+                                        
+                                        # Créer une fenêtre temporaire (invisible)
+                                        temp_tk = tk.Tk()
+                                        temp_tk.withdraw()  # Cacher la fenêtre
+                                        
+                                        # Afficher le message
+                                        messagebox.showinfo(
+                                            "Ouverture du document",
+                                            f"Le document '{selected_model}' a été ouvert directement.\n\n"
+                                            "Pour le sauvegarder en tant que modèle, utilisez le bouton 'Créer un modèle' dans l'application principale."
+                                        )
+                                        
+                                        # Détruire la fenêtre temporaire
+                                        temp_tk.destroy()
+                                    except Exception as tk_error:
+                                        logger.error(f"Erreur lors de l'affichage du message: {tk_error}")
+                        except Exception as e:
+                            logger.error(f"Erreur dans thread de formulaire: {e}")
+                            import traceback
+                            logger.error(traceback.format_exc())
+                    
+                    # Lancer le thread
+                    thread = threading.Thread(target=launch_form_async)
+                    thread.daemon = True
+                    thread.start()
+                    logger.info("Thread de lancement de formulaire démarré")
+                
+            except Exception as thread_error:
+                logger.error(f"Erreur lors du lancement du thread: {thread_error}")
+            
+            # Toujours retourner le message de confirmation
+            return f"""✅ Je vais maintenant compléter le document "{saved_model}" avec les informations suivantes:
+
+{chr(10).join([f"- {info}" for info in saved_form_info])}
+
+Je lance maintenant l'éditeur de modèle pour finaliser le document.
+
+Si vous ne voyez pas l'éditeur apparaître, veuillez chercher parmi les fenêtres ouvertes
+ou cliquer sur le bouton "Créer un modèle" dans l'interface principale."""
+        
+        # Vérifier si l'utilisateur refuse de continuer le remplissage
+        if last_action == "remplir_document" and normalized_input in ["non", "no", "stop", "annuler", "arreter", "arrêter"]:
+            # RÉINITIALISER le contexte immédiatement ici aussi
+            logger.info("Réinitialisation du contexte après annulation du remplissage")
+            self.current_context = {
+                "state": "initial",
+                "last_action": "document_filling_cancelled",
+                "subject": None,
+                "details": {},
+                "document_type": None,
+                "category": None,
+                "model": None,
+                "form_info": []
+            }
+            
+            return f"""✅ D'accord, j'arrête le remplissage du document.
+
+Que puis-je faire d'autre pour vous aider ?"""
+        
+        # Traiter spécifiquement les commandes de navigation
+        if normalized_input in ["retour", "back", "revenir", "precedent", "précédent", "annuler", "cancel"]:
+            logger.info(f"Commande de retour détectée: {message}, état actuel: {current_state}")
+            
+            # Si nous sommes en mode modèle sélectionné, revenir à la liste des modèles
+            if current_state == "model_selected":
+                self.current_context["state"] = "choosing_model"
+                self.current_context["model"] = None
+                self.current_context["last_action"] = "retour_liste_modeles"
+                return self._show_available_models(category)
+            
+            return original_handle_model_actions(self, message)
+        
+        # Traiter spécifiquement les commandes de réinitialisation
+        if normalized_input in ["on reprend", "rien", "recommencer", "reset", "reinitialiser", "réinitialiser"]:
+            logger.info("Commande de réinitialisation détectée")
+            
+            # Réinitialiser complètement le contexte
+            self.current_context = {
+                "state": "initial",
+                "last_action": "reinitialisation",
+                "subject": None,
+                "details": {},
+                "document_type": None,
+                "category": None,
+                "model": None,
+                "form_info": []
+            }
+            
+            return """✅ D'accord, recommençons depuis le début.
+
+Comment puis-je vous aider ?
+1️⃣ Utiliser un modèle existant
+2️⃣ Créer un nouveau document"""
+        
+        # Vérifier si l'utilisateur confirme l'ouverture du document après "Utiliser tel quel"
+        if last_action == "utiliser_document" and normalized_input in ["oui", "yes", "ok", "bien", "d'accord", "ouai", "oui", "ouais", "yep", "oui j'aimerais", "oui merci", "oui s'il vous plait", "oui svp"]:
+            try:
+                # Tenter d'ouvrir le document
+                self._open_document(os.path.join(self.models_path, category, selected_model))
+                # Réinitialiser le contexte
+                self.current_context = {
+                    "state": "initial",
+                    "last_action": "document_opened",
+                    "subject": None,
+                    "details": {},
+                    "document_type": None,
+                    "category": None,
+                    "model": None,
+                    "form_info": []
+                }
+                return f"""✅ J'ouvre le document "{selected_model}" pour vous.
+
+📂 Vous pouvez le trouver à: {os.path.join(self.models_path, category, selected_model)}
+
+Avez-vous besoin d'autre chose ?"""
+            except Exception as e:
+                logger.error(f"Erreur lors de l'ouverture du document: {e}")
+                return f"""❌ Je n'ai pas pu ouvrir le document "{selected_model}".
+
+Vous pouvez le trouver manuellement à: {os.path.join(self.models_path, category, selected_model)}
+
+Avez-vous besoin d'autre chose ?"""
+        
+        # Vérifier si l'utilisateur refuse l'ouverture du document
+        if last_action == "utiliser_document" and normalized_input in ["non", "no", "pas maintenant", "plus tard", "nope", "non merci", "pas besoin"]:
+            # Réinitialiser le contexte
+            self.current_context = {
+                "state": "initial",
+                "last_action": "document_not_opened",
+                "subject": None,
+                "details": {},
+                "document_type": None,
+                "category": None,
+                "model": None,
+                "form_info": []
+            }
+            return """D'accord, je n'ouvrirai pas le document.
+
+Est-ce que je peux vous aider avec autre chose ?"""
+        
+        # Utiliser la méthode originale pour tous les autres cas
+        return original_handle_model_actions(self, message)
+    
+    def _get_llama_response(self, message):
+        """
+        Génère une réponse en utilisant le modèle Llama pour les questions générales.
+        
+        Args:
+            message (str): Le message de l'utilisateur ou prompt pour Llama
+            
+        Returns:
+            str: La réponse générée
+        """
+        global ollama_consecutive_failures
+        
+        try:
+            # Construire un prompt approprié pour Llama
+            prompt = f"""Tu es un assistant IA amical et professionnel spécialisé dans la création de documents. 
+Réponds à la question de manière concise et directe, en restant informatif et utile.
+N'inclus pas de préfixes comme "En tant qu'assistant IA" ou "Je suis un modèle de langage".
+Garde tes réponses courtes et précises.
+
+{message}
+
+Réponse:"""
+            
+            # Paramètres pour l'API
+            params = {
+                "model": self.model if hasattr(self, 'model') else "llama3:latest",
+                "prompt": prompt,
+                "stream": False,
+                "temperature": 0.7,
+                "max_tokens": 150,  # Réduire la longueur des réponses pour éviter les timeouts
+                "top_p": 0.9,
+                "stop": ["Question:", "Réponse:", "\n\n"]
+            }
+            
+            # URL de l'API Ollama
+            api_url = "http://localhost:11434/api/generate"
+            
+            # Appel à l'API avec la session persistante et un timeout réduit
+            response = session.post(
+                api_url,
+                json=params,
+                timeout=10  # Réduire le timeout pour éviter les longues attentes
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if "response" in result:
+                    # Réinitialiser le compteur d'échecs
+                    ollama_consecutive_failures = 0
+                    
+                    # Nettoyer la réponse
+                    llama_response = result["response"].strip()
+                    # Supprimer les préfixes comme "En tant qu'assistant IA"
+                    prefixes = [
+                        "En tant qu'assistant IA,", "Je suis un modèle de langage,", 
+                        "En tant que modèle IA,", "Je suis un assistant IA,",
+                        "En tant qu'assistant", "Je suis un assistant", "En tant qu'IA"
+                    ]
+                    for prefix in prefixes:
+                        if llama_response.lower().startswith(prefix.lower()):
+                            llama_response = llama_response[len(prefix):].strip()
+                            if llama_response.startswith(","):  # Enlever la virgule si elle est présente
+                                llama_response = llama_response[1:].strip()
+                    
+                    return llama_response
+            
+            # Incrémenter le compteur d'échecs en cas de réponse non-200
+            ollama_consecutive_failures += 1
+            logger.warning(f"Échec d'appel à Ollama, code: {response.status_code}. Échecs consécutifs: {ollama_consecutive_failures}")
+            
+            # Réponse par défaut en cas d'échec
+            return None
+            
+        except Exception as e:
+            # Incrémenter le compteur d'échecs en cas d'exception
+            ollama_consecutive_failures += 1
+            logger.error(f"Erreur lors de la génération de réponse avec Llama: {e}")
+            logger.error(f"Échecs consécutifs: {ollama_consecutive_failures}")
+            return None
+    
+    def _get_state_description(self, state):
+        """
+        Génère une description textuelle de l'état actuel pour le prompt Llama.
+        
+        Args:
+            state (str): L'état actuel de la conversation
+            
+        Returns:
+            str: Description textuelle de l'état
+        """
+        if state == "choosing_category":
+            return "est en train de choisir une catégorie de document parmi une liste proposée"
+        elif state == "choosing_model":
+            return "est en train de sélectionner un modèle de document spécifique dans une catégorie"
+        elif state == "model_selected":
+            return "a sélectionné un modèle de document et doit choisir quoi faire avec (le remplir, le prévisualiser, etc.)"
+        elif state == "filling_document":
+            return "est en train de remplir un formulaire pour un document"
+        else:
+            return "est dans une étape du processus de gestion de documents"
+    
+    # Initialiser la connexion Ollama au démarrage
+    logger.info("Vérification de la disponibilité d'Ollama...")
+    ollama_available = check_ollama_running()
+    if ollama_available:
+        logger.info("Ollama est disponible et prêt à être utilisé")
+        # Réinitialiser les compteurs
+        ollama_consecutive_failures = 0
+        ollama_disabled_until = 0
+    else:
+        logger.warning("Ollama n'est pas disponible. Les réponses LLM seront désactivées.")
+        # Désactiver Ollama pendant 30 secondes
+        ollama_disabled_until = time.time() + 30
+            
+    # Créer une méthode pour intercepter le remplissage de document
+    def intercept_document_filling(self, original_handle_model_actions):
+        """
+        Crée une fonction qui intercepte le processus de remplissage de document 
+        pour traiter correctement les commandes comme "compléter"
+        
+        Args:
+            original_handle_model_actions: La méthode originale _handle_model_actions
+            
+        Returns:
+            function: La méthode modifiée
+        """
+        
+        def intercepted_handle_model_actions(self, message):
+            """
+            Version de _handle_model_actions qui intercepte les commandes 
+            de complétion et évite qu'elles ne soient ajoutées au formulaire
+            """
+            # Vérifier si l'état actuel est remplir_document
+            if self.current_context.get("last_action") == "remplir_document":
+                # Normaliser et vérifier si c'est une commande de complétion
+                if self.is_complete_command(message):
+                    logger.info(f"Commande de complétion interceptée dans _handle_model_actions: {message}")
+                    # Traiter la complétion sans ajouter le message au formulaire
+                    return self._process_form_completion()
+            
+            # Si ce n'est pas une commande de complétion, continuer normalement
+            return original_handle_model_actions(self, message)
+            
+        return intercepted_handle_model_actions
+        
+    # Remplacer les méthodes originales par les versions patchées
+    intercepted_handle_model_actions = intercept_document_filling(AIModel, original_handle_model_actions)
+    
+    # Remplacer les méthodes originales par les versions patchées
+    AIModel.generate_response = patched_generate_response
+    AIModel._handle_user_choice = patched_handle_user_choice
+    AIModel._handle_model_actions = intercepted_handle_model_actions
+    AIModel._get_llama_response = _get_llama_response
+    AIModel._get_state_description = _get_state_description
+    
+    # Ajouter une méthode pour détecter si une entrée est un numéro ou une référence à un document
+    def is_document_reference(self, user_input):
+        """
+        Détecte si l'entrée utilisateur fait référence à un document (numéro ou nom de fichier)
+        
+        Args:
+            user_input (str): L'entrée de l'utilisateur
+            
+        Returns:
+            bool: True si l'entrée semble être une référence à un document
+        """
+        # Vérifier si c'est un numéro simple
+        if user_input.strip().isdigit():
+            return True
+            
+        # Vérifier les extensions de fichiers courants
+        if any(ext in user_input.lower() for ext in ['.docx', '.pdf', '.doc', '.txt', '.odt']):
+            return True
+            
+        return False
+    
+    AIModel.is_document_reference = is_document_reference
+    
+    # Fonction pour détecter les mots-clés de retour
+    def is_return_command(self, user_input):
+        """
+        Détecte si l'entrée utilisateur est une commande de retour
+        
+        Args:
+            user_input (str): L'entrée de l'utilisateur
+            
+        Returns:
+            bool: True si l'entrée est une commande de retour
+        """
+        normalized = self._normalize_input(user_input)
+        return normalized in ["retour", "back", "revenir", "precedent", "précédent", "annuler", "cancel"]
+    
+    # Fonction pour détecter les mots-clés de réinitialisation
+    def is_reset_command(self, user_input):
+        """
+        Détecte si l'entrée utilisateur est une commande de réinitialisation
+        
+        Args:
+            user_input (str): L'entrée de l'utilisateur
+            
+        Returns:
+            bool: True si l'entrée est une commande de réinitialisation
+        """
+        normalized = self._normalize_input(user_input)
+        return normalized in ["on reprend", "rien", "recommencer", "reset", "reinitialiser", "réinitialiser"]
+    
+    # Fonction générale pour réinitialiser le contexte
+    def reset_context(self):
+        """
+        Réinitialise complètement le contexte de conversation
+        
+        Returns:
+            dict: Le nouveau contexte réinitialisé
+        """
+        return {
+            "state": "initial",
+            "last_action": "reinitialisation",
+            "subject": None,
+            "details": {},
+            "document_type": None,
+            "category": None,
+            "model": None,
+            "form_info": []
+        }
+    
+    # Fonction pour détecter les mots-clés de complétion
+    def is_complete_command(self, user_input):
+        """
+        Détecte si l'entrée utilisateur est une commande de complétion
+        
+        Args:
+            user_input (str): L'entrée de l'utilisateur
+            
+        Returns:
+            bool: True si l'entrée est une commande de complétion
+        """
+        normalized = self._normalize_input(user_input)
+        return normalized in ["completer", "compléter", "terminer", "valider", "ok", "fini", "finir", "done", "complete"]
+    
+    # Ajouter les nouvelles méthodes à l'objet AIModel
+    AIModel.is_return_command = is_return_command
+    AIModel.is_reset_command = is_reset_command
+    AIModel.is_complete_command = is_complete_command
+    AIModel.reset_context = reset_context
+    
+    # Ajouter une méthode pour traiter la complétion de formulaire
+    def _process_form_completion(self):
+        """
+        Traite la complétion d'un formulaire en lançant l'interface appropriée de création de modèle
+        
+        Returns:
+            str: Message de confirmation ou d'erreur
+        """
+        try:
+            # Récupérer les informations du contexte
+            category = self.current_context.get("category", "")
+            selected_model = self.current_context.get("model", "")
+            form_info = self.current_context.get("form_info", [])
+            
+            # *** IMPORTANT: Réinitialiser le contexte AVANT de faire quoi que ce soit d'autre ***
+            # Cela garantit que même si une exception se produit, le contexte est déjà réinitialisé
+            logger.info("Réinitialisation du contexte AVANT de traiter la complétion du document")
+            self.current_context = {
+                "state": "initial",
+                "last_action": "document_filled",
+                "subject": None,
+                "details": {},
+                "document_type": None,
+                "category": None,
+                "model": None,
+                "form_info": []
+            }
+            
+            if not category or not selected_model:
+                logger.error("Tentative de complétion sans catégorie ou modèle défini")
+                return "Une erreur s'est produite : aucun document n'a été sélectionné. Veuillez recommencer."
+                
+            if not form_info:
+                logger.warning("Tentative de complétion sans informations de formulaire")
+                return "Vous n'avez pas encore fourni d'informations pour ce document. Veuillez saisir les informations que vous souhaitez inclure."
+            
+            # Construire le chemin du document
+            document_path = self.get_model_path(category, selected_model)
+            logger.info(f"Chemin du document: {document_path}")
+            
+            # Générer un nouveau nom pour le document rempli
+            base_filename, extension = os.path.splitext(selected_model)
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filled_filename = f"{base_filename}_rempli_{timestamp}{extension}"
+            
+            # Préparer les données pour le formulaire de modèle
+            template_data = {
+                "name": f"{base_filename}",
+                "type": category,
+                "description": f"Document basé sur {selected_model}",
+                "content": "", # Sera rempli par le formulaire
+                "variables": self._convert_form_info_to_variables(form_info),
+                "original_file": document_path,
+                "from_ai": True,
+                "bring_to_front": True,
+                # Forcer l'affichage du formulaire
+                "force_display": True,
+                "show_dialog": True
+            }
+            
+            logger.info(f"Lancement du formulaire de modèle pour {document_path} avec les informations: {form_info}")
+            
+            # Variable pour suivre si le formulaire a été ouvert avec succès
+            form_opened = False
+            error_message = ""
+            
+            # MÉTHODE 1: Simuler le clic sur "Créer un modèle"
+            try:
+                if hasattr(self, 'views') and hasattr(self.views, 'template_view'):
+                    logger.info("Tentative d'accès direct à la vue de modèle")
+                    if hasattr(self.views.template_view, 'create_template'):
+                        logger.info("Utilisation de views.template_view.create_template")
+                        self.views.template_view.create_template(template_data)
+                        form_opened = True
+                    elif hasattr(self.views.template_view, 'show_template_form'):
+                        logger.info("Utilisation de views.template_view.show_template_form")
+                        self.views.template_view.show_template_form(template_data)
+                        form_opened = True
+            except Exception as template_view_error:
+                logger.error(f"Erreur lors de l'accès à template_view: {template_view_error}")
+            
+            # MÉTHODE 2: Utiliser les méthodes du contrôleur de template
+            if not form_opened:
+                try:
+                    if hasattr(self, 'controllers') and hasattr(self.controllers, 'template_controller'):
+                        controller = self.controllers.template_controller
+                        logger.info("Accès au contrôleur de template")
+                        
+                        # Essayer différentes méthodes du contrôleur
+                        if hasattr(controller, 'create_new_template'):
+                            logger.info("Utilisation de create_new_template")
+                            controller.create_new_template(template_data)
+                            form_opened = True
+                        elif hasattr(controller, 'show_template_form'):
+                            logger.info("Utilisation de show_template_form")
+                            controller.show_template_form(template_data)
+                            form_opened = True
+                        elif hasattr(controller, 'edit_template'):
+                            logger.info("Utilisation de edit_template")
+                            controller.edit_template(category, selected_model, template_data)
+                            form_opened = True
+                except Exception as controller_error:
+                    logger.error(f"Erreur lors de l'accès au contrôleur: {controller_error}")
+            
+            # MÉTHODE 3: Utiliser l'app model
+            if not form_opened:
+                try:
+                    if hasattr(self, 'appmodel'):
+                        logger.info("Accès à l'appmodel")
+                        # Essayer différentes méthodes de l'appmodel
+                        if hasattr(self.appmodel, 'create_template'):
+                            logger.info("Utilisation de appmodel.create_template")
+                            self.appmodel.create_template(template_data)
+                            form_opened = True
+                        elif hasattr(self.appmodel, 'edit_template'):
+                            logger.info("Utilisation de appmodel.edit_template")
+                            self.appmodel.edit_template(template_data)
+                            form_opened = True
+                        elif hasattr(self.appmodel, 'show_template_form'):
+                            logger.info("Utilisation de appmodel.show_template_form")
+                            self.appmodel.show_template_form(template_data)
+                            form_opened = True
+                except Exception as appmodel_error:
+                    logger.error(f"Erreur lors de l'accès à l'appmodel: {appmodel_error}")
+            
+            # MÉTHODE 4: Créer directement l'interface depuis les vues
+            if not form_opened:
+                try:
+                    import threading
+                    
+                    # Définir une fonction pour lancer le formulaire de manière asynchrone
+                    def launch_form_async():
+                        try:
+                            # 1. Essayer d'utiliser directement TemplateFormView
+                            form_launched = False
+                            try:
+                                from views.template_view import TemplateFormView
+                                
+                                # Trouver la fenêtre racine (root)
+                                root = None
+                                if hasattr(self, 'root'):
+                                    root = self.root
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root'):
+                                    root = self.appmodel.root
+                                
+                                if root:
+                                    logger.info("Tentative d'ouverture directe de TemplateFormView")
+                                    # Préparer les données de template
+                                    base_filename, extension = os.path.splitext(selected_model)
+                                    template_data = {
+                                        "name": f"{base_filename}",
+                                        "type": category,
+                                        "description": f"Document basé sur {selected_model}",
+                                        "content": "",
+                                        "variables": self._convert_form_info_to_variables(form_info),
+                                        "original_file": document_path,
+                                        "from_ai": True,
+                                        "force_display": True,
+                                        "show_dialog": True
+                                    }
+                                    
+                                    # Instantier directement la vue
+                                    template_form = TemplateFormView(
+                                        root,
+                                        self.appmodel if hasattr(self, 'appmodel') else self,
+                                        template_data=template_data,
+                                        update_view_callback=None
+                                    )
+                                    form_launched = True
+                                    logger.info("TemplateFormView ouvert avec succès")
+                            except Exception as form_error:
+                                logger.error(f"Erreur lors de l'ouverture directe de TemplateFormView: {form_error}")
+                            
+                            # 2. Essayer via le bouton du dashboard (simulation de clic)
+                            if not form_launched:
+                                logger.info("Tentative de simulation du clic sur bouton 'Créer un modèle'")
+                                button_clicked = self.simulate_create_template_button_click()
+                                if button_clicked:
+                                    logger.info("Bouton 'Créer un modèle' cliqué avec succès")
+                                    form_launched = True
+                            
+                            # 3. Essayer via l'appmodel
+                            if not form_launched:
+                                # Si available, lancer le formulaire
+                                if hasattr(self, 'appmodel'):
+                                    for method_name in ['create_template', 'edit_template', 'show_template_form']:
+                                        if hasattr(self.appmodel, method_name) and not form_launched:
+                                            method = getattr(self.appmodel, method_name)
+                                            try:
+                                                # Préparer les données
+                                                base_filename, extension = os.path.splitext(selected_model)
+                                                template_data = {
+                                                    "name": f"{base_filename}",
+                                                    "type": category,
+                                                    "description": f"Document basé sur {selected_model}",
+                                                    "content": "",
+                                                    "variables": self._convert_form_info_to_variables(form_info),
+                                                    "original_file": document_path,
+                                                    "from_ai": True,
+                                                    "force_display": True,
+                                                    "show_dialog": True
+                                                }
+                                                
+                                                method(template_data)
+                                                logger.info(f"Formulaire lancé via appmodel.{method_name}")
+                                                form_launched = True
+                                                break
+                                            except Exception as e:
+                                                logger.error(f"Erreur avec appmodel.{method_name}: {e}")
+                                                continue
+                            
+                            # 4. Tenter d'accéder au dashboard directement pour utiliser le bouton "Créer un modèle"
+                            if not form_launched:
+                                logger.info("Recherche du dashboard pour créer un modèle")
+                                dashboard = None
+                                
+                                # Chercher dans tous les endroits possibles
+                                if hasattr(self, 'dashboard'):
+                                    dashboard = self.dashboard
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'dashboard'):
+                                    dashboard = self.appmodel.dashboard
+                                elif hasattr(self, 'root') and hasattr(self.root, 'dashboard'):
+                                    dashboard = self.root.dashboard
+                                elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root') and hasattr(self.appmodel.root, 'dashboard'):
+                                    dashboard = self.appmodel.root.dashboard
+                                
+                                # Si dashboard trouvé
+                                if dashboard:
+                                    logger.info("Dashboard trouvé, tentative d'utilisation")
+                                    
+                                    # Méthodes possibles qui pourraient lancer le formulaire
+                                    methods_to_try = [
+                                        'create_model', 'create_template', 'new_template', 'add_template',
+                                        'open_template_form', 'show_template_form', 'create_new_template',
+                                        'on_create_model_click', 'on_create_template_click', 'handle_create_model'
+                                    ]
+                                    
+                                    # Tester chaque méthode
+                                    for method_name in methods_to_try:
+                                        if hasattr(dashboard, method_name) and not form_launched:
+                                            try:
+                                                method = getattr(dashboard, method_name)
+                                                method()  # Essai sans paramètres
+                                                logger.info(f"Méthode dashboard.{method_name} appelée avec succès")
+                                                form_launched = True
+                                                break
+                                            except Exception as e:
+                                                logger.error(f"Erreur avec dashboard.{method_name}: {e}")
+                                    
+                                    # Simulation de clic sur le bouton si les méthodes directes échouent
+                                    if not form_launched:
+                                        # Chercher le bouton par attribut nommé
+                                        if hasattr(dashboard, 'create_template_button'):
+                                            logger.info("Bouton create_template_button trouvé")
+                                            try:
+                                                dashboard.create_template_button.invoke()
+                                                form_launched = True
+                                            except Exception as e:
+                                                logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                        elif hasattr(dashboard, 'new_template_btn'):
+                                            logger.info("Bouton new_template_btn trouvé")
+                                            try:
+                                                dashboard.new_template_btn.invoke()
+                                                form_launched = True
+                                            except Exception as e:
+                                                logger.error(f"Erreur lors de l'appel à invoke: {e}")
+                                        
+                                        # Chercher le bouton parmi les enfants du dashboard
+                                        if not form_launched and hasattr(dashboard, 'winfo_children'):
+                                            for child in dashboard.winfo_children():
+                                                try:
+                                                    # Essayer d'obtenir le texte du widget
+                                                    child_text = ""
+                                                    if hasattr(child, 'cget') and callable(getattr(child, 'cget')):
+                                                        try:
+                                                            child_text = child.cget('text')
+                                                        except:
+                                                            pass
+                                                    
+                                                    # Si c'est le bouton, l'activer
+                                                    if 'créer' in str(child_text).lower() and 'modèle' in str(child_text).lower():
+                                                        if hasattr(child, 'invoke') and callable(getattr(child, 'invoke')):
+                                                            child.invoke()
+                                                            logger.info(f"Bouton 'Créer un modèle' trouvé et activé")
+                                                            form_launched = True
+                                                            break
+                                                except Exception as e:
+                                                    logger.error(f"Erreur avec un widget enfant: {e}")
+                                                    continue
+                        
+                                # 5. Fallback: Ouvrir directement le document
+                                if not form_launched and os.path.exists(document_path):
+                                    logger.warning("Aucune méthode n'a fonctionné, ouverture du document avec l'application par défaut")
+                                    import platform
+                                    system = platform.system()
+                                    if system == 'Windows':
+                                        os.startfile(document_path)
+                                    elif system == 'Darwin':  # macOS
+                                        import subprocess
+                                        subprocess.call(['open', document_path])
+                                    else:  # Linux
+                                        import subprocess
+                                        subprocess.call(['xdg-open', document_path])
+                                    logger.info(f"Document ouvert directement: {document_path}")
+                                    
+                                    # Informer l'utilisateur via une boîte de dialogue si possible
+                                    try:
+                                        import tkinter as tk
+                                        from tkinter import messagebox
+                                        
+                                        # Créer une fenêtre temporaire (invisible)
+                                        temp_tk = tk.Tk()
+                                        temp_tk.withdraw()  # Cacher la fenêtre
+                                        
+                                        # Afficher le message
+                                        messagebox.showinfo(
+                                            "Ouverture du document",
+                                            f"Le document '{selected_model}' a été ouvert directement.\n\n"
+                                            "Pour le sauvegarder en tant que modèle, utilisez le bouton 'Créer un modèle' dans l'application principale."
+                                        )
+                                        
+                                        # Détruire la fenêtre temporaire
+                                        temp_tk.destroy()
+                                    except Exception as tk_error:
+                                        logger.error(f"Erreur lors de l'affichage du message: {tk_error}")
+                        except Exception as e:
+                            logger.error(f"Erreur dans thread de formulaire: {e}")
+                            import traceback
+                            logger.error(traceback.format_exc())
+                    
+                    # Lancer le thread
+                    thread = threading.Thread(target=launch_form_async)
+                    thread.daemon = True
+                    thread.start()
+                    logger.info("Thread de lancement de formulaire démarré")
+                except Exception as thread_error:
+                    logger.error(f"Erreur lors du lancement du thread: {thread_error}")
+                    self._form_thread_started = False
+            
+            except Exception as thread_error:
+                logger.error(f"Erreur lors du lancement du thread: {thread_error}")
+            
+            # Toujours retourner le message de confirmation
+            if form_opened:
+                return """✅ J'ai lancé l'éditeur de modèle avec les informations que vous avez fournies.
+
+Une fenêtre devrait maintenant être ouverte pour éditer le document. 
+Si vous ne la voyez pas, vérifiez qu'elle n'est pas masquée derrière d'autres fenêtres ou minimisée dans la barre des tâches.
+
+Le processus de remplissage est maintenant terminé.
+Avez-vous besoin d'autre chose ?"""
+            else:
+                return f"""⚠️ Je n'ai pas pu ouvrir automatiquement l'éditeur de modèle.
+
+Le document est disponible à l'emplacement suivant:
+{document_path}
+
+Vous pouvez:
+1. Ouvrir ce document manuellement 
+2. Cliquer sur le bouton "Créer un modèle" dans l'application principale
+3. Essayer avec un autre document
+
+Avez-vous besoin d'autre chose ?"""
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du remplissage du document: {e}")
+            logger.error(traceback.format_exc())
+            
+            # Le contexte est déjà réinitialisé au début de la fonction
+            
+            return f"""❌ Une erreur s'est produite lors du traitement: {str(e)}
+
+Le processus de remplissage a été annulé.
+Comment puis-je vous aider maintenant ?"""
+            
+    def _convert_form_info_to_variables(self, form_info):
+        """
+        Convertit les informations du formulaire en variables pour le modèle
+        
+        Args:
+            form_info (list): Liste des informations fournies par l'utilisateur
+            
+        Returns:
+            dict: Dictionnaire des variables pour le modèle
+        """
+        variables = {}
+        
+        # Traiter chaque élément des informations du formulaire
+        for i, info in enumerate(form_info):
+            # Essayer de détecter le type d'information
+            if re.search(r'@|mail', info, re.IGNORECASE):
+                variables[f"email_{i}"] = info
+            elif re.search(r'\d{2}[/.-]\d{2}[/.-]\d{4}', info):
+                variables[f"date_{i}"] = info
+            elif re.search(r'\d+[.,]?\d*\s*(?:€|EUR|euro)', info, re.IGNORECASE):
+                variables[f"montant_{i}"] = info
+            elif re.search(r'\b(?:M|Mr|Mme|Mlle|Monsieur|Madame|Mademoiselle)\b', info, re.IGNORECASE):
+                variables[f"nom_{i}"] = info
+            elif re.search(r'\d{10}|\+\d{11,}', info):
+                variables[f"telephone_{i}"] = info
+            elif re.search(r'\d+\s+(?:rue|avenue|boulevard|place|chemin)', info, re.IGNORECASE):
+                variables[f"adresse_{i}"] = info
+            else:
+                variables[f"info_{i}"] = info
+        
+        return variables
+    
+    # Ajouter une méthode pour obtenir le chemin du modèle correctement
+    def get_model_path(self, category, model_name):
+        """
+        Obtient le chemin complet d'un modèle, en vérifiant si models_path existe et en le créant si nécessaire
+        
+        Args:
+            category (str): La catégorie du modèle
+            model_name (str): Le nom du modèle
+            
+        Returns:
+            str: Le chemin complet vers le fichier du modèle
+        """
+        # Vérifier si le chemin des modèles existe et l'initialiser si nécessaire
+        try:
+            if not hasattr(self, 'models_path') or not self.models_path:
+                # Tenter d'initialiser le chemin des modèles
+                if hasattr(self, 'appmodel') and hasattr(self.appmodel, 'get_documents_path'):
+                    self.models_path = self.appmodel.get_documents_path()
+                    logger.info(f"Chemin des modèles obtenu via appmodel: {self.models_path}")
+                else:
+                    # Fallback: utiliser un chemin par défaut
+                    self.models_path = os.path.join(os.getcwd(), "data", "documents", "types")
+                    logger.info(f"Utilisation du chemin par défaut pour les modèles: {self.models_path}")
+                    # Créer le dossier s'il n'existe pas
+                    if not os.path.exists(self.models_path):
+                        os.makedirs(self.models_path, exist_ok=True)
+                        logger.info(f"Dossier créé: {self.models_path}")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'initialisation du chemin des modèles: {e}")
+            # Utiliser un chemin par défaut en cas d'erreur
+            self.models_path = os.path.join(os.getcwd(), "data", "documents", "types")
+        
+        # Construire et retourner le chemin complet
+        path = os.path.join(self.models_path, category, model_name)
+        logger.info(f"Chemin complet du modèle: {path}")
+        return path
+    
+    # Ajouter la méthode à AIModel
+    AIModel.get_model_path = get_model_path
+    
+    # Autres méthodes utilitaires
+    AIModel.is_return_command = is_return_command
+    AIModel.is_reset_command = is_reset_command
+    AIModel.is_complete_command = is_complete_command
+    AIModel.reset_context = reset_context
+    AIModel._convert_form_info_to_variables = _convert_form_info_to_variables
+    
+    logger.info("Patches appliqués avec succès")
+    
+    return AIModel 
+
+def simulate_create_template_button_click(self):
+    """
+    Simule un clic sur le bouton "Créer un modèle" du tableau de bord.
+    Cette méthode permet d'accéder directement à la fonctionnalité de création de modèle
+    depuis n'importe quel endroit de l'application.
+    
+    Returns:
+        bool: True si le bouton a été trouvé et cliqué, False sinon
+    """
+    logger.info("Tentative de simulation de clic sur le bouton 'Créer un modèle' du dashboard")
+    
+    try:
+        # 1. Chercher le dashboard
+        dashboard = None
+        dashboard_view = None
+        
+        # Chercher dans les attributs directs
+        if hasattr(self, 'dashboard'):
+            dashboard = self.dashboard
+        elif hasattr(self, 'dashboard_view'):
+            dashboard_view = self.dashboard_view
+        
+        # Chercher dans l'appmodel
+        if not dashboard and not dashboard_view and hasattr(self, 'appmodel'):
+            if hasattr(self.appmodel, 'dashboard'):
+                dashboard = self.appmodel.dashboard
+            elif hasattr(self.appmodel, 'dashboard_view'):
+                dashboard_view = self.appmodel.dashboard_view
+            # Chercher dans controllers
+            elif hasattr(self.appmodel, 'controllers'):
+                if hasattr(self.appmodel.controllers, 'dashboard_controller'):
+                    if hasattr(self.appmodel.controllers.dashboard_controller, 'view'):
+                        dashboard_view = self.appmodel.controllers.dashboard_controller.view
+        
+        # Chercher dans la fenêtre principale
+        if not dashboard and not dashboard_view:
+            root = None
+            if hasattr(self, 'root'):
+                root = self.root
+            elif hasattr(self, 'parent'):
+                root = self.parent
+            elif hasattr(self, 'appmodel') and hasattr(self.appmodel, 'root'):
+                root = self.appmodel.root
+                
+            if root and hasattr(root, 'dashboard'):
+                dashboard = root.dashboard
+            elif root and hasattr(root, 'dashboard_view'):
+                dashboard_view = root.dashboard_view
+        
+        # 2. Si on a trouvé le dashboard_view, utiliser ses méthodes
+        if dashboard_view:
+            logger.info("DashboardView trouvé, tentative d'accès au bouton 'Créer un modèle'")
+            
+            # Essayer d'utiliser la méthode callback directement
+            if hasattr(dashboard_view, '_new_template_callback') and callable(dashboard_view._new_template_callback):
+                logger.info("Appel de la méthode _new_template_callback")
+                dashboard_view._new_template_callback()
+                return True
+                
+            # Essayer d'accéder au bouton directement
+            if hasattr(dashboard_view, 'new_template_btn'):
+                logger.info("Accès au bouton new_template_btn")
+                if hasattr(dashboard_view.new_template_btn, 'invoke') and callable(dashboard_view.new_template_btn.invoke):
+                    dashboard_view.new_template_btn.invoke()
+                    return True
+            
+            # Essayer d'utiliser la fonction new_template
+            if hasattr(dashboard_view, 'new_template') and callable(dashboard_view.new_template):
+                logger.info("Appel de la fonction new_template")
+                dashboard_view.new_template()
+                return True
+        
+        # 3. Si on a trouvé le dashboard, l'utiliser
+        if dashboard:
+            logger.info("Dashboard trouvé, tentative d'accès au bouton 'Créer un modèle'")
+            
+            # Essayer d'utiliser la méthode new_template_callback
+            if hasattr(dashboard, '_new_template_callback') and callable(dashboard._new_template_callback):
+                logger.info("Appel de la méthode _new_template_callback")
+                dashboard._new_template_callback()
+                return True
+                
+            # Essayer d'accéder au bouton directement
+            if hasattr(dashboard, 'new_template_btn'):
+                logger.info("Accès au bouton new_template_btn")
+                if hasattr(dashboard.new_template_btn, 'invoke') and callable(dashboard.new_template_btn.invoke):
+                    dashboard.new_template_btn.invoke()
+                    return True
+            
+            # Essayer d'utiliser la fonction new_template
+            if hasattr(dashboard, 'new_template') and callable(dashboard.new_template):
+                logger.info("Appel de la fonction new_template")
+                dashboard.new_template()
+                return True
+        
+        logger.warning("Impossible de trouver le bouton 'Créer un modèle'")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la simulation du clic sur 'Créer un modèle': {e}")
+        return False
+
+# Ajouter la méthode à AIModel
+AIModel.simulate_create_template_button_click = simulate_create_template_button_click

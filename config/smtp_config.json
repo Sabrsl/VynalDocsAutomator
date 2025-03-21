@@ -1,0 +1,11 @@
+{
+  "host": "smtp.gmail.com",
+  "port": 587,
+  "user": "no-reply@votre-domaine.com",
+  "password": "",
+  "use_tls": true,
+  "from_name": "Support Vynal Docs",
+  "timeout": 30,
+  "retry_count": 3,
+  "retry_delay": 5
+} 

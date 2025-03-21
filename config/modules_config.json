@@ -1,0 +1,50 @@
+{
+    "modules": {
+        "ocr": {
+            "enabled": false,
+            "lazy_load": true,
+            "skip_check": true
+        },
+        "extractors": {
+            "personal_data": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "identity_docs": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "contracts": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "business_docs": {
+                "enabled": true,
+                "skip_ocr": true
+            }
+        },
+        "recognizers": {
+            "phone": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "name": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "id": {
+                "enabled": true,
+                "skip_ocr": true
+            },
+            "address": {
+                "enabled": true,
+                "skip_ocr": true
+            }
+        }
+    },
+    "initialization": {
+        "parallel_loading": false,
+        "skip_validation": true,
+        "ignore_errors": true
+    }
+} 
