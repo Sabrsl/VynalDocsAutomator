@@ -19,8 +19,8 @@
   "security": {
     "require_password": false,
     "password_hash": "32e88e16d13962cf2cfe844b262fc79080eea6f092fad83f46acad27b334a838",
-    "auto_lock": false,
-    "lock_time": 10,
+    "auto_lock": true,
+    "lock_time": 1,
     "auth_enabled": true,
     "allow_registration": true,
     "min_password_length": 8,

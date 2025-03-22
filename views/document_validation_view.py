@@ -9,7 +9,7 @@ import os
 import sys
 import logging
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Any, Optional
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -43,7 +43,12 @@ class DocumentValidationView:
         Args:
             result: Résultat de la validation
         """
-        if result['status'] == 'error':
+        if not isinstance(result, dict):
+            logger.error(f"Erreur: le résultat n'est pas un dictionnaire: {type(result)}")
+            self._show_generic_error("Format de résultat invalide")
+            return
+            
+        if result.get('status') == 'error':
             # Déterminer le type d'erreur
             validation_type = result.get('validation_type', 'unknown')
             errors = result.get('errors', [])
@@ -55,7 +60,7 @@ class DocumentValidationView:
             elif validation_type == 'variables':
                 self._show_variable_errors(errors)
             else:
-                self._show_generic_error(result['message'])
+                self._show_generic_error(result.get('message', 'Erreur inconnue'))
                 
             # Mettre à jour l'interface
             self.status_label.configure(text="Validation échouée", text_color="red")
@@ -99,6 +104,8 @@ class DocumentValidationView:
         dialog = ctk.CTkToplevel(self.parent)
         dialog.title("Erreurs de Validation")
         dialog.geometry("400x300")
+        dialog.resizable(False, False)  # Empêcher le redimensionnement
+        dialog.grab_set()  # Rendre la fenêtre modale
         
         # Layout
         dialog.grid_columnconfigure(0, weight=1)
@@ -137,6 +144,9 @@ class DocumentValidationView:
             command=dialog.destroy
         )
         ok_button.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Centrer la fenêtre
+        self._center_window(dialog)
 
     def _show_variable_errors(self, errors: List[str]) -> None:
         """
@@ -153,6 +163,7 @@ class DocumentValidationView:
         dialog = ctk.CTkToplevel(self.parent)
         dialog.title("Variables Manquantes")
         dialog.geometry("400x400")
+        dialog.grab_set()  # Rendre la fenêtre modale
         
         # Layout
         dialog.grid_columnconfigure(0, weight=1)
@@ -221,6 +232,9 @@ class DocumentValidationView:
             command=dialog.destroy
         )
         cancel_button.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Centrer la fenêtre
+        self._center_window(dialog)
 
     def _show_success_info(self, result: Dict) -> None:
         """
@@ -234,9 +248,17 @@ class DocumentValidationView:
             return
         
         info_text = "Document créé avec succès !\n\n"
-        info_text += f"Total documents : {stats['total']}\n"
-        info_text += f"Taux de réussite : {stats['success_rate']:.1f}%\n"
-        info_text += f"Temps moyen : {stats['avg_time']:.2f}s\n"
+        info_text += f"Total documents : {stats.get('total', 0)}\n"
+        
+        # Vérifier que success_rate est un nombre avant de l'afficher
+        success_rate = stats.get('success_rate', 0)
+        if isinstance(success_rate, (int, float)):
+            info_text += f"Taux de réussite : {success_rate:.1f}%\n"
+        
+        # Vérifier que avg_time est un nombre avant de l'afficher
+        avg_time = stats.get('avg_time', 0)
+        if isinstance(avg_time, (int, float)):
+            info_text += f"Temps moyen : {avg_time:.2f}s\n"
         
         if stats.get('last_creation'):
             info_text += f"Dernière création : {stats['last_creation']}\n"
@@ -250,6 +272,10 @@ class DocumentValidationView:
         Args:
             path: Chemin vers le document
         """
+        if not path or not os.path.exists(path):
+            logger.warning(f"Le document n'existe pas: {path}")
+            return
+            
         if messagebox.askyesno("Ouvrir le Document", "Voulez-vous ouvrir le document créé ?"):
             self._open_document(path)
 
@@ -264,6 +290,7 @@ class DocumentValidationView:
         dialog = ctk.CTkToplevel(self.parent)
         dialog.title("Édition des Données Client")
         dialog.geometry("400x300")
+        dialog.grab_set()  # Rendre la fenêtre modale
         
         # Layout
         dialog.grid_columnconfigure(0, weight=1)
@@ -307,7 +334,7 @@ class DocumentValidationView:
         save_button = ctk.CTkButton(
             button_frame,
             text="Enregistrer",
-            command=lambda: self._save_missing_variables(input_widgets, dialog)
+            command=lambda: self._save_client_data(input_widgets, dialog)
         )
         save_button.grid(row=0, column=0, padx=5, pady=5)
         
@@ -317,6 +344,37 @@ class DocumentValidationView:
             command=dialog.destroy
         )
         cancel_button.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Centrer la fenêtre
+        self._center_window(dialog)
+    
+    def _save_client_data(self, input_widgets: Dict[str, ctk.CTkEntry], dialog: ctk.CTkToplevel) -> None:
+        """
+        Sauvegarde les données client
+        
+        Args:
+            input_widgets: Dictionnaire des widgets CTkEntry pour la saisie
+            dialog: Boîte de dialogue CTkToplevel
+        """
+        # Récupérer les valeurs depuis les widgets CTkEntry
+        new_client_info = {}
+        for field, widget in input_widgets.items():
+            value = widget.get().strip()
+            if value:
+                new_client_info[field] = value
+        
+        # Mettre à jour les données client
+        if new_client_info:
+            self.client_info.update(new_client_info)
+            
+            # Relancer la validation
+            try:
+                self.validate_document()
+            except NotImplementedError:
+                logger.warning("La méthode validate_document n'est pas implémentée")
+                messagebox.showinfo("Information", "Les données ont été mises à jour mais la validation n'a pas pu être relancée.")
+        
+        dialog.destroy()
 
     def _save_missing_variables(self, input_widgets: Dict[str, ctk.CTkEntry], dialog: ctk.CTkToplevel) -> None:
         """
@@ -335,10 +393,18 @@ class DocumentValidationView:
         
         # Mettre à jour les variables
         if new_variables:
+            # S'assurer que les variables sont correctement stockées dans client_info
+            if not hasattr(self, 'client_info') or self.client_info is None:
+                self.client_info = {}
+                
             self.client_info.update(new_variables)
             
             # Relancer la validation
-            self.validate_document()
+            try:
+                self.validate_document()
+            except NotImplementedError:
+                logger.warning("La méthode validate_document n'est pas implémentée")
+                messagebox.showinfo("Information", "Les variables ont été mises à jour mais la validation n'a pas pu être relancée.")
         
         dialog.destroy()
 
@@ -350,12 +416,17 @@ class DocumentValidationView:
             path: Chemin vers le document
         """
         try:
+            if not path or not os.path.exists(path):
+                logger.warning(f"Le document n'existe pas: {path}")
+                messagebox.showerror("Erreur", f"Le document n'existe pas: {path}")
+                return
+                
             if sys.platform == 'win32':
                 os.startfile(path)
             elif sys.platform == 'darwin':
-                subprocess.run(['open', path])
+                subprocess.run(['open', path], check=True)
             else:
-                subprocess.run(['xdg-open', path])
+                subprocess.run(['xdg-open', path], check=True)
         except Exception as e:
             logger.error(f"Erreur lors de l'ouverture du document: {e}")
             messagebox.showerror(
@@ -371,10 +442,24 @@ class DocumentValidationView:
             message: Message d'erreur
         """
         messagebox.showerror("Erreur", message)
+    
+    def _center_window(self, window: ctk.CTkToplevel) -> None:
+        """
+        Centre une fenêtre sur l'écran
+        
+        Args:
+            window: Fenêtre à centrer
+        """
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        x = (window.winfo_screenwidth() // 2) - (width // 2)
+        y = (window.winfo_screenheight() // 2) - (height // 2)
+        window.geometry(f"{width}x{height}+{x}+{y}")
 
     def validate_document(self) -> None:
         """
         Valide le document actuel
         """
         # Cette méthode doit être implémentée par la classe qui hérite de DocumentValidationView
-        raise NotImplementedError("La méthode validate_document doit être implémentée") 
+        raise NotImplementedError("La méthode validate_document doit être implémentée")

@@ -152,8 +152,64 @@ class DocumentPreview:
             toolbar: Barre d'outils pour ajouter les boutons de navigation
         """
         try:
-            # Ouvrir le PDF avec PyMuPDF
-            self.doc_object = fitz.open(file_path)
+            # Vérifier que le fichier est bien un PDF valide
+            try:
+                # Vérifier la taille du fichier
+                file_size = os.path.getsize(file_path)
+                if file_size == 0:
+                    raise ValueError("Le fichier PDF est vide")
+                
+                # Lire les premiers octets pour vérifier la signature PDF
+                with open(file_path, 'rb') as f:
+                    pdf_header = f.read(5)
+                    if pdf_header != b'%PDF-':
+                        raise ValueError("Le fichier n'est pas un PDF valide (signature incorrecte)")
+                
+                # Ouvrir le PDF avec PyMuPDF
+                self.doc_object = fitz.open(file_path)
+                
+                # Vérifier qu'il y a au moins une page
+                if len(self.doc_object) < 1:
+                    raise ValueError("Le PDF ne contient aucune page")
+                
+            except Exception as open_error:
+                logger.error(f"Impossible d'ouvrir le PDF {file_path}: {open_error}")
+                error_frame = ctk.CTkFrame(self.content_frame)
+                error_frame.pack(fill="both", expand=True, padx=20, pady=20)
+                
+                error_label = ctk.CTkLabel(
+                    error_frame,
+                    text=f"Impossible d'ouvrir le PDF : {str(open_error)}",
+                    font=ctk.CTkFont(size=14),
+                    wraplength=600,
+                    text_color="red"
+                )
+                error_label.pack(pady=20)
+                
+                # Proposer d'afficher le contenu en tant que texte
+                try:
+                    # Essayer de lire les premiers Ko du fichier
+                    with open(file_path, 'rb') as f:
+                        content = f.read(4096)
+                    
+                    if b'%PDF-' in content:
+                        suggestion = "Le fichier semble être un PDF mais la bibliothèque ne peut pas l'ouvrir."
+                    else:
+                        suggestion = "Le fichier ne semble pas être un PDF valide."
+                    
+                    suggestion_label = ctk.CTkLabel(
+                        error_frame,
+                        text=f"{suggestion}\nEssayez d'ouvrir le fichier avec l'application par défaut.",
+                        font=ctk.CTkFont(size=13),
+                        wraplength=600
+                    )
+                    suggestion_label.pack(pady=10)
+                except:
+                    pass
+                
+                return  # Arrêter le traitement
+            
+            # Continuer avec le traitement normal...
             page_count = len(self.doc_object)
             self.current_page = 0
             
@@ -215,7 +271,7 @@ class DocumentPreview:
             
         except Exception as e:
             logger.error(f"Erreur lors de la prévisualisation du PDF: {e}", exc_info=True)
-            self._show_error("Erreur lors de la prévisualisation du PDF")
+            self._show_error(f"Erreur lors de la prévisualisation du PDF: {str(e)}")
     
     def _update_pdf_view(self, *args):
         """Met à jour l'affichage du PDF avec le zoom actuel"""

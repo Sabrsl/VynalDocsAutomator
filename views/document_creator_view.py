@@ -15,9 +15,13 @@ import threading
 import shutil
 import tkinter.filedialog as filedialog
 from ai.document_processor import AIDocumentProcessor
+from utils.document_generator import DocumentGenerator
 from PIL import Image
 import datetime
 import re
+import uuid
+import platform
+import subprocess
 
 logger = logging.getLogger("VynalDocsAutomator.DocumentCreatorView")
 
@@ -29,28 +33,36 @@ class DocumentCreatorView:
     
     def __init__(self, parent: ctk.CTk, app_model: Any) -> None:
         """
-        Initialise la vue de création de documents
+        Initialise la vue de création de document
         
         Args:
-            parent: Widget parent
+            parent: Fenêtre parente
             app_model: Modèle de l'application
         """
         self.parent = parent
         self.model = app_model
-        self.sidebar = None  # Pour stocker la référence à la barre latérale
+        
+        # Créer le cadre principal
+        self.frame = ctk.CTkFrame(parent)
+        
+        # Initialiser les variables d'état
+        self.current_step = 0
+        self.steps = [
+            "Démarrer",
+            "Type de document",
+            "Client",
+            "Validation",
+            "Personnalisation", 
+            "Finalisation"
+        ]
         
         # État du processus de création
-        self.current_step = 0
         self.selected_template = None
         self.client_info = {}
         self.document_data = {}
         self.missing_variables = {}
         self.preview_content = ""
         self.client_selected = False
-        
-        # Cadre principal qui occupe tout l'écran
-        self.frame = ctk.CTkFrame(parent)
-        self.frame.pack(fill="both", expand=True)
         
         # Barre supérieure avec titre et bouton de fermeture
         self.header_frame = ctk.CTkFrame(self.frame, height=50)
@@ -98,16 +110,6 @@ class DocumentCreatorView:
         # Barre de progression
         self.progress_frame = ctk.CTkFrame(self.main_frame)
         self.progress_frame.pack(fill="x", pady=(0, 20))
-        
-        # Étapes du processus
-        self.steps = [
-            "Type de création",
-            "Sélection du modèle",
-            "Informations client",
-            "Validation",
-            "Personnalisation",
-            "Finalisation"
-        ]
         
         # Créer les indicateurs d'étape
         self.step_indicators = []
@@ -243,44 +245,106 @@ class DocumentCreatorView:
         title = ctk.CTkLabel(
             self.content_frame,
             text="Choisissez une option",
-            font=("", 24, "bold")
+            font=("", 24, "bold")  # Taille réduite
         )
-        title.pack(pady=(0, 20))
+        title.pack(pady=(10, 20))  # Padding vertical réduit
         
         # Ajouter un message de débogage pour s'assurer que cette méthode est bien appelée
         logger.info("Affichage des options initiales - traiter un document")
 
         # Frame pour les boutons
         buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        buttons_frame.pack(pady=20)
+        buttons_frame.pack(pady=20, expand=True)  # Padding vertical réduit
 
-        # Bouton pour utiliser un modèle existant
-        template_btn = ctk.CTkButton(
+        # Fonction pour créer un bouton avec une icône plus grande
+        def create_button_with_large_icon(parent, icon, text, command, **kwargs):
+            # Créer un cadre pour contenir l'icône et le texte
+            button_frame = ctk.CTkFrame(parent, fg_color=kwargs.get('fg_color', ("gray90", "gray20")))
+            button_frame.pack(side="left", padx=kwargs.get('padx', 20))  # Espacement horizontal réduit
+            
+            # Ajouter l'icône en grand
+            icon_label = ctk.CTkLabel(
+                button_frame,
+                text=icon,
+                font=("", 80),  # Taille d'icône réduite
+                fg_color=kwargs.get('fg_color', ("gray90", "gray20")),
+                text_color=kwargs.get('text_color', ("gray10", "gray90"))
+            )
+            icon_label.pack(pady=(20, 10))  # Padding vertical réduit
+            
+            # Ajouter le texte
+            text_label = ctk.CTkLabel(
+                button_frame,
+                text=text,
+                font=("", 18),  # Taille de police réduite
+                fg_color=kwargs.get('fg_color', ("gray90", "gray20")),
+                text_color=kwargs.get('text_color', ("gray10", "gray90"))
+            )
+            text_label.pack(pady=(0, 20))  # Padding vertical réduit
+            
+            # Configurer les dimensions du cadre
+            button_frame.configure(
+                width=kwargs.get('width', 450),
+                height=kwargs.get('height', 450),
+                corner_radius=kwargs.get('corner_radius', 20)
+            )
+            
+            # Rendre le bouton cliquable
+            button_frame.bind("<Button-1>", lambda e: command())
+            icon_label.bind("<Button-1>", lambda e: command())
+            text_label.bind("<Button-1>", lambda e: command())
+            
+            # Effet de survol
+            hover_color = kwargs.get('hover_color', ("gray80", "gray30"))
+            orig_color = kwargs.get('fg_color', ("gray90", "gray20"))
+            
+            def on_enter(e):
+                button_frame.configure(fg_color=hover_color)
+                icon_label.configure(fg_color=hover_color)
+                text_label.configure(fg_color=hover_color)
+                
+            def on_leave(e):
+                button_frame.configure(fg_color=orig_color)
+                icon_label.configure(fg_color=orig_color)
+                text_label.configure(fg_color=orig_color)
+            
+            button_frame.bind("<Enter>", on_enter)
+            button_frame.bind("<Leave>", on_leave)
+            icon_label.bind("<Enter>", on_enter)
+            icon_label.bind("<Leave>", on_leave)
+            text_label.bind("<Enter>", on_enter)
+            text_label.bind("<Leave>", on_leave)
+            
+            # Configurer le curseur
+            button_frame.configure(cursor="hand2")
+            icon_label.configure(cursor="hand2")
+            text_label.configure(cursor="hand2")
+            
+            return button_frame
+        
+        # Créer le bouton pour utiliser un modèle existant
+        template_btn = create_button_with_large_icon(
             buttons_frame,
-            text="📂\n\nUtiliser un modèle\nexistant",
-            command=self._use_existing_template,  # Nouvelle méthode pour utiliser un modèle existant
-            width=250,
-            height=250,
-            corner_radius=10,
-            font=("", 16),
+            icon="📂",
+            text="Utiliser un modèle\nexistant",
+            command=self._use_existing_template,
+            width=350,  # Réduction de la taille
+            height=300,  # Réduction de la taille
             fg_color=("gray90", "gray20"),
             hover_color=("gray80", "gray30")
         )
-        template_btn.pack(side="left", padx=10)
-
-        # Bouton pour importer un document
-        import_btn = ctk.CTkButton(
+        
+        # Créer le bouton pour importer un document
+        import_btn = create_button_with_large_icon(
             buttons_frame,
-            text="📄\n\nImporter un\ndocument",
-            command=self.import_document,  # Nouvelle méthode à créer
-            width=250,
-            height=250,
-            corner_radius=10,
-            font=("", 16),
+            icon="📄",
+            text="À partir d'un\ndocument",
+            command=self.import_document,
+            width=350,  # Réduction de la taille
+            height=300,  # Réduction de la taille
             fg_color=("gray90", "gray20"),
             hover_color=("gray80", "gray30")
         )
-        import_btn.pack(side="left", padx=10)
         
         # S'assurer que les boutons sont visibles
         buttons_frame.update()
@@ -290,38 +354,315 @@ class DocumentCreatorView:
     
     def _use_existing_template(self) -> None:
         """
-        Redirige vers le formulaire de création de document dans la vue Documents
+        Crée directement un formulaire de création de document
         """
         try:
             # Masquer cette vue
             self.hide()
             
-            # Afficher la vue documents
-            if hasattr(self.model, 'show_view'):
-                # Afficher la vue documents
-                self.model.show_view("documents")
-                
-                # Accéder à la vue documents
-                if hasattr(self.model, 'views') and "documents" in self.model.views:
-                    documents_view = self.model.views["documents"]
-                    
-                    # Vérifier si la vue documents a la méthode new_document
-                    if hasattr(documents_view, "new_document"):
-                        # Appeler la méthode pour créer un nouveau document
-                        logger.info("Redirection vers le formulaire de création de document dans Documents")
-                        documents_view.new_document()
+            # Créer directement un formulaire de document
+            from views.document_form_view import DocumentFormView
+            
+            # Définir une fonction callback pour quand l'utilisateur annule
+            def on_cancel_callback():
+                # Réafficher cette vue
+                self.show()
+            
+            # Définir une fonction callback pour après la sauvegarde du document
+            def on_save_callback(document_id=None, client_id=None, client_name=None, **kwargs):
+                logger.info(f"Document sauvegardé: {document_id} pour le client {client_name}")
+                # Rediriger vers le tableau de bord après la sauvegarde
+                try:
+                    # Vérifier différentes options pour trouver la méthode show_view
+                    if hasattr(self.parent, 'show_view'):
+                        logger.info("Redirection vers le tableau de bord après sauvegarde via self.parent")
+                        self.parent.show_view('dashboard')
+                    elif 'parent' in locals() and hasattr(locals()['parent'], 'show_view'):
+                        logger.info("Redirection vers le tableau de bord après sauvegarde via parent local")
+                        locals()['parent'].show_view('dashboard')
                     else:
-                        logger.error("La méthode new_document n'existe pas dans la vue documents")
-                        self.show_error("La fonctionnalité de création de document n'est pas disponible")
-                else:
-                    logger.error("La vue documents n'est pas disponible")
-                    self.show_error("La vue documents n'est pas disponible")
-            else:
-                logger.error("Impossible d'accéder à la vue documents")
-                self.show_error("Impossible d'accéder à la vue documents")
+                        # Tenter de récupérer le parent via self
+                        root = self.parent
+                        # Remonter jusqu'à trouver un objet avec show_view
+                        while root is not None:
+                            if hasattr(root, 'show_view'):
+                                logger.info("Redirection vers le tableau de bord après sauvegarde via recherche de parent")
+                                root.show_view('dashboard')
+                                return
+                            if hasattr(root, 'master'):
+                                root = root.master
+                            else:
+                                break
+                                
+                        logger.error("Impossible de rediriger vers le tableau de bord: méthode show_view non trouvée")
+                        # Si nous ne pouvons pas rediriger, au moins essayer de réafficher cette vue
+                        self.show()
+                except Exception as e:
+                    logger.error(f"Erreur lors de la redirection: {e}")
+                    self.show()
+            
+            # Vérifier si le modèle possède la méthode save_document
+            # Si ce n'est pas le cas, ajouter un adaptateur temporaire
+            if not hasattr(self.model, 'save_document'):
+                logger.info("Ajout d'un adaptateur save_document au modèle")
+                
+                # Créer un adaptateur qui sauvegarde un document
+                def save_document_adapter(document):
+                    """
+                    Sauvegarde un document dans la base de données et le génère sous forme de fichier
+                    """
+                    try:
+                        # Récupérer les informations nécessaires
+                        title = document.get('name', 'Document')
+                        client_id = document.get('client_id')
+                        client_name = document.get('client_name', 'Client non spécifié')
+                        
+                        # Préparer le dossier de sortie
+                        output_dir = os.path.join("data", "documents", "outputs")
+                        os.makedirs(output_dir, exist_ok=True)
+                        
+                        # Générer un nom de fichier unique
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename_base = f"{title}_{client_name}_{timestamp}"
+                        
+                        # Nettoyer le nom du fichier (enlever les caractères spéciaux)
+                        filename = re.sub(r'[^\w\-_\. ]', '_', filename_base)
+                        
+                        # Chemins pour différents formats de documents
+                        pdf_path = os.path.join(output_dir, f"{filename}.pdf")
+                        txt_path = os.path.join(output_dir, f"{filename}.txt")
+                        
+                        # Obtenir le contenu du modèle
+                        template_content = document.get('content', '')
+                        
+                        # Si le modèle a un chemin de fichier, l'utiliser pour obtenir le contenu
+                        if 'file_path' in document and document['file_path']:
+                            try:
+                                template_file = document['file_path']
+                                if not os.path.isabs(template_file):
+                                    # Chemin relatif - chercher dans les dossiers standard
+                                    possible_paths = [
+                                        os.path.join("data", "templates", template_file),
+                                        os.path.join("data", "models", template_file),
+                                        template_file
+                                    ]
+                                    
+                                    for path in possible_paths:
+                                        if os.path.exists(path):
+                                            with open(path, 'r', encoding='utf-8') as f:
+                                                template_content = f.read()
+                                            logger.info(f"Contenu du modèle chargé depuis le fichier: {path}")
+                                            break
+                            except Exception as e:
+                                logger.warning(f"Impossible de charger le contenu du fichier modèle: {e}")
+                        
+                        # Remplacer les variables dans le modèle
+                        variables = {}
+                        if 'variables' in document:
+                            for var_name, var_info in document.get('variables', {}).items():
+                                if isinstance(var_info, dict):
+                                    variables[var_name] = var_info.get('current_value', '')
+                                else:
+                                    variables[var_name] = str(var_info)
+                        
+                        # Ajouter les variables standard
+                        variables.update({
+                            "client_name": client_name,
+                            "date": datetime.now().strftime('%Y-%m-%d'),
+                            "datetime": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            "template_name": title
+                        })
+                        
+                        # Tenter de récupérer les informations complètes du client
+                        if client_id and hasattr(self.model, 'get_client'):
+                            try:
+                                client_data = self.model.get_client(client_id)
+                                if client_data:
+                                    # Ajouter les informations du client aux variables
+                                    for key, value in client_data.items():
+                                        if value:  # Ne pas ajouter les valeurs vides
+                                            variables[f"client_{key}"] = value
+                            except Exception as client_error:
+                                logger.warning(f"Impossible de récupérer les informations du client {client_id}: {client_error}")
+                        
+                        # Remplacer les variables dans le contenu
+                        final_content = template_content
+                        for var_name, var_value in variables.items():
+                            # Format {variable}
+                            final_content = final_content.replace(f"{{{var_name}}}", str(var_value))
+                            # Format {{variable}} (double accolades)
+                            final_content = final_content.replace(f"{{{{{var_name}}}}}", str(var_value))
+                        
+                        # Tenter de générer un PDF
+                        try:
+                            # Utiliser ReportLab pour générer un PDF
+                            from reportlab.lib.pagesizes import letter
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                            from reportlab.lib.styles import getSampleStyleSheet
+                            
+                            styles = getSampleStyleSheet()
+                            doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+                            
+                            # Convertir le contenu en paragraphes
+                            content_lines = final_content.split('\n')
+                            pdf_content = []
+                            
+                            for line in content_lines:
+                                if line.strip():  # Ne pas ajouter les lignes vides
+                                    pdf_content.append(Paragraph(line, styles['Normal']))
+                                    pdf_content.append(Spacer(1, 6))  # Petit espace entre les lignes
+                            
+                            # Générer le PDF
+                            doc.build(pdf_content)
+                            
+                            # Vérifier que le PDF a été généré correctement
+                            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                                logger.info(f"Document PDF généré avec succès: {pdf_path}")
+                                file_path = pdf_path
+                            else:
+                                raise Exception("Le fichier PDF généré est vide ou n'a pas été créé.")
+                            
+                        except Exception as pdf_error:
+                            logger.error(f"Erreur lors de la génération du PDF: {pdf_error}")
+                            
+                            # En cas d'échec, générer un fichier texte
+                            with open(txt_path, 'w', encoding='utf-8') as f:
+                                f.write(final_content)
+                            logger.info(f"Document texte créé: {txt_path}")
+                            file_path = txt_path
+                        
+                        # Ajouter le chemin du fichier au document
+                        document['file_path'] = file_path
+                        
+                        # Générer un ID si nécessaire
+                        if 'id' not in document:
+                            document['id'] = str(uuid.uuid4())
+                            
+                        # S'assurer que la liste des documents existe
+                        if not hasattr(self.model, 'documents'):
+                            self.model.documents = []
+                            
+                        # Ajouter ou mettre à jour le document
+                        doc_updated = False
+                        if isinstance(self.model.documents, list):
+                            # Mettre à jour le document existant s'il existe
+                            for i, doc in enumerate(self.model.documents):
+                                if doc.get('id') == document.get('id'):
+                                    self.model.documents[i] = document
+                                    doc_updated = True
+                                    break
+                            
+                            # Ajouter le document s'il n'existe pas
+                            if not doc_updated:
+                                self.model.documents.append(document)
+                        
+                        # Sauvegarder la liste des documents
+                        if hasattr(self.model, 'save_documents'):
+                            self.model.save_documents()
+                        
+                        # Planifier la redirection vers le tableau de bord
+                        # Utiliser after pour différer l'exécution et éviter les erreurs de fenêtre
+                        def redirect_to_dashboard():
+                            try:
+                                # Vérifier différentes options pour trouver la méthode show_view
+                                if hasattr(self.parent, 'show_view'):
+                                    logger.info("Redirection vers le tableau de bord via self.parent")
+                                    self.parent.after(100, lambda: self.parent.show_view('dashboard'))
+                                    return True
+                                elif hasattr(self, 'parent') and hasattr(self.parent, 'master') and hasattr(self.parent.master, 'show_view'):
+                                    logger.info("Redirection vers le tableau de bord via self.parent.master")
+                                    self.parent.after(100, lambda: self.parent.master.show_view('dashboard'))
+                                    return True
+                                else:
+                                    # Remonter la hiérarchie des widgets
+                                    root = self.parent
+                                    max_depth = 5  # Limiter la profondeur de recherche pour éviter les boucles infinies
+                                    depth = 0
+                                    while root is not None and depth < max_depth:
+                                        if hasattr(root, 'show_view'):
+                                            logger.info(f"Redirection vers le tableau de bord trouvée à la profondeur {depth}")
+                                            root.after(100, lambda r=root: r.show_view('dashboard'))
+                                            return True
+                                        if hasattr(root, 'master'):
+                                            root = root.master
+                                        else:
+                                            break
+                                        depth += 1
+                                            
+                                    logger.error("Impossible de rediriger vers le tableau de bord: méthode show_view non trouvée")
+                                    return False
+                            except Exception as e:
+                                logger.error(f"Erreur lors de la tentative de redirection: {e}")
+                                return False
+                        
+                        # Exécuter la redirection
+                        redirect_success = redirect_to_dashboard()
+                        
+                        # Si la redirection a échoué, tenter de revenir à l'état précédent
+                        if not redirect_success:
+                            self.show()
+                        
+                        return document
+                    except Exception as e:
+                        logger.error(f"Erreur dans l'adaptateur save_document: {e}")
+                        # Tenter de revenir à l'état précédent
+                        self.show()
+                        return None
+                
+                # Attacher l'adaptateur au modèle
+                setattr(self.model, 'save_document', save_document_adapter)
+            
+            # Créer le formulaire avec les données vides
+            form = DocumentFormView(
+                self.parent,
+                self.model,
+                document_data={},
+                on_save_callback=on_save_callback,  # Utiliser notre nouveau callback
+                on_cancel_callback=on_cancel_callback
+            )
+            
+            logger.info("Création directe du formulaire de document")
+            
         except Exception as e:
-            logger.error(f"Erreur lors de la redirection vers le formulaire de document: {e}")
+            logger.error(f"Erreur lors de la création du formulaire de document: {e}")
             self.show_error(f"Erreur: {str(e)}")
+            # En cas d'erreur, réafficher cette vue
+            self.show()
+            
+    def _on_document_saved(self, document_id=None, client_id=None, client_name=None, **kwargs):
+        """
+        Callback appelé après la sauvegarde d'un document
+        """
+        logger.info(f"Document sauvegardé: {document_id} pour le client {client_name}")
+        
+        # Rediriger vers le tableau de bord
+        try:
+            # Vérifier différentes options pour trouver la méthode show_view
+            if hasattr(self.parent, 'show_view'):
+                logger.info("Redirection vers le tableau de bord depuis _on_document_saved via self.parent")
+                self.parent.show_view('dashboard')
+            else:
+                # Tenter de récupérer le parent via self
+                root = self.parent
+                # Remonter jusqu'à trouver un objet avec show_view
+                while root is not None:
+                    if hasattr(root, 'show_view'):
+                        logger.info("Redirection vers le tableau de bord via recherche de parent")
+                        root.show_view('dashboard')
+                        return
+                    if hasattr(root, 'master'):
+                        root = root.master
+                    else:
+                        break
+                        
+                logger.error("Impossible de rediriger vers le tableau de bord: méthode show_view non trouvée")
+                # Si on ne peut pas rediriger, au moins essayer de réafficher la vue
+                self.show()
+        except Exception as e:
+            logger.error(f"Erreur lors de la redirection: {e}")
+            # Si une erreur se produit, essayer de réafficher la vue
+            self.show()
 
     def show_document_types(self) -> None:
         """
@@ -1306,30 +1647,31 @@ class DocumentCreatorView:
             )
             reset_btn.pack(side="left", padx=10)
             
-            # Bouton suivant
-            next_btn = ctk.CTkButton(
-                self.nav_frame,
-                text="Suivant →",
-                command=lambda: self.show_step(self.current_step + 1),
-                width=100
-            )
-            
-            # Déterminer si le bouton suivant doit être activé
-            enabled = True
-            
-            # Gestion de l'état du bouton selon l'étape
-            if self.current_step == 2:  # Étape client
-                if not getattr(self, 'client_selected', False):
-                    enabled = False
-                # Si on est en cours d'analyse, désactiver le bouton
-                if getattr(self, 'analysis_in_progress', False) and not getattr(self, 'analysis_complete', False):
-                    enabled = False
-            
-            # Configurer l'état du bouton
-            if not enabled:
-                next_btn.configure(state="disabled", fg_color=("gray75", "gray45"))
-            
-            next_btn.pack(side="right", padx=10)
+            # Bouton suivant (sauf pour la première étape qui utilise directement les grands boutons)
+            if self.current_step > 0:
+                next_btn = ctk.CTkButton(
+                    self.nav_frame,
+                    text="Suivant →",
+                    command=lambda: self.show_step(self.current_step + 1),
+                    width=100
+                )
+                
+                # Déterminer si le bouton suivant doit être activé
+                enabled = True
+                
+                # Gestion de l'état du bouton selon l'étape
+                if self.current_step == 2:  # Étape client
+                    if not getattr(self, 'client_selected', False):
+                        enabled = False
+                    # Si on est en cours d'analyse, désactiver le bouton
+                    if getattr(self, 'analysis_in_progress', False) and not getattr(self, 'analysis_complete', False):
+                        enabled = False
+                
+                # Configurer l'état du bouton
+                if not enabled:
+                    next_btn.configure(state="disabled", fg_color=("gray75", "gray45"))
+                
+                next_btn.pack(side="right", padx=10)
             
         except Exception as e:
             logger.error(f"Erreur lors de la mise à jour de la navigation: {e}")
@@ -1360,61 +1702,244 @@ class DocumentCreatorView:
 
     def _select_client(self, client: Dict[str, Any]) -> None:
         """
-        Sélectionne un client et met à jour les informations
+        Sélectionne un client et passe à l'étape suivante
         
         Args:
-            client: Dictionnaire contenant les informations du client
+            client: Dictionnaire contenant les informations du client sélectionné
         """
         try:
-            # Vérifier si nous sommes déjà en train de traiter une sélection
-            if hasattr(self, '_selection_in_progress') and self._selection_in_progress:
-                logger.info("Sélection de client déjà en cours, ignorer ce clic")
+            if not client:
+                logger.warning("Tentative de sélection d'un client vide")
                 return
                 
-            # Marquer que nous sommes en train de traiter une sélection
-            self._selection_in_progress = True
-            
-            # Stocker les informations du client de manière sécurisée
-            # Faire une copie pour éviter des problèmes de référence
-            self.client_info = client.copy()
+            # Masquer l'interface de recherche si elle est affichée
+            if hasattr(self, 'search_frame') and self.search_frame:
+                self.search_frame.destroy()
+                
+            # Nettoyer les données précédentes si nécessaire
+            if hasattr(self, 'client_fields'):
+                self.client_fields = {}
+                
+            # Stocker les informations du client
+            self.client_info = client
             self.client_selected = True
+            logger.info(f"Client sélectionné: {client.get('nom', 'Inconnu')} {client.get('prénom', '')}")
             
-            # Enregistrer le nom du client pour le logging
-            name = client.get('nom', '') or client.get('name', '') or client.get('société', '') or "Client sans nom"
-            logger.info(f"Client sélectionné: {name}")
-            
-            # Utiliser une approche complètement différente pour éviter l'erreur de fenêtre
-            # Au lieu de manipuler les widgets directement, nous allons repasser par une méthode propre
-            
-            # Créer une fonction pour gérer la transition de façon sécurisée
-            def handle_transition():
-                try:
-                    # Si nous venons d'un document analysé
-                    if hasattr(self, 'selected_template') and self.selected_template and self.selected_template.get('from_analysis'):
-                        # Vérifier si l'analyse est terminée
-                        if getattr(self, 'analysis_complete', False):
-                            logger.info("Transition à l'étape de validation après l'analyse")
-                            # Ne pas appeler show_step directement mais nettoyer d'abord l'interface
-                            self._clean_interface_for_transition(3)
-                        else:
-                            logger.info("L'analyse n'est pas terminée, ne pas passer à l'étape suivante")
-                    else:
-                        # Transition vers l'étape de validation
-                        logger.info("Transition à l'étape de validation standard")
-                        self._clean_interface_for_transition(3)
-                except Exception as e:
-                    logger.error(f"Erreur lors de la transition après sélection du client: {e}")
-                finally:
-                    self._selection_in_progress = False
-            
-            # Utiliser after pour exécuter la transition de façon asynchrone
-            self.parent.after(50, handle_transition)
-            
+            # Si nous n'avons pas de document_data, initialiser avec un dictionnaire vide
+            if not hasattr(self, 'document_data'):
+                self.document_data = {'variables': {}}
+            elif not self.document_data:
+                self.document_data = {'variables': {}}
+            elif 'variables' not in self.document_data:
+                self.document_data['variables'] = {}
+                
+            # Si nous sommes dans l'étape de sélection client, passer à l'étape suivante
+            # Sinon, mettre à jour les champs avec les informations du client
+            if self.current_step == 2:
+                # Animation de transition avant de passer à l'étape suivante
+                self._clean_interface_for_transition(3)
+                
+                # Fonction pour gérer la transition après l'animation
+                def handle_transition():
+                    # Mettre à jour les informations du client dans document_data
+                    if 'client_info' not in self.document_data:
+                        self.document_data['client_info'] = self.client_info
+                    
+                    # Remplir automatiquement les variables avec les informations client
+                    self._auto_fill_variables()
+                    
+                    # Passer à l'étape suivante
+                    self._complete_transition()
+                
+                # Définir le délai pour la transition
+                transition_delay = 300  # milliseconds
+                self.parent.after(transition_delay, handle_transition)
+            else:
+                # Nous sommes dans une autre étape, mettre simplement à jour le client
+                # et remplir les variables avec les nouvelles informations
+                
+                # Mettre à jour les informations du client dans document_data
+                if 'client_info' not in self.document_data:
+                    self.document_data['client_info'] = self.client_info
+                
+                # Remplir automatiquement les variables avec les informations client
+                self._auto_fill_variables()
+                
+                # Mettre à jour l'interface si nécessaire
+                if self.current_step == 3 or self.current_step == 4:
+                    # Rafraîchir l'affichage des variables
+                    self.show_step(self.current_step)
+                
+                logger.info("Informations client mises à jour")
+                self.show_message("Client sélectionné", 
+                                 f"Client {client.get('nom', 'Inconnu')} {client.get('prénom', '')} sélectionné avec succès.",
+                                 "success")
+                
         except Exception as e:
             logger.error(f"Erreur lors de la sélection du client: {e}")
-            self.show_error(f"Erreur: {str(e)}")
-            self._selection_in_progress = False
+            self.show_error(f"Erreur lors de la sélection du client: {str(e)}")
+
+    def _auto_fill_variables(self) -> None:
+        """
+        Remplit automatiquement les variables du document avec les informations du client
+        """
+        if not hasattr(self, 'document_data') or not self.document_data or not hasattr(self, 'client_info') or not self.client_info:
+            return
             
+        # Vérifier si nous avons des variables
+        if 'variables' not in self.document_data or not self.document_data['variables']:
+            return
+            
+        # Dictionnaire des correspondances possibles entre noms de variables et champs client
+        var_to_client_field = {
+            # Mappings directs (nom variable -> champ client)
+            'nom': ['nom', 'name', 'nomcomplet', 'nom_complet', 'fullname', 'full_name'],
+            'prénom': ['prénom', 'prenom', 'firstname', 'first_name'],
+            'adresse': ['adresse', 'address', 'rue', 'street'],
+            'ville': ['ville', 'city', 'town'],
+            'code_postal': ['code_postal', 'codepostal', 'cp', 'zip', 'zipcode', 'zip_code'],
+            'pays': ['pays', 'country'],
+            'email': ['email', 'courriel', 'mail', 'e_mail'],
+            'téléphone': ['téléphone', 'telephone', 'tel', 'phone', 'phonenumber', 'phone_number'],
+            'mobile': ['mobile', 'cellulaire', 'portable', 'cell', 'cellphone'],
+            'société': ['société', 'societe', 'entreprise', 'company', 'organization'],
+            'siret': ['siret', 'siren', 'numéro_siret', 'numero_siret'],
+            'tva': ['tva', 'vat', 'numéro_tva', 'numero_tva'],
+            'date_naissance': ['date_naissance', 'datenaissance', 'birthday', 'birthdate', 'birth_date'],
+            'profession': ['profession', 'métier', 'metier', 'job', 'occupation'],
+        }
+        
+        # Pour les mappings avec préfixes
+        client_prefixes = ['client', 'clt', 'customer', 'beneficiary', 'bénéficiaire']
+        
+        # Parcourir toutes les variables du document
+        for var_name in list(self.document_data['variables'].keys()):
+            # Variable déjà avec une valeur?
+            var_info = self.document_data['variables'][var_name]
+            current_value = ""
+            if isinstance(var_info, dict):
+                current_value = var_info.get('current_value', '')
+            else:
+                current_value = str(var_info)
+                
+            # Ne pas remplacer si déjà une valeur
+            if current_value.strip():
+                continue
+                
+            # Cas 1: Variable avec préfixe client_xxx (le plus facile)
+            if var_name.startswith('client_') or var_name.startswith('clt_') or var_name.startswith('customer_'):
+                # Extraire le nom du champ après le préfixe
+                field_name = var_name.split('_', 1)[1]
+                
+                # Vérifier si ce champ existe dans les données client
+                if field_name in self.client_info and self.client_info[field_name]:
+                    self._set_variable_value(var_name, self.client_info[field_name], True)
+                    continue
+            
+            # Cas 2: Vérifier si la variable correspond directement à un champ client
+            if var_name in self.client_info and self.client_info[var_name]:
+                self._set_variable_value(var_name, self.client_info[var_name], True)
+                continue
+                
+            # Cas 3: Reconnaissance intelligente basée sur le nom de la variable
+            var_name_lower = var_name.lower()
+            matched = False
+            
+            # Rechercher dans les mappings standard
+            for target_field, possible_names in var_to_client_field.items():
+                # Vérifier si le nom de variable correspond à une des possibilités
+                if var_name_lower in possible_names or any(name in var_name_lower for name in possible_names):
+                    # Chercher le champ correspondant dans les données client
+                    for client_field in self.client_info:
+                        client_field_lower = client_field.lower()
+                        if client_field_lower in possible_names or target_field == client_field_lower:
+                            if self.client_info[client_field]:
+                                self._set_variable_value(var_name, self.client_info[client_field], True)
+                                matched = True
+                                break
+                if matched:
+                    break
+                    
+            if matched:
+                continue
+                
+            # Cas 4: Vérifier les variables avec d'autres préfixes courants
+            for prefix in client_prefixes:
+                if var_name_lower.startswith(f"{prefix}_") or var_name_lower.startswith(f"{prefix}."):
+                    # Extraire le nom du champ après le préfixe
+                    separator = "_" if var_name_lower.startswith(f"{prefix}_") else "."
+                    field_name = var_name_lower.split(separator, 1)[1]
+                    
+                    # Chercher une correspondance dans les champs client
+                    for client_field in self.client_info:
+                        if field_name == client_field.lower() or client_field.lower().endswith(field_name):
+                            if self.client_info[client_field]:
+                                self._set_variable_value(var_name, self.client_info[client_field], True)
+                                matched = True
+                                break
+                if matched:
+                    break
+            
+            # Cas 5: Cas spéciaux
+            if not matched:
+                # Nom complet
+                if var_name_lower in ['nom_complet', 'nomcomplet', 'fullname', 'full_name', 'nom_et_prénom', 'nom_prenom']:
+                    if 'nom' in self.client_info and 'prénom' in self.client_info:
+                        full_name = f"{self.client_info['prénom']} {self.client_info['nom']}"
+                        self._set_variable_value(var_name, full_name, True)
+                    elif 'nom' in self.client_info:
+                        self._set_variable_value(var_name, self.client_info['nom'], True)
+                
+                # Adresse complète
+                elif var_name_lower in ['adresse_complete', 'adressecomplete', 'full_address', 'fulladdress']:
+                    address_parts = []
+                    if 'adresse' in self.client_info and self.client_info['adresse']:
+                        address_parts.append(self.client_info['adresse'])
+                    if 'code_postal' in self.client_info and self.client_info['code_postal']:
+                        address_parts.append(self.client_info['code_postal'])
+                    if 'ville' in self.client_info and self.client_info['ville']:
+                        address_parts.append(self.client_info['ville'])
+                    if 'pays' in self.client_info and self.client_info['pays']:
+                        address_parts.append(self.client_info['pays'])
+                        
+                    if address_parts:
+                        full_address = " ".join(address_parts)
+                        self._set_variable_value(var_name, full_address, True)
+                        
+        logger.info(f"Variables automatiquement remplies avec les informations client")
+        
+    def _set_variable_value(self, var_name: str, value: Any, auto_detected: bool = False) -> None:
+        """
+        Définit la valeur d'une variable dans le document
+        
+        Args:
+            var_name: Nom de la variable
+            value: Valeur à définir
+            auto_detected: Indique si la valeur a été détectée automatiquement
+        """
+        if not hasattr(self, 'document_data') or not self.document_data or 'variables' not in self.document_data:
+            return
+            
+        if var_name not in self.document_data['variables']:
+            return
+            
+        # Conversion en chaîne si nécessaire
+        str_value = str(value) if value is not None else ""
+        
+        # Mise à jour selon le type de stockage
+        if isinstance(self.document_data['variables'][var_name], dict):
+            self.document_data['variables'][var_name]['current_value'] = str_value
+            if auto_detected:
+                self.document_data['variables'][var_name]['auto_detected'] = True
+        else:
+            # Convertir en dictionnaire pour stocker plus d'informations
+            self.document_data['variables'][var_name] = {
+                'current_value': str_value,
+                'auto_detected': auto_detected
+            }
+            
+        logger.debug(f"Variable '{var_name}' définie à '{str_value}' (auto-détecté: {auto_detected})")
+
     def _clean_interface_for_transition(self, target_step: int) -> None:
         """
         Méthode spéciale pour nettoyer l'interface avant une transition d'étape délicate
@@ -1455,22 +1980,27 @@ class DocumentCreatorView:
             
     def _complete_transition(self) -> None:
         """
-        Complète la transition vers l'étape cible après nettoyage
+        Complète la transition vers l'étape cible après une animation de chargement
         """
         try:
+            # Vérifier si nous avons une étape cible enregistrée
             if hasattr(self, 'pending_step'):
-                target = self.pending_step
-                # Supprimer l'attribut pour éviter des transitions multiples
+                target_step = self.pending_step
+                # Supprimer l'attribut pour éviter de réutiliser cette valeur
                 delattr(self, 'pending_step')
-                # Afficher l'étape cible
-                self.show_step(target)
+                
+                # Afficher l'étape cible si elle est valide
+                if 0 <= target_step < len(self.steps):
+                    # Appeler directement la méthode show_step avec l'étape cible
+                    self.show_step(target_step)
+                    logger.info(f"Transition complétée vers l'étape {target_step}")
+                else:
+                    logger.error(f"Étape cible invalide pour la transition: {target_step}")
             else:
-                logger.error("Pas d'étape cible définie pour la transition")
+                logger.warning("Tentative de compléter une transition sans étape cible définie")
         except Exception as e:
             logger.error(f"Erreur lors de la complétion de la transition: {e}")
-            # Si une erreur se produit, revenir à l'étape client
-            self.show_step(2)
-
+            
     def show_validation(self) -> None:
         """
         Affiche l'étape de validation du document
@@ -1664,66 +2194,13 @@ class DocumentCreatorView:
             
     def _confirm_document(self) -> None:
         """
-        Confirme la création du document et passe à l'étape de finalisation
+        Confirme la création du document et passe à l'étape de personnalisation
         """
         try:
-            # Simuler la génération du document et obtenir le chemin du fichier généré
-            # En production, cela devrait appeler le générateur de documents réel
+            # Passer à l'étape de personnalisation
+            self.show_step(4)
             
-            # Pour un test, créons un chemin fictif vers un document PDF
-            output_dir = os.path.join("data", "documents", "outputs")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Créer un nom de fichier basé sur le template et le client
-            template_name = self.selected_template.get('name', 'document')
-            client_name = "client"
-            if hasattr(self, 'client_info') and self.client_info:
-                client_name = self.client_info.get('nom', '') or self.client_info.get('name', '') or self.client_info.get('société', '') or "client"
-            
-            # Générer un nom de fichier unique
-            import datetime
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{template_name}_{client_name}_{timestamp}.pdf"
-            
-            # Nettoyer le nom du fichier (enlever les caractères spéciaux)
-            import re
-            filename = re.sub(r'[^\w\-_\. ]', '_', filename)
-            
-            # Stocker le chemin du document généré
-            self.generated_document_path = os.path.join(output_dir, filename)
-            
-            # En conditions réelles, on génèrerait le document ici:
-            # 1. Extraire les variables du modèle
-            # 2. Appliquer les variables personnalisées
-            # 3. Générer le document avec les infos du client
-            
-            # Pour simuler un document, créons un fichier texte simple
-            try:
-                with open(self.generated_document_path, 'w', encoding='utf-8') as f:
-                    f.write(f"Document simulé pour {client_name}\n")
-                    f.write(f"Modèle: {template_name}\n")
-                    f.write(f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    
-                    # Ajouter les variables (si disponibles)
-                    if hasattr(self, 'document_data') and self.document_data and 'variables' in self.document_data:
-                        f.write("Variables:\n")
-                        for var_name, var_info in self.document_data.get('variables', {}).items():
-                            if isinstance(var_info, dict):
-                                value = var_info.get('current_value', '')
-                            else:
-                                value = str(var_info)
-                            f.write(f"{var_name}: {value}\n")
-                
-                logger.info(f"Document simulé créé: {self.generated_document_path}")
-            except Exception as e:
-                logger.error(f"Erreur lors de la création du document simulé: {e}")
-                self.show_error(f"Erreur lors de la génération du document: {str(e)}")
-                return
-            
-            # Passer à l'étape de finalisation
-            self.show_step(5)
-            
-            logger.info("Document confirmé")
+            logger.info("Document confirmé, passage à l'étape de personnalisation")
             
         except Exception as e:
             logger.error(f"Erreur lors de la confirmation du document: {e}")
@@ -1734,93 +2211,208 @@ class DocumentCreatorView:
         Affiche l'étape de personnalisation du document
         """
         try:
-            # Nettoyer la zone de contenu
-            for widget in self.content_frame.winfo_children():
-                widget.destroy()
-                
-            # Créer un cadre conteneur pour centrer le contenu
-            container = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-            container.pack(fill="both", expand=True, padx=20, pady=20)
+            # Nettoyer d'abord l'interface
+            self._clear_content_frame()
             
-            # Titre
-            title = ctk.CTkLabel(
-                container,
-                text="Personnalisation du document",
+            # Vérifier si nous avons des données de document
+            if not hasattr(self, 'document_data') or not self.document_data:
+                self.show_error("Aucune donnée de document disponible.")
+                return
+            
+            # Mettre à jour la barre de progression
+            self.update_navigation()
+            
+            # Configuration du titre
+            title_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            title_frame.pack(fill="x", padx=20, pady=(20, 10), anchor="n")
+            
+            title_label = ctk.CTkLabel(
+                title_frame,
+                text="Personnalisez votre document",
                 font=("", 24, "bold")
             )
-            title.pack(pady=(0, 20))
+            title_label.pack(side="left", pady=10)
             
-            # Message d'information
-            info_label = ctk.CTkLabel(
-                container,
-                text="Modifiez les variables selon vos besoins :",
-                font=("", 14),
-                text_color=("gray50", "gray70")
+            # S'assurer que les variables sont remplies avec les informations client
+            if hasattr(self, 'client_info') and self.client_info:
+                self._auto_fill_variables()
+            
+            # Créer le cadre principal pour la personnalisation
+            customization_frame = ctk.CTkFrame(self.content_frame)
+            customization_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            
+            # Ajouter une description
+            description_text = (
+                "Veuillez vérifier et compléter les variables détectées dans votre document. "
+                "Les variables déjà remplies sont basées sur les informations client."
             )
-            info_label.pack(pady=(0, 20))
+            description_label = ctk.CTkLabel(
+                customization_frame,
+                text=description_text,
+                font=("", 14),
+                wraplength=800,
+                justify="left"
+            )
+            description_label.pack(fill="x", padx=20, pady=(20, 10), anchor="w")
             
-            # Zone de modification des variables
-            if hasattr(self, 'document_data') and self.document_data and self.document_data.get('variables'):
-                # Créer une zone déroulante pour les variables
-                variables_scroll = ctk.CTkScrollableFrame(container, height=300, fg_color=("gray95", "gray15"))
-                variables_scroll.pack(fill="x", padx=20, pady=10)
-                
-                # Dictionnaire pour stocker les entrées
+            # Définir des couleurs de thème par défaut si self.model.theme_colors n'existe pas
+            theme_colors = {
+                'frame_secondary_bg': ("gray90", "gray20"),
+                'separator': ("gray75", "gray35"),
+                'text_muted': ("gray50", "gray70"),
+                'auto_detected_bg': ("#e6f7ff", "#1a3c4d")
+            }
+            
+            # Utilisez les couleurs du modèle si disponibles
+            if hasattr(self.model, 'theme_colors'):
+                theme_colors = self.model.theme_colors
+            
+            # Créer un cadre pour les variables
+            variables_container = ctk.CTkScrollableFrame(
+                customization_frame,
+                fg_color=theme_colors['frame_secondary_bg'],
+                corner_radius=10
+            )
+            variables_container.pack(fill="both", expand=True, padx=20, pady=(10, 20))
+            
+            # Créer un conteneur pour organiser les variables en grille
+            variables_grid = ctk.CTkFrame(variables_container, fg_color="transparent")
+            variables_grid.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Définir les colonnes
+            variables_grid.columnconfigure(0, weight=2)  # Nom de la variable
+            variables_grid.columnconfigure(1, weight=3)  # Valeur de la variable
+            
+            # Ajouter des en-têtes pour les colonnes
+            header_font = ("", 16, "bold")
+            ctk.CTkLabel(
+                variables_grid,
+                text="Variable",
+                font=header_font
+            ).grid(row=0, column=0, sticky="w", padx=10, pady=(5, 10))
+            
+            ctk.CTkLabel(
+                variables_grid,
+                text="Valeur",
+                font=header_font
+            ).grid(row=0, column=1, sticky="w", padx=10, pady=(5, 10))
+            
+            # Ajouter une ligne de séparation
+            separator = ctk.CTkFrame(
+                variables_grid,
+                height=2,
+                fg_color=theme_colors['separator']
+            )
+            separator.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=(0, 15))
+            
+            # Si aucune variable n'est disponible, afficher un message
+            if not self.document_data.get('variables') or not isinstance(self.document_data['variables'], dict):
+                no_vars_label = ctk.CTkLabel(
+                    variables_grid,
+                    text="Aucune variable n'a été détectée dans ce document.",
+                    font=("", 14),
+                    text_color=theme_colors['text_muted']
+                )
+                no_vars_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=10)
+            else:
+                # Afficher les variables
+                row_index = 2
                 self.variable_entries = {}
                 
-                # Afficher chaque variable avec un champ de modification
-                for var_name, var_info in self.document_data.get('variables', {}).items():
-                    var_frame = ctk.CTkFrame(variables_scroll, fg_color="transparent")
-                    var_frame.pack(fill="x", padx=10, pady=5)
+                for var_name, var_info in self.document_data['variables'].items():
+                    # Déterminer la valeur actuelle et si elle a été détectée automatiquement
+                    current_value = ""
+                    is_auto_detected = False
                     
-                    # Nom de la variable
+                    if isinstance(var_info, dict):
+                        current_value = var_info.get('current_value', '')
+                        is_auto_detected = var_info.get('auto_detected', False)
+                    else:
+                        current_value = str(var_info)
+                    
+                    # Déterminer la couleur d'arrière-plan en fonction du statut
+                    bg_color = "transparent"
+                    if is_auto_detected:
+                        bg_color = theme_colors['auto_detected_bg']
+                    
+                    # Cadre pour cette variable
+                    var_frame = ctk.CTkFrame(
+                        variables_grid,
+                        fg_color=bg_color,
+                        corner_radius=6
+                    )
+                    var_frame.grid(
+                        row=row_index,
+                        column=0,
+                        columnspan=2,
+                        sticky="ew",
+                        padx=5,
+                        pady=5
+                    )
+                    var_frame.columnconfigure(0, weight=2)
+                    var_frame.columnconfigure(1, weight=3)
+                    
+                    # Étiquette pour le nom de la variable
+                    var_label_text = var_name
+                    if is_auto_detected:
+                        var_label_text = f"{var_name} (auto-détecté)"
+                        
                     var_label = ctk.CTkLabel(
                         var_frame,
-                        text=f"{var_name}:",
-                        font=("", 12, "bold"),
-                        width=150
+                        text=var_label_text,
+                        font=("", 14, "bold"),
+                        wraplength=300,
+                        justify="left"
                     )
-                    var_label.pack(side="left")
+                    var_label.grid(row=0, column=0, sticky="w", padx=10, pady=10)
                     
-                    # Description (si disponible)
-                    description = var_info.get('description', '') if isinstance(var_info, dict) else ''
-                    
-                    # Champ de saisie
-                    current_value = var_info.get('current_value', '') if isinstance(var_info, dict) else str(var_info)
+                    # Champ de saisie pour la valeur
                     var_entry = ctk.CTkEntry(
                         var_frame,
-                        width=400,
-                        placeholder_text=description
+                        width=300,
+                        height=35,
+                        placeholder_text="Entrez une valeur"
                     )
-                    var_entry.insert(0, current_value)
-                    var_entry.pack(side="left", padx=10, fill="x", expand=True)
+                    var_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
                     
-                    # Stocker l'entrée
+                    # Mettre la valeur actuelle dans le champ
+                    if current_value:
+                        var_entry.insert(0, current_value)
+                    
+                    # Stocker l'entrée pour pouvoir récupérer la valeur plus tard
                     self.variable_entries[var_name] = var_entry
-            else:
-                # Message si aucune variable n'est disponible
-                no_vars_label = ctk.CTkLabel(
-                    container,
-                    text="Aucune variable à personnaliser",
-                    font=("", 14),
-                    text_color="red"
-                )
-                no_vars_label.pack(pady=30)
+                    
+                    row_index += 1
+                
+                # Ajouter un espace supplémentaire en bas
+                spacer = ctk.CTkFrame(variables_grid, fg_color="transparent", height=20)
+                spacer.grid(row=row_index, column=0, columnspan=2)
             
-            # Boutons d'action
-            buttons_frame = ctk.CTkFrame(container, fg_color="transparent")
-            buttons_frame.pack(pady=20)
+            # Boutons de navigation
+            buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            buttons_frame.pack(fill="x", padx=20, pady=(0, 20))
             
-            save_button = ctk.CTkButton(
+            # Bouton retour
+            back_button = ctk.CTkButton(
                 buttons_frame,
-                text="Appliquer les modifications",
-                command=self._save_customization,
-                width=200
+                text="Retour",
+                width=100,
+                command=lambda: self.show_step(self.current_step - 1)
             )
-            save_button.pack(pady=10)
+            back_button.pack(side="left", padx=10, pady=10)
             
-            # Mettre à jour la navigation
-            self.update_navigation()
+            # Bouton suivant
+            next_button = ctk.CTkButton(
+                buttons_frame,
+                text="Générer le document",
+                width=180,
+                font=("", 14, "bold"),
+                command=self._generate_and_finalize_document
+            )
+            next_button.pack(side="right", padx=10, pady=10)
+            
+            # Mettre à jour l'étape actuelle
+            self.current_step = 4
             
             logger.info("Affichage de l'étape de personnalisation")
             
@@ -1828,36 +2420,185 @@ class DocumentCreatorView:
             logger.error(f"Erreur lors de l'affichage de l'étape de personnalisation: {e}")
             self.show_error(f"Erreur: {str(e)}")
             
-    def _save_customization(self) -> None:
+    def _generate_and_finalize_document(self) -> None:
         """
-        Sauvegarde les modifications des variables et passe à l'étape de validation
+        Récupère les variables saisies, génère le document et passe à l'étape de finalisation
         """
         try:
-            # Si les entrées ne sont pas définies, ne rien faire
-            if not hasattr(self, 'variable_entries') or not self.variable_entries:
-                return
-                
-            # Récupérer les valeurs des entrées
-            for var_name, entry in self.variable_entries.items():
-                value = entry.get()
-                
-                # Mettre à jour la valeur dans document_data
-                if hasattr(self, 'document_data') and self.document_data and 'variables' in self.document_data:
-                    var_info = self.document_data['variables'].get(var_name)
-                    if isinstance(var_info, dict):
-                        var_info['current_value'] = value
-                    else:
-                        self.document_data['variables'][var_name] = value
+            # Récupérer les valeurs saisies si des entrées existent
+            if hasattr(self, 'variable_entries') and self.variable_entries:
+                for var_name, entry_widget in self.variable_entries.items():
+                    # Récupérer la valeur saisie
+                    value = entry_widget.get()
+                    
+                    # Mettre à jour la valeur dans les données du document
+                    if hasattr(self, 'document_data') and self.document_data and 'variables' in self.document_data:
+                        if var_name in self.document_data['variables']:
+                            if isinstance(self.document_data['variables'][var_name], dict):
+                                self.document_data['variables'][var_name]['current_value'] = value
+                            else:
+                                self.document_data['variables'][var_name] = value
             
-            # Passer à l'étape de validation
-            self.show_step(3)
+            # Générer le document
+            self._generate_document()
             
-            logger.info("Personnalisation sauvegardée")
+            # Passer à l'étape de finalisation
+            self.show_step(5)
+            
+            logger.info("Document généré, passage à l'étape de finalisation")
             
         except Exception as e:
-            logger.error(f"Erreur lors de la sauvegarde de la personnalisation: {e}")
+            logger.error(f"Erreur lors de la génération du document: {e}")
             self.show_error(f"Erreur: {str(e)}")
             
+    def _generate_document(self) -> None:
+        """
+        Génère le document final avec les variables saisies
+        """
+        try:
+            # Préparer le dossier de sortie
+            output_dir = os.path.join("data", "documents", "outputs")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Créer un nom de fichier basé sur le template et le client
+            template_name = self.selected_template.get('name', 'document')
+            client_name = "client"
+            if hasattr(self, 'client_info') and self.client_info:
+                client_name = self.client_info.get('nom', '') or self.client_info.get('name', '') or self.client_info.get('société', '') or "client"
+            
+            # Générer un nom de fichier unique
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename_base = f"{template_name}_{client_name}_{timestamp}"
+            
+            # Nettoyer le nom du fichier (enlever les caractères spéciaux)
+            filename_base = re.sub(r'[^\w\-_\. ]', '_', filename_base)
+            
+            # Chemins pour différents formats de documents
+            pdf_path = os.path.join(output_dir, f"{filename_base}.pdf")
+            txt_path = os.path.join(output_dir, f"{filename_base}.txt")
+            
+            # Obtenir le contenu du modèle
+            template_content = self.selected_template.get('content', '')
+            
+            # Si le modèle a un chemin de fichier, l'utiliser pour obtenir le contenu
+            if 'file_path' in self.selected_template and self.selected_template['file_path']:
+                try:
+                    template_file = self.selected_template['file_path']
+                    if not os.path.isabs(template_file):
+                        # Chemin relatif - chercher dans les dossiers standard
+                        possible_paths = [
+                            os.path.join("data", "templates", template_file),
+                            os.path.join("data", "models", template_file),
+                            template_file
+                        ]
+                        
+                        for path in possible_paths:
+                            if os.path.exists(path):
+                                with open(path, 'r', encoding='utf-8') as f:
+                                    template_content = f.read()
+                                logger.info(f"Contenu du modèle chargé depuis le fichier: {path}")
+                                break
+                except Exception as e:
+                    logger.warning(f"Impossible de charger le contenu du fichier modèle: {e}")
+            
+            # Remplacer les variables dans le modèle
+            variables = {}
+            
+            # Récupérer les variables du document
+            if hasattr(self, 'document_data') and self.document_data and 'variables' in self.document_data:
+                for var_name, var_info in self.document_data.get('variables', {}).items():
+                    if isinstance(var_info, dict):
+                        variables[var_name] = var_info.get('current_value', '')
+                    else:
+                        variables[var_name] = str(var_info)
+            
+            # Ajouter les variables standard
+            variables.update({
+                "client_name": client_name,
+                "date": datetime.datetime.now().strftime('%Y-%m-%d'),
+                "datetime": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "template_name": template_name
+            })
+            
+            # Ajouter les informations du client
+            if hasattr(self, 'client_info') and self.client_info:
+                for key, value in self.client_info.items():
+                    if value:  # Ne pas ajouter les valeurs vides
+                        variables[f"client_{key}"] = value
+            
+            # Remplacer les variables dans le contenu
+            final_content = template_content
+            for var_name, var_value in variables.items():
+                # Format {variable}
+                final_content = final_content.replace(f"{{{var_name}}}", str(var_value))
+                # Format {{variable}} (double accolades)
+                final_content = final_content.replace(f"{{{{{var_name}}}}}", str(var_value))
+            
+            # Tenter de générer un PDF
+            try:
+                # Utiliser ReportLab pour générer un PDF
+                from reportlab.pdfgen import canvas
+                from reportlab.lib.pagesizes import letter
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                from reportlab.lib.styles import getSampleStyleSheet
+                
+                styles = getSampleStyleSheet()
+                doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+                
+                # Convertir le contenu en paragraphes
+                content_lines = final_content.split('\n')
+                pdf_content = []
+                
+                for line in content_lines:
+                    if line.strip():  # Ne pas ajouter les lignes vides
+                        pdf_content.append(Paragraph(line, styles['Normal']))
+                        pdf_content.append(Spacer(1, 6))  # Petit espace entre les lignes
+                
+                # Générer le PDF
+                doc.build(pdf_content)
+                
+                # Vérifier que le PDF a été généré correctement
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    logger.info(f"Document PDF généré avec succès: {pdf_path}")
+                    self.generated_document_path = pdf_path
+                else:
+                    raise Exception("Le fichier PDF généré est vide ou n'a pas été créé.")
+                
+            except Exception as pdf_error:
+                logger.error(f"Erreur lors de la génération du PDF: {pdf_error}")
+                
+                # En cas d'échec, générer un fichier texte
+                try:
+                    with open(txt_path, 'w', encoding='utf-8') as f:
+                        f.write(final_content)
+                    
+                    logger.info(f"Document texte créé: {txt_path}")
+                    self.generated_document_path = txt_path
+                    
+                except Exception as txt_error:
+                    logger.error(f"Erreur lors de la création du fichier texte: {txt_error}")
+                    raise Exception(f"Erreur lors de la génération du document: {str(txt_error)}")
+            
+            # Enregistrer les informations du document dans la base de données
+            document_info = {
+                'id': str(uuid.uuid4()),
+                'title': template_name,
+                'client_id': self.client_info.get('id') if hasattr(self, 'client_info') and self.client_info else None,
+                'client_name': client_name,
+                'created_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'file_path': self.generated_document_path,
+                'status': 'completed'
+            }
+            
+            # Si le modèle a une méthode pour sauvegarder des documents, l'utiliser
+            if hasattr(self.model, 'save_document'):
+                self.model.save_document(document_info)
+                logger.info(f"Document enregistré dans la base de données: {document_info['id']}")
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du document: {e}")
+            raise e
+
     def show_finalization(self) -> None:
         """
         Affiche l'étape de finalisation du document
@@ -1885,102 +2626,55 @@ class DocumentCreatorView:
             
             success_label = ctk.CTkLabel(
                 success_frame,
-                text="Document créé avec succès !",
+                text="Document prêt à être utilisé !",
                 font=("", 16, "bold"),
                 text_color="white"
             )
             success_label.pack(pady=10)
             
-            # Informations sur le document créé
-            if hasattr(self, 'selected_template') and self.selected_template:
-                info_frame = ctk.CTkFrame(container, fg_color=("gray95", "gray15"))
-                info_frame.pack(fill="x", padx=20, pady=10)
-                
-                template_name = self.selected_template.get('name', 'Document sans nom')
-                
-                info_label = ctk.CTkLabel(
-                    info_frame,
-                    text=f"Document: {template_name}",
-                    font=("", 14)
-                )
-                info_label.pack(pady=10, padx=20, anchor="w")
-                
-                # Client associé
-                if hasattr(self, 'client_info') and self.client_info:
-                    client_name = self.client_info.get('nom', '') or self.client_info.get('name', '') or self.client_info.get('société', '') or "Client sans nom"
-                    client_label = ctk.CTkLabel(
-                        info_frame,
-                        text=f"Client: {client_name}",
-                        font=("", 14)
-                    )
-                    client_label.pack(pady=5, padx=20, anchor="w")
-            
             # Options de finalisation
             options_frame = ctk.CTkFrame(container)
             options_frame.pack(fill="x", padx=20, pady=20)
             
-            options_label = ctk.CTkLabel(
-                options_frame,
-                text="Que souhaitez-vous faire ?",
-                font=("", 16, "bold")
-            )
-            options_label.pack(pady=10)
-            
-            # Boutons d'action
-            buttons_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
-            buttons_frame.pack(pady=10)
-            
             # Bouton pour télécharger le document
             download_button = ctk.CTkButton(
-                buttons_frame,
+                options_frame,
                 text="Télécharger le document",
-                command=self._download_document,
-                width=200
+                font=("", 14),
+                height=40,
+                command=self._download_document
             )
-            download_button.pack(pady=5)
+            download_button.pack(fill="x", pady=10)
             
-            # Bouton pour voir le document
+            # Bouton pour visualiser le document
             view_button = ctk.CTkButton(
-                buttons_frame,
-                text="Voir le document",
-                command=self._view_document,
-                width=200
+                options_frame,
+                text="Visualiser le document",
+                font=("", 14),
+                height=40,
+                command=self._view_document
             )
-            view_button.pack(pady=5)
+            view_button.pack(fill="x", pady=10)
             
-            # Bouton pour envoyer le document par email
+            # Bouton pour envoyer par email
             email_button = ctk.CTkButton(
-                buttons_frame,
+                options_frame,
                 text="Envoyer par email",
-                command=self._send_email,
-                width=200
+                font=("", 14),
+                height=40,
+                command=self._send_email
             )
-            email_button.pack(pady=5)
+            email_button.pack(fill="x", pady=10)
             
-            # Bouton pour créer un autre document
-            new_button = ctk.CTkButton(
-                buttons_frame,
-                text="Créer un autre document",
-                command=self.reset_process,
-                width=200,
-                fg_color=("gray80", "gray30"),
-                text_color=("gray10", "gray90")
+            # Bouton pour revenir à l'accueil
+            home_button = ctk.CTkButton(
+                options_frame,
+                text="Retour à l'accueil",
+                font=("", 14),
+                height=40,
+                command=self.reset_process
             )
-            new_button.pack(pady=5)
-            
-            # Bouton pour fermer la vue
-            close_button = ctk.CTkButton(
-                buttons_frame,
-                text="Terminer",
-                command=self.on_close_button,
-                width=200,
-                fg_color=("gray80", "gray30"),
-                text_color=("gray10", "gray90")
-            )
-            close_button.pack(pady=5)
-            
-            # Mettre à jour la navigation
-            self.update_navigation()
+            home_button.pack(fill="x", pady=10)
             
             logger.info("Affichage de l'étape de finalisation")
             
@@ -2007,25 +2701,56 @@ class DocumentCreatorView:
                 self.show_error("Le fichier du document est introuvable.")
                 return
                 
+            # Vérifier si le fichier a une taille valide
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                logger.error(f"Le fichier du document est vide: {file_path}")
+                self.show_error("Le fichier du document est vide ou corrompu.")
+                return
+                
             # Déterminer l'extension du fichier
             _, ext = os.path.splitext(file_path)
+            
+            # Déterminer le type de fichier et les options appropriées
+            file_type_desc = "Document"
+            if ext.lower() == '.pdf':
+                file_type_desc = "Fichiers PDF"
+            elif ext.lower() == '.txt':
+                file_type_desc = "Fichiers texte"
+            elif ext.lower() == '.html':
+                file_type_desc = "Fichiers HTML"
             
             # Ouvrir une boîte de dialogue pour choisir l'emplacement de sauvegarde
             dest_path = filedialog.asksaveasfilename(
                 title="Enregistrer le document",
                 defaultextension=ext,
                 initialfile=os.path.basename(file_path),
-                filetypes=[(f"Fichiers {ext.upper()}", f"*{ext}"), ("Tous les fichiers", "*.*")]
+                filetypes=[(f"{file_type_desc}", f"*{ext}"), ("Tous les fichiers", "*.*")]
             )
             
             if not dest_path:
+                logger.info("Téléchargement annulé par l'utilisateur")
                 return
                 
             # Copier le fichier
-            shutil.copy2(file_path, dest_path)
-            
-            logger.info(f"Document téléchargé: {dest_path}")
-            self.show_message("Succès", "Document téléchargé avec succès", "info")
+            try:
+                shutil.copy2(file_path, dest_path)
+                logger.info(f"Document téléchargé: {dest_path}")
+                self.show_message("Succès", "Document téléchargé avec succès", "info")
+            except Exception as e:
+                logger.error(f"Erreur lors de la copie du fichier: {e}")
+                
+                # Essayer une approche alternative en cas d'échec
+                try:
+                    # Lire et écrire manuellement le fichier
+                    with open(file_path, 'rb') as src_file, open(dest_path, 'wb') as dst_file:
+                        dst_file.write(src_file.read())
+                    
+                    logger.info(f"Document téléchargé (méthode alternative): {dest_path}")
+                    self.show_message("Succès", "Document téléchargé avec succès", "info")
+                except Exception as e2:
+                    logger.error(f"Erreur lors de la copie alternative du fichier: {e2}")
+                    self.show_error(f"Erreur lors du téléchargement: {str(e2)}")
             
         except Exception as e:
             logger.error(f"Erreur lors du téléchargement du document: {e}")
@@ -2033,41 +2758,41 @@ class DocumentCreatorView:
             
     def _view_document(self) -> None:
         """
-        Ouvre le document pour visualisation
+        Ouvre le document dans l'application par défaut
         """
         try:
-            # Vérifier que le document a été généré et existe
-            if not hasattr(self, 'generated_document_path') or not hasattr(self, 'selected_template'):
-                logger.error("Pas de document généré disponible pour la visualisation")
-                self.show_error("Le document n'a pas encore été généré ou n'est pas disponible pour la visualisation.")
-                return
+            # Vérifier si le document a été généré
+            if hasattr(self, 'generated_document_path') and self.generated_document_path:
+                # Ouvrir le document avec l'application par défaut
+                if os.path.exists(self.generated_document_path):
+                    # Utiliser la commande appropriée selon l'OS
+                    if platform.system() == 'Windows':
+                        os.startfile(self.generated_document_path)
+                    elif platform.system() == 'Darwin':  # macOS
+                        subprocess.run(['open', self.generated_document_path])
+                    else:  # Linux et autres
+                        subprocess.run(['xdg-open', self.generated_document_path])
+                    
+                    logger.info(f"Document ouvert: {self.generated_document_path}")
+                else:
+                    raise Exception(f"Le fichier n'existe pas: {self.generated_document_path}")
+            else:
+                raise Exception("Aucun document n'a été généré")
                 
-            file_path = self.generated_document_path
-            
-            # Vérifier si le fichier existe
-            if not os.path.exists(file_path):
-                logger.error(f"Le fichier du document est introuvable: {file_path}")
-                self.show_error("Le fichier du document est introuvable.")
-                return
-                
-            # Ouvrir le fichier avec l'application par défaut du système
-            try:
-                import subprocess
-                
-                if os.name == 'nt':  # Windows
-                    os.startfile(file_path)
-                elif os.name == 'posix':  # macOS ou Linux
-                    subprocess.call(('open' if os.uname().sysname == 'Darwin' else 'xdg-open', file_path))
-                
-                logger.info(f"Document ouvert pour visualisation: {file_path}")
-                
-            except Exception as e:
-                logger.error(f"Erreur lors de l'ouverture du document: {e}")
-                self.show_error(f"Erreur lors de l'ouverture du document: {str(e)}")
-            
         except Exception as e:
-            logger.error(f"Erreur lors de la visualisation du document: {e}")
+            logger.error(f"Erreur lors de l'ouverture du document: {e}")
             self.show_error(f"Erreur: {str(e)}")
+            
+    def _clear_content_frame(self) -> None:
+        """
+        Nettoie la zone de contenu en supprimant tous les widgets
+        """
+        try:
+            if hasattr(self, 'content_frame'):
+                for widget in self.content_frame.winfo_children():
+                    widget.destroy()
+        except Exception as e:
+            logger.error(f"Erreur lors du nettoyage de la zone de contenu: {e}")
             
     def _send_email(self) -> None:
         """

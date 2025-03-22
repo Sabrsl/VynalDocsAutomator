@@ -17,7 +17,7 @@ logger = logging.getLogger("VynalDocsAutomator.DocumentFormView")
 class DocumentFormView:
     """Vue formulaire pour les documents"""
     
-    def __init__(self, parent, model, document_data=None, folder_id=None, import_mode=False, on_save_callback=None):
+    def __init__(self, parent, model, document_data=None, folder_id=None, import_mode=False, on_save_callback=None, on_cancel_callback=None):
         """Initialise le formulaire de document"""
         self.parent = parent
         self.model = model
@@ -26,6 +26,7 @@ class DocumentFormView:
         self.folder_id = folder_id if folder_id else ("import" if import_mode and document_data.get("from_analysis") else None)
         self.import_mode = import_mode
         self.on_save_callback = on_save_callback
+        self.on_cancel_callback = on_cancel_callback
         
         # Créer la boîte de dialogue mais la cacher jusqu'à ce qu'elle soit prête
         self.dialog = ctk.CTkToplevel(parent)
@@ -33,6 +34,9 @@ class DocumentFormView:
         self.dialog.title("Nouveau document" if not import_mode else "Importer un document")
         self.dialog.geometry("800x600")
         self.dialog.resizable(True, True)
+        
+        # Configurer le gestionnaire d'événement pour la fermeture de la fenêtre
+        self.dialog.protocol("WM_DELETE_WINDOW", self._on_cancel)
         
         # Initialiser les variables de formulaire
         self.title_var = ctk.StringVar(value=document_data.get("title", ""))
@@ -392,7 +396,7 @@ class DocumentFormView:
             width=100,
             fg_color="#e74c3c",
             hover_color="#c0392b",
-            command=self.dialog.destroy
+            command=self._on_cancel
         )
         self.cancel_btn.pack(side=ctk.RIGHT, padx=10)
         
@@ -763,369 +767,366 @@ class DocumentFormView:
         return None
     
     def _save_document(self):
-        """Enregistre le document"""
+        """Sauvegarde les données du document"""
         try:
-            # Récupérer et valider les valeurs du formulaire
+            # Vérifications de base
             title = self.title_var.get().strip()
             if not title:
                 DialogUtils.show_message(self.dialog, "Erreur", "Le titre est obligatoire", "error")
                 return
             
-            doc_type = self.type_var.get().strip()
-            if not doc_type:
-                DialogUtils.show_message(self.dialog, "Erreur", "Le type est obligatoire", "error")
-                return
-            
+            # Vérifier que le client est sélectionné
             client_id = self.get_selected_client()
             if not client_id:
                 DialogUtils.show_message(self.dialog, "Erreur", "Veuillez sélectionner un client", "error")
                 return
             
-            # Validation robuste du client_id
-            client_exists = False
-            client_name = None
-            
-            # Vérifier dans la structure clients (liste ou dictionnaire)
-            if isinstance(self.model.clients, list):
-                for client in self.model.clients:
-                    if client.get('id') == client_id:
-                        client_exists = True
-                        client_name = client.get('name')
-                        break
-            elif isinstance(self.model.clients, dict):
-                if client_id in self.model.clients:
-                    client = self.model.clients[client_id]
-                    if isinstance(client, dict):
-                        client_exists = True
-                        client_name = client.get('name')
-            
-            if not client_exists:
-                logger.error(f"Client introuvable lors de la validation finale (ID: {client_id})")
-                DialogUtils.show_message(self.dialog, "Erreur", "Le client sélectionné n'existe plus dans la base de données", "error")
-                return
-            
+            # Récupérer les valeurs du formulaire
+            document_type = self.type_var.get()
             template_id = self.get_selected_template()
-            if not template_id:
+            
+            # Vérifier le modèle
+            if not template_id and not self.import_mode:
                 DialogUtils.show_message(self.dialog, "Erreur", "Veuillez sélectionner un modèle", "error")
                 return
             
-            # Récupérer les valeurs des variables personnalisées
+            # Récupérer les valeurs des variables
             variables = {}
-            for var_name, var_var in self.variable_entries.items():
-                variables[var_name] = var_var.get()
+            for var_name, entry in self.variable_entries.items():
+                value = entry.get()
+                variables[var_name] = value
             
-            # Créer le document avec un ID unique
-            import uuid
-            document_id = str(uuid.uuid4())
+            # Construire l'objet document
             document = {
-                "id": document_id,
                 "title": title,
-                "type": doc_type,
+                "type": document_type,
                 "client_id": client_id,
-                "template_id": template_id,
-                "folder_id": self.folder_id,
                 "variables": variables,
                 "date": datetime.now().strftime("%Y-%m-%d"),
-                "created_at": datetime.now().isoformat(),
-                "classification": {
-                    "client": {
-                        "id": client_id,
-                        "name": client_name
-                    },
-                    "type": doc_type,
-                    "date": {
-                        "year": datetime.now().strftime("%Y"),
-                        "month": datetime.now().strftime("%m"),
-                        "full": datetime.now().strftime("%Y-%m-%d")
-                    }
-                }
+                "modified_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             }
             
-            logger.info(f"Tentative de sauvegarde du document: {title} pour client {client_name} (ID: {client_id})")
+            # Ajouter le template_id si disponible
+            if template_id:
+                document["template_id"] = template_id
             
-            # Générer le document physique
-            try:
-                # Récupérer le modèle et le client complets
-                template = None
-                client = None
-                
-                # Trouver le modèle correspondant
-                if isinstance(self.model.templates, list):
-                    for t in self.model.templates:
-                        if t.get('id') == template_id:
-                            template = t
-                            break
-                elif isinstance(self.model.templates, dict):
-                    template = self.model.templates.get(template_id)
-                
-                # Trouver le client correspondant
-                if isinstance(self.model.clients, list):
-                    for c in self.model.clients:
-                        if c.get('id') == client_id:
-                            client = c
-                            break
-                elif isinstance(self.model.clients, dict):
-                    client = self.model.clients.get(client_id)
-                
-                if not template:
-                    logger.error(f"Modèle introuvable (ID: {template_id})")
-                    raise ValueError(f"Modèle introuvable (ID: {template_id})")
+            # En mode import, mettre à jour avec les données existantes
+            if self.import_mode and self.document_data:
+                # Conserver le chemin du fichier importé
+                if "file_path" in self.document_data:
+                    document["file_path"] = self.document_data["file_path"]
                     
-                if not client:
-                    logger.error(f"Client introuvable (ID: {client_id})")
-                    raise ValueError(f"Client introuvable (ID: {client_id})")
-                
-                # Préparer les informations de l'entreprise
-                company_info = {}
-                if hasattr(self.model, 'config'):
-                    company_info = {
-                        "name": self.model.config.get("app.company_name", ""),
-                        "address": self.model.config.get("app.company_address", ""),
-                        "email": self.model.config.get("app.company_email", ""),
-                        "phone": self.model.config.get("app.company_phone", ""),
-                        "website": self.model.config.get("app.company_website", "")
-                    }
-                
-                # Créer le générateur de documents
-                from utils.document_generator import DocumentGenerator
-                generator = DocumentGenerator(getattr(self.model, 'config', None))
-                
-                # Générer le nom du fichier
-                clean_title = generator.clean_filename(title)
-                clean_client_name = generator.clean_filename(client.get('name', 'client'))
-                clean_doc_type = generator.clean_filename(doc_type)
-                current_date = datetime.now()
-                date_str = current_date.strftime("%Y-%m-%d")
-                year_str = current_date.strftime("%Y")
-                month_str = current_date.strftime("%m")
-                day_str = current_date.strftime("%d")
-                
-                # Structure hiérarchique des dossiers
-                doc_base_dir = getattr(self.model, 'paths', {}).get('documents', 'data/documents')
-                
-                # Structure par client / type / date
-                client_dir = os.path.join(doc_base_dir, 'clients', clean_client_name)
-                type_dir = os.path.join(doc_base_dir, 'types', clean_doc_type)
-                date_dir = os.path.join(doc_base_dir, 'dates', year_str, month_str, day_str)
-                
-                # Créer les dossiers s'ils n'existent pas
-                os.makedirs(client_dir, exist_ok=True)
-                os.makedirs(type_dir, exist_ok=True)
-                os.makedirs(date_dir, exist_ok=True)
-                
-                format_type = "pdf"  # format par défaut
-                if hasattr(self.model, 'config'):
-                    format_type = self.model.config.get("document.default_format", "pdf")
-                
-                # Générer le nom de fichier
-                file_name = f"{clean_title}_{clean_client_name}_{date_str}.{format_type}"
-                
-                # Chemins complets pour chaque classification
-                client_file_path = os.path.join(client_dir, file_name)
-                type_file_path = os.path.join(type_dir, file_name)
-                date_file_path = os.path.join(date_dir, file_name)
-                
-                # Générer le document principal (dans le dossier client)
-                success = generator.generate_document(
-                    client_file_path,
-                    template,
-                    client,
-                    company_info,
-                    variables,
-                    format_type
-                )
-                
-                if not success:
-                    logger.error(f"Échec de la génération du document: {client_file_path}")
-                    raise ValueError("Échec de la génération du document")
-                
-                # Créer des copies pour les autres structures de classement
-                import shutil
-                try:
-                    # Copier vers le dossier type
-                    shutil.copy2(client_file_path, type_file_path)
-                    # Copier vers le dossier date
-                    shutil.copy2(client_file_path, date_file_path)
-                    logger.info(f"Copies du document créées pour les classifications par type et date")
-                except Exception as copy_error:
-                    logger.warning(f"Erreur lors de la création des copies: {copy_error}")
-                
-                # Ajouter tous les chemins d'accès au document
-                document["file_paths"] = {
-                    "main": client_file_path,  # Chemin principal (dans le dossier client)
-                    "by_client": client_file_path,
-                    "by_type": type_file_path,
-                    "by_date": date_file_path
-                }
-                
-                # Vérifier et valider tous les chemins
-                valid_paths = {}
-                for path_type, path in document["file_paths"].items():
-                    if path and os.path.exists(path):
-                        valid_paths[path_type] = path
-                    else:
-                        logger.warning(f"Chemin {path_type} invalide ou manquant: {path}")
-                
-                # S'assurer qu'il y a au moins un chemin valide
-                if not valid_paths:
-                    raise ValueError("Aucun chemin de fichier valide pour le document")
-                
-                document["file_paths"] = valid_paths
-                document["file_path"] = valid_paths.get("main", next(iter(valid_paths.values())))
-                
-                # Assurer la compatibilité avec le code existant
-                logger.info(f"Document généré avec succès: {document['file_path']}")
-                
-                # Vérifier que le document est complet avant la sauvegarde
-                required_fields = ["id", "title", "type", "client_id", "template_id", "file_path", "file_paths"]
-                missing_fields = [field for field in required_fields if field not in document]
-                if missing_fields:
-                    logger.warning(f"Champs manquants dans le document: {missing_fields}")
-                    # Ajouter des valeurs par défaut pour les champs manquants
-                    for field in missing_fields:
-                        if field == "id":
-                            document[field] = str(uuid.uuid4())
-                        elif field in ["title", "type"]:
-                            document[field] = "Sans titre" if field == "title" else "autre"
-                        elif field == "file_paths" and "file_path" in document:
-                            document[field] = {"main": document["file_path"]}
-                        elif field == "file_path" and "file_paths" in document:
-                            document[field] = document["file_paths"].get("main", "")
-                
-            except Exception as gen_error:
-                logger.error(f"Erreur lors de la génération du document: {gen_error}")
-                DialogUtils.show_message(
-                    self.dialog,
-                    "Erreur",
-                    f"Erreur lors de la génération du document: {str(gen_error)}",
-                    "error"
-                )
-                return  # Arrêter le processus en cas d'erreur de génération
+                # Conserver les autres données spécifiques à l'import
+                for key in ["from_analysis", "analysis_results"]:
+                    if key in self.document_data:
+                        document[key] = self.document_data[key]
             
-            # Vérifier et initialiser la structure documents si nécessaire
-            if not hasattr(self.model, 'documents'):
-                self.model.documents = []
-                logger.info("Initialisation de la structure documents")
-            elif self.model.documents is None:
-                self.model.documents = []
-                logger.info("Réinitialisation de la structure documents")
+            # Ajouter le dossier si disponible
+            if self.folder_id:
+                document["folder"] = self.folder_id
             
-            # Ajouter le document selon la structure du modèle
-            if isinstance(self.model.documents, list):
-                self.model.documents.append(document)
-                logger.debug(f"Document ajouté à la liste (total: {len(self.model.documents)})")
-            elif isinstance(self.model.documents, dict):
-                self.model.documents[document_id] = document
-                logger.debug(f"Document ajouté au dictionnaire (total: {len(self.model.documents)})")
-            else:
-                logger.warning(f"Type de structure non supporté: {type(self.model.documents)}")
-                self.model.documents = [document]
-                logger.info("Structure documents convertie en liste")
+            # Ajouter l'ID si c'est une modification
+            if "id" in self.document_data:
+                document["id"] = self.document_data["id"]
             
-            # Sauvegarder les changements
-            save_success = False
-            try:
-                if hasattr(self.model, 'save_documents'):
-                    # Sauvegarder d'abord le nouveau document dans une variable temporaire
-                    current_doc = dict(document)
+            # Appeler la méthode pour sauvegarder le document
+            if hasattr(self.model, "save_document"):
+                result = self.model.save_document(document)
+                
+                if result and isinstance(result, dict):
+                    # Récupérer l'ID du document créé/modifié
+                    document_id = result.get("id") or document.get("id")
                     
-                    # Tenter la sauvegarde
-                    self.model.save_documents()
-                    save_success = True
-                    logger.info("Documents sauvegardés avec succès")
-                    
-                    # Vérifier que le document est bien présent après la sauvegarde
-                    doc_exists = False
-                    if isinstance(self.model.documents, list):
-                        doc_exists = any(d.get('id') == document_id for d in self.model.documents)
-                    elif isinstance(self.model.documents, dict):
-                        doc_exists = document_id in self.model.documents
-                    
-                    if not doc_exists:
-                        # Le document a été perdu pendant la sauvegarde, le réajouter
-                        if isinstance(self.model.documents, list):
-                            self.model.documents.append(current_doc)
-                        elif isinstance(self.model.documents, dict):
-                            self.model.documents[document_id] = current_doc
-                        # Retenter la sauvegarde
-                        try:
-                            self.model.save_documents()
-                            save_success = True
-                            logger.info("Document restauré et sauvegardé avec succès")
-                        except Exception as retry_error:
-                            logger.error(f"Erreur lors de la nouvelle tentative de sauvegarde: {retry_error}")
-                            save_success = False
-            except Exception as save_error:
-                logger.error(f"Erreur lors de la sauvegarde: {save_error}")
-                save_success = False
-            
-            if not save_success:
-                logger.warning("Sauvegarde non confirmée")
-                DialogUtils.show_message(
-                    self.dialog,
-                    "Avertissement",
-                    "Le document a été créé mais la sauvegarde n'est pas confirmée. Vérifiez qu'il apparaît bien dans la liste.",
-                    "warning"
-                )
-            else:
-                # Définir une fonction de callback pour fermer la fenêtre et exécuter le callback utilisateur
-                def on_message_close():
-                    # Récupérer les informations complètes du client
-                    client_id = document.get('client_id')
-                    client_name = None
-                    
-                    # Chercher le nom du client dans la structure appropriée
-                    if hasattr(self.model, 'clients'):
-                        if isinstance(self.model.clients, list):
-                            for client in self.model.clients:
-                                if str(client.get('id')) == str(client_id):
-                                    client_name = client.get('name')
-                        elif isinstance(self.model.clients, dict):
-                            client = self.model.clients.get(str(client_id))
-                            if client:
-                                client_name = client.get('name')
-                    
-                    # Préparer les données pour la navigation
-                    navigation_data = {
-                        'document_id': document_id,
-                        'client_id': client_id,
-                        'client_name': client_name,
-                        'highlight': True,  # Indiquer qu'il faut mettre en évidence le document
-                        'redirect_to_client': True  # Indiquer qu'il faut rediriger vers le dossier client
-                    }
-                    
-                    logger.info(f"Navigation préparée vers document {document_id} du client {client_name} (ID: {client_id})")
-                    
+                    # Fermer le formulaire
                     self.dialog.destroy()
-                    # Appeler le callback si fourni avec les données de navigation
-                    if self.on_save_callback:
-                        try:
-                            self.on_save_callback(**navigation_data)
-                            logger.info("Callback exécuté avec succès avec les données de navigation")
-                        except TypeError:
-                            # Si le callback ne supporte pas les nouveaux paramètres, utiliser l'appel original
-                            try:
-                                self.on_save_callback()
-                                logger.info("Callback exécuté avec succès (mode compatibilité)")
-                            except Exception as callback_error:
-                                logger.error(f"Erreur lors de l'exécution du callback: {callback_error}")
-                
-                # Afficher le message de succès avec le callback
-                DialogUtils.show_message(
-                    self.dialog,
-                    "Succès",
-                    f"Le document '{title}' a été créé avec succès",
-                    "success",
-                    callback=on_message_close
-                )
-            
-            logger.info(f"Document '{title}' créé avec succès (ID: {document_id})")
-            
+                    
+                    # Afficher un message de succès
+                    DialogUtils.show_message(self.parent, "Succès", "Document sauvegardé avec succès", "info")
+                    
+                    # Créer une fenêtre de finalisation pour offrir différentes options
+                    self._show_finalization_options(document_id, client_id)
+                    
+                    # Si un callback est défini, l'appeler avec les informations du document
+                    if callable(self.on_save_callback):
+                        client_name = self._get_client_name(client_id)
+                        self.on_save_callback(document_id=document_id, client_id=client_id, client_name=client_name)
+                else:
+                    DialogUtils.show_message(self.dialog, "Erreur", "Erreur lors de la sauvegarde du document", "error")
+            else:
+                logger.error("La méthode save_document n'existe pas dans le modèle")
+                DialogUtils.show_message(self.dialog, "Erreur", "Méthode de sauvegarde non disponible", "error")
+        
         except Exception as e:
             logger.error(f"Erreur lors de la sauvegarde du document: {e}")
-            DialogUtils.show_message(
-                self.dialog,
-                "Erreur",
-                f"Impossible de sauvegarder le document: {str(e)}",
-                "error"
-            ) 
+            DialogUtils.show_message(self.dialog, "Erreur", f"Erreur lors de la sauvegarde: {str(e)}", "error")
+
+    def _show_finalization_options(self, document_id, client_id):
+        """
+        Affiche une fenêtre avec des options pour finaliser le document
+        
+        Args:
+            document_id: ID du document sauvegardé
+            client_id: ID du client associé
+        """
+        try:
+            # Récupérer les informations du document
+            document = next((d for d in self.model.documents if d.get("id") == document_id), None)
+            if not document:
+                logger.error(f"Document {document_id} non trouvé pour la finalisation")
+                return
+            
+            # Créer une fenêtre modale
+            finalization_window = ctk.CTkToplevel(self.parent)
+            finalization_window.title("Document créé avec succès")
+            finalization_window.geometry("600x400")
+            finalization_window.resizable(True, True)
+            finalization_window.grab_set()  # Rendre la fenêtre modale
+            
+            # Centrer la fenêtre
+            finalization_window.update_idletasks()
+            screen_width = finalization_window.winfo_screenwidth()
+            screen_height = finalization_window.winfo_screenheight()
+            x = (screen_width - finalization_window.winfo_width()) // 2
+            y = (screen_height - finalization_window.winfo_height()) // 2
+            finalization_window.geometry(f"+{x}+{y}")
+            
+            # Cadre principal
+            main_frame = ctk.CTkFrame(finalization_window)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Message de confirmation en vert
+            success_frame = ctk.CTkFrame(main_frame, fg_color=("green", "#005000"))
+            success_frame.pack(fill="x", padx=20, pady=10)
+            
+            success_label = ctk.CTkLabel(
+                success_frame,
+                text="Document créé avec succès !",
+                font=("", 16, "bold"),
+                text_color="white"
+            )
+            success_label.pack(pady=10)
+            
+            # Informations sur le document créé
+            info_frame = ctk.CTkFrame(main_frame, fg_color=("gray95", "gray15"))
+            info_frame.pack(fill="x", padx=20, pady=10)
+            
+            # Titre du document
+            info_label = ctk.CTkLabel(
+                info_frame,
+                text=f"Document: {document.get('title', 'Sans titre')}",
+                font=("", 14)
+            )
+            info_label.pack(pady=10, padx=20, anchor="w")
+            
+            # Client associé
+            client_name = self._get_client_name(client_id)
+            client_label = ctk.CTkLabel(
+                info_frame,
+                text=f"Client: {client_name}",
+                font=("", 14)
+            )
+            client_label.pack(pady=5, padx=20, anchor="w")
+            
+            # Options de finalisation
+            options_frame = ctk.CTkFrame(main_frame)
+            options_frame.pack(fill="x", padx=20, pady=20)
+            
+            options_label = ctk.CTkLabel(
+                options_frame,
+                text="Que souhaitez-vous faire ?",
+                font=("", 16, "bold")
+            )
+            options_label.pack(pady=10)
+            
+            # Boutons d'action
+            buttons_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
+            buttons_frame.pack(pady=10)
+            
+            # Bouton pour prévisualiser le document
+            preview_button = ctk.CTkButton(
+                buttons_frame,
+                text="Prévisualiser le document",
+                command=lambda: self._preview_document(document_id, finalization_window),
+                width=200
+            )
+            preview_button.pack(pady=5)
+            
+            # Bouton pour télécharger le document
+            download_button = ctk.CTkButton(
+                buttons_frame,
+                text="Télécharger le document",
+                command=lambda: self._download_document(document_id, finalization_window),
+                width=200
+            )
+            download_button.pack(pady=5)
+            
+            # Bouton pour envoyer le document par email
+            email_button = ctk.CTkButton(
+                buttons_frame,
+                text="Envoyer par email",
+                command=lambda: self._send_email(document_id, finalization_window),
+                width=200
+            )
+            email_button.pack(pady=5)
+            
+            # Fonction pour rediriger vers le tableau de bord
+            def retour_au_dashboard():
+                finalization_window.destroy()
+                if hasattr(self.parent, 'show_view'):
+                    logger.info("Retour au tableau de bord après finalisation")
+                    self.parent.show_view('dashboard')
+                else:
+                    logger.error("Impossible de revenir au tableau de bord: méthode show_view non trouvée")
+            
+            # Bouton pour fermer et retourner au dashboard
+            close_button = ctk.CTkButton(
+                buttons_frame,
+                text="Terminer",
+                command=retour_au_dashboard,
+                width=200,
+                fg_color=("gray80", "gray30"),
+                text_color=("gray10", "gray90")
+            )
+            close_button.pack(pady=5)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'affichage des options de finalisation: {e}")
+            # En cas d'erreur, essayer quand même de revenir au tableau de bord
+            if hasattr(self.parent, 'show_view'):
+                self.parent.show_view('dashboard')
+
+    def _preview_document(self, document_id, parent_window=None):
+        """
+        Prévisualise un document
+        
+        Args:
+            document_id: ID du document à prévisualiser
+            parent_window: Fenêtre parente à fermer (optionnel)
+        """
+        try:
+            # Récupérer le document
+            document = next((d for d in self.model.documents if d.get("id") == document_id), None)
+            if not document:
+                DialogUtils.show_message(self.parent, "Erreur", "Document non trouvé", "error")
+                return
+            
+            # Créer et utiliser le prévisualiseur
+            from utils.document_preview import DocumentPreview
+            previewer = DocumentPreview(self.parent)
+            previewer.preview(document)
+            
+            # Fermer la fenêtre parent si spécifiée
+            if parent_window and parent_window.winfo_exists():
+                parent_window.destroy()
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la prévisualisation du document: {e}")
+            DialogUtils.show_message(self.parent, "Erreur", f"Impossible de prévisualiser le document: {str(e)}", "error")
+
+    def _download_document(self, document_id, parent_window=None):
+        """
+        Télécharge un document
+        
+        Args:
+            document_id: ID du document à télécharger
+            parent_window: Fenêtre parente à fermer (optionnel)
+        """
+        try:
+            import tkinter.filedialog as filedialog
+            import shutil
+            import os
+            
+            # Récupérer le document
+            document = next((d for d in self.model.documents if d.get("id") == document_id), None)
+            if not document:
+                DialogUtils.show_message(self.parent, "Erreur", "Document non trouvé", "error")
+                return
+            
+            # Vérifier que le document a un chemin de fichier
+            file_path = document.get("file_path")
+            if not file_path or not os.path.exists(file_path):
+                DialogUtils.show_message(self.parent, "Erreur", "Le fichier du document est introuvable", "error")
+                return
+            
+            # Déterminer l'extension du fichier
+            _, ext = os.path.splitext(file_path)
+            
+            # Ouvrir une boîte de dialogue pour choisir l'emplacement de sauvegarde
+            dest_path = filedialog.asksaveasfilename(
+                title="Enregistrer le document",
+                defaultextension=ext,
+                initialfile=os.path.basename(file_path),
+                filetypes=[(f"Fichiers {ext.upper()}", f"*{ext}"), ("Tous les fichiers", "*.*")]
+            )
+            
+            if not dest_path:
+                return
+            
+            # Copier le fichier
+            shutil.copy2(file_path, dest_path)
+            
+            logger.info(f"Document téléchargé: {dest_path}")
+            DialogUtils.show_message(self.parent, "Succès", "Document téléchargé avec succès", "info")
+            
+            # Fermer la fenêtre parent si spécifiée
+            if parent_window and parent_window.winfo_exists():
+                parent_window.destroy()
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du téléchargement du document: {e}")
+            DialogUtils.show_message(self.parent, "Erreur", f"Erreur lors du téléchargement: {str(e)}", "error")
+
+    def _send_email(self, document_id, parent_window=None):
+        """
+        Envoie un document par email
+        
+        Args:
+            document_id: ID du document à envoyer
+            parent_window: Fenêtre parente à fermer (optionnel)
+        """
+        try:
+            # Récupérer le document
+            document = next((d for d in self.model.documents if d.get("id") == document_id), None)
+            if not document:
+                DialogUtils.show_message(self.parent, "Erreur", "Document non trouvé", "error")
+                return
+            
+            # Implémenter la logique d'envoi par email
+            # Pour l'instant, afficher un message d'information
+            logger.info(f"Demande d'envoi du document {document_id} par email")
+            DialogUtils.show_message(self.parent, "Information", "La fonctionnalité d'envoi par email sera disponible prochainement", "info")
+            
+            # Fermer la fenêtre parent si spécifiée
+            if parent_window and parent_window.winfo_exists():
+                parent_window.destroy()
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi du document par email: {e}")
+            DialogUtils.show_message(self.parent, "Erreur", f"Erreur lors de l'envoi par email: {str(e)}", "error")
+
+    def _get_client_name(self, client_id):
+        """
+        Récupère le nom d'un client à partir de son ID
+        
+        Args:
+            client_id: ID du client
+            
+        Returns:
+            Nom du client ou "Client inconnu" si non trouvé
+        """
+        try:
+            if hasattr(self.model, 'clients'):
+                client = next((c for c in self.model.clients if c.get("id") == client_id), None)
+                if client:
+                    return client.get('nom', '') or client.get('name', '') or client.get('société', '') or "Client sans nom"
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération du nom du client: {e}")
+        
+        return "Client inconnu"
+    
+    def _on_cancel(self):
+        """Appelé lorsque l'utilisateur annule"""
+        logger.info("Annulation du formulaire de document")
+        if callable(self.on_cancel_callback):
+            self.on_cancel_callback()
+        self.dialog.destroy() 
