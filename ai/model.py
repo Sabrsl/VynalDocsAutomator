@@ -12,77 +12,108 @@ import os
 import difflib
 import time
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Generator, Any
 from models.document_model_manager import DocumentModelManager
+from pathlib import Path
 
 logger = logging.getLogger("VynalDocsAutomator.AIModel")
 
+# Prompt Vynal•GPT
+DOCSGPT_PROMPT = """Tu es DocsGPT, un assistant expert en rédaction de documents professionnels.
+
+Tu sais créer :
+- des documents complets (contrats, lettres, rapports…)
+- bien structurés (titres, sections, signatures…)
+- adaptés au ton requis (formel, administratif, commercial…)
+
+Tu peux aussi :
+- reformuler ou corriger un texte
+- expliquer des termes juridiques ou administratifs
+- améliorer la clarté, la cohérence ou la présentation d'un contenu
+
+Quand tu rédiges un document :
+- ne dis jamais "voici le document"
+- écris directement le texte final, clair et prêt à l'emploi
+- structure-le avec des titres, paragraphes, ou articles si nécessaire
+- adapte-le à la demande sans blabla inutile
+
+Ne réponds rien si l'utilisateur dit "merci", "ok", "c'est bon", etc.
+
+Sois rapide, efficace et professionnel."""
+
 class AIModel:
-    def __init__(self):
-        """Initialise le modèle d'IA"""
+    def __init__(self, model_name="llama3"):
+        """
+        Initialise le modèle d'IA avec les paramètres par défaut
+        
+        Args:
+            model_name: Nom du modèle à utiliser (par défaut: llama3)
+        """
         # Initialiser le logger
         self.logger = logging.getLogger("VynalDocsAutomator.AI")
-        self.logger.info("Initialisation du modèle d'IA")
         
-        # Initialiser la conversation
-        self.conversation_history = []
-        
-        # Initialiser les états
-        self.current_context = {
-            "state": "initial",              # État initial de la conversation
-            "last_action": None,             # Dernière action effectuée
-            "subject": None,                 # Initialiser subject pour éviter l'erreur
-            "details": {}                    # Initialiser details comme dictionnaire vide
-        }
-        
-        # Chemins des ressources
-        self.models_path = "data/documents/types"  # Chemin vers les modèles existants
-        
-        # Cache pour éviter de recharger les ressources
-        self.cache = {}
-        
-        self.model = "mistral"
+        # Configuration du modèle
+        self.model = model_name
+        self.api_base = "http://localhost:11434/api"
         self.api_url = "http://localhost:11434/api/generate"
         self.timeout = 60
-        self.max_tokens = 1000
-        self.num_predict = 500
+        
+        # Paramètres de génération
+        self.max_tokens = 4096
+        self.num_predict = 4096  # Nombre maximum de tokens à générer
         self.num_ctx = 2048
-        self.temperature = 0.7
+        self.temperature = 0.7  # Température pour la créativité
         self.top_p = 0.9
+        self.top_k = 40
         self.repeat_penalty = 1.1
-        self.seed = 42
-        self.num_thread = 8
+        self.presence_penalty = 0
+        self.frequency_penalty = 0
+        self.seed = None
+        self.num_thread = 4
         self.num_gpu = 1
-        self.stop = ["</s>", "Question:", "Human:", "Assistant:"]
+        self.stop = []  # Suppression des tokens d'arrêt
         self.echo = False
+        
+        # Système de prompt pour contexte juridique
+        self.system_prompt = DOCSGPT_PROMPT
+        
+        # Initialiser les données
+        self._initialize_data()
+    
+    def _initialize_data(self):
+        """Initialise les données et l'état de conversation"""
+        # Initialisation des états de conversation
+        self.conversation_state = {}
+        self.conversation_history = [{"role": "system", "content": self.system_prompt}]
+        self.selected_category = None
+        self.selected_model = None
+        
+        # États du flux de conversation
+        self.waiting_for_category = False
+        self.waiting_for_model = False
+        self.waiting_for_details = False
+        
+        # Dictionnaires pour stocker les templates par catégorie
+        self.templates_by_category = {}
+        
+        # Liste des types de documents
+        self.document_types = []
+        
+        # Charger les modèles de documents
+        self._load_document_templates()
+        
+        # Vérifier que le modèle est disponible
+        self._verify_model()
+        
+        # Commandes disponibles
         self.commands = {
             "help": self._help_command,
             "clear": self._clear_command,
             "status": self._status_command,
             "model": self._model_command
         }
-        self.available_models = {}  # Cache des modèles disponibles
-        self.categories = {}  # Cache des catégories et thèmes disponibles
-        self._verify_model()
-        self._load_categories()  # Charger les catégories disponibles
-        self._update_available_models()  # Mise à jour initiale des modèles
         
-        # Initialiser le gestionnaire de modèles
-        self.model_manager = DocumentModelManager(self.models_path)
-        
-        # Liste des types de documents disponibles
-        self.document_types = [
-            "Juridique", 
-            "Commercial", 
-            "Administratif", 
-            "Ressources Humaines", 
-            "Fiscales", 
-            "Correspondances", 
-            "Bancaires", 
-            "Corporate", 
-            "Immobiliers", 
-            "Autres"
-        ]
+        self.logger.info(f"AIModel initialisé avec le modèle {self.model}")
 
     def _load_categories(self):
         """
@@ -354,447 +385,324 @@ Je peux vous guider dans la création de votre document étape par étape."""
 
     def generate_response(self, message, stream=False):
         """
-        Génère une réponse basée sur le message de l'utilisateur.
+        Génère une réponse à un message utilisateur
         
         Args:
-            message (str): Message de l'utilisateur
-            stream (bool): Si True, streame la réponse
-            
+            message: Message de l'utilisateur
+            stream: Si True, renvoie un générateur de réponse par stream
+        
         Returns:
-            str: Réponse générée
+            str ou generator: Réponse générée
         """
-        # Ne pas traiter les messages vides
-        if not message or len(message.strip()) == 0:
-            return "Je ne peux pas traiter un message vide. Veuillez poser une question."
-            
-        # Ajouter le message de l'utilisateur à l'historique
-        self.conversation_history.append({
-            "role": "user",
-            "content": message
-        })
+        print(f"DEBUG - generate_response appelé avec message: {message[:50]}...")
         
-        # --- COMMANDES SPÉCIALES ---
-        # Vérifier si c'est une commande spéciale
-        command_match = re.match(r"^/(\w+)", message.strip())
-        if command_match:
-            command = command_match.group(1).lower()
+        if message.startswith('/'):
+            command = message[1:].strip().split()[0].lower()
             if command in self.commands:
-                command_response = self.commands[command]()
-                # Ajouter la réponse à l'historique
-                self.conversation_history.append({
-                    "role": "assistant",
-                    "content": command_response
-                })
-                return command_response
+                return self.commands[command]()
+            else:
+                return f"Commande inconnue: {command}. Tapez /help pour voir les commandes disponibles."
         
-        # --- QUESTIONS TECHNIQUES ---
-        # Vérifier si c'est une question technique simple 
-        # (mais pas si on est au milieu d'une conversation structurée)
-        current_state = self.current_context.get("state", "initial")
-        if current_state not in ["choosing_category", "choosing_model", "new_document", "model_selected"]:
-            tech_response = self._handle_simple_question(message)
-            if tech_response:
-                self.conversation_history.append({
-                    "role": "assistant",
-                    "content": tech_response
-                })
-                return tech_response
-
-        # --- ENTRÉES TRÈS COURTES (COMME "1", "2", "OUI", "NON") ---
-        # Traiter spécifiquement les entrées courtes pour éviter qu'elles soient ignorées
-        if current_state in ["choosing_category", "choosing_model", "model_selected"] and len(message.strip()) <= 3:
-            # Normaliser l'entrée
-            normalized_input = self._normalize_input(message)
-            # C'est probablement un choix numérique ou une confirmation, le traiter directement
-            response = self._handle_user_choice(message)
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": response
-            })
-            return response
-            
-        # --- DEMANDE DE DOCUMENT ---
-        # Vérifier si c'est une demande concernant un document, un modèle ou un contrat
-        doc_keywords = ["document", "modele", "modèle", "contrat", "convention", 
-                         "lettre", "rapport", "facture"]
-        if any(keyword in message.lower() for keyword in doc_keywords) and "état" not in message.lower():
-            # Extraire le type et le thème du document potentiel
-            doc_response = self._handle_document_request(message)
-            
-            # Ajouter la réponse à l'historique
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": doc_response
-            })
-            return doc_response
-            
-        # --- GESTION DU CONTEXTE ---
-        # Vérifier l'état actuel de la conversation
-        if current_state != "initial":
-            # Nous sommes dans une conversation structurée (document, catégorie, modèle...)
-            # Utiliser le gestionnaire approprié selon l'état
-            response = self._handle_user_choice(message)
-            
-            # Ajouter la réponse à l'historique
-            self.conversation_history.append({
-                "role": "assistant", 
-                "content": response
-            })
-            return response
-            
-        # --- FALLBACK AU MODÈLE LLM ---
-        # Pour les cas où aucune règle spécifique ne s'applique, utiliser le LLM
+        # Ajouter le message à l'historique
+        self.conversation_history.append({"role": "user", "content": message})
         
-        # Préparer le contexte pour le LLM
-        prompt = self._prepare_context(message)
+        # Conserver seulement les 10 derniers messages pour éviter de dépasser le contexte
+        if len(self.conversation_history) > 10:
+            self.conversation_history = self.conversation_history[-10:]
         
-        # Paramètres de génération
+        # Construire le prompt complet avec l'historique de conversation
+        prompt = self._build_prompt(message)
+        print(f"DEBUG - Prompt construit, longueur: {len(prompt)} caractères")
+        
+        # Paramètres pour l'appel à l'API
         params = {
             "model": self.model,
             "prompt": prompt,
             "stream": stream,
-            "temperature": 0.7,
-            "max_tokens": 1000
+            "options": {
+                "num_predict": self.num_predict,
+                "temperature": self.temperature,
+                "top_p": self.top_p,
+                "repeat_penalty": self.repeat_penalty,
+                "seed": self.seed,
+                "num_thread": self.num_thread,
+                "num_gpu": self.num_gpu,
+                "stop": self.stop,
+                "echo": self.echo
+            }
         }
         
-        # Essayer de générer une réponse avec l'API
-        try:
-            # Appel à l'API
-            response = requests.post(
-                self.api_url,
-                json=params,
-                stream=stream
-            )
+        # Vérifier que le modèle est disponible avant de faire la requête
+        if not self._verify_model():
+            error_msg = "Le modèle LLaMa n'est pas disponible. Vérifiez que Ollama est en cours d'exécution."
+            self.logger.error(error_msg)
+            print(f"ERREUR - {error_msg}")
+            return error_msg
             
-            # Vérifier si la requête a réussi
-            if response.status_code == 200:
-                # Traiter différemment selon si on streame ou non
-                if stream:
-                    # Streaming de la réponse
-                    return self._stream_response(response)
-                else:
-                    # Réponse complète
-                    response_str = self._get_complete_response(response)
-                    
-                    # Nettoyer et formater la réponse
-                    cleaned_response = self._clean_response(response_str)
-                    
-                    # Ajouter la réponse à l'historique
-                    self.conversation_history.append({
-                        "role": "assistant",
-                        "content": cleaned_response
-                    })
-                    
-                    return cleaned_response
-            else:
-                # En cas d'erreur avec l'API
-                error_msg = f"Erreur de l'API ({response.status_code}): {response.text}"
-                self.logger.error(error_msg)
-                return "Je rencontre des difficultés techniques pour répondre à votre question. Pourriez-vous reformuler ou essayer plus tard?"
+        try:
+            print(f"DEBUG - Envoi de la requête à l'API Ollama ({self.api_url})")
+            if stream:
+                # Appel en streaming
+                print(f"DEBUG - Mode streaming activé")
+                response = requests.post(
+                    self.api_url,
+                    json=params,
+                    timeout=self.timeout,
+                    stream=True
+                )
                 
+                if response.status_code != 200:
+                    error_msg = f"Erreur API: {response.status_code} - {response.text}"
+                    self.logger.error(error_msg)
+                    print(f"ERREUR - {error_msg}")
+                    return error_msg
+                
+                print(f"DEBUG - Réponse de streaming obtenue, code: {response.status_code}")
+                return self._stream_response(response)
+            else:
+                # Appel normal
+                print(f"DEBUG - Appel normal (non-streaming)")
+                response = requests.post(
+                    self.api_url,
+                    json=params,
+                    timeout=self.timeout
+                )
+                
+                if response.status_code != 200:
+                    error_msg = f"Erreur API: {response.status_code} - {response.text}"
+                    self.logger.error(error_msg)
+                    print(f"ERREUR - {error_msg}")
+                    return error_msg
+                
+                print(f"DEBUG - Réponse obtenue, code: {response.status_code}")
+                result = response.json()
+                ai_response = result.get("response", "")
+                
+                if not ai_response:
+                    error_msg = "Réponse vide reçue de l'API Ollama"
+                    self.logger.warning(error_msg)
+                    print(f"AVERTISSEMENT - {error_msg}")
+                    return "Le modèle n'a pas généré de réponse. Veuillez réessayer."
+                
+                # Ajouter la réponse à l'historique
+                self.conversation_history.append({"role": "assistant", "content": ai_response})
+                
+                print(f"DEBUG - Réponse finale longueur: {len(ai_response)} caractères")
+                return ai_response
+                
+        except requests.exceptions.Timeout:
+            error_msg = f"Délai d'attente dépassé (timeout: {self.timeout}s)"
+            self.logger.error(error_msg)
+            print(f"ERREUR - {error_msg}")
+            return "La requête a pris trop de temps. L'API Ollama pourrait être surchargée."
+        except requests.exceptions.ConnectionError as e:
+            error_msg = f"Erreur de connexion à l'API Ollama: {e}"
+            self.logger.error(error_msg)
+            print(f"ERREUR CRITIQUE - {error_msg}")
+            return "Impossible de se connecter à l'API Ollama. Vérifiez que le service est en cours d'exécution."
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Erreur de requête à l'API: {e}"
+            self.logger.error(error_msg)
+            print(f"ERREUR - {error_msg}")
+            return f"Erreur lors de la communication avec l'API: {str(e)}"
+        except json.JSONDecodeError as e:
+            error_msg = f"Erreur de décodage JSON: {e}"
+            self.logger.error(error_msg)
+            print(f"ERREUR - {error_msg}")
+            return "Erreur lors du traitement de la réponse du serveur."
         except Exception as e:
-            # En cas d'erreur de connexion ou autre
-            self.logger.error(f"Erreur lors de la génération de réponse: {e}")
-            return "Un problème technique m'empêche de vous répondre. Veuillez vérifier votre connexion et réessayer."
-
-    def _stream_response(self, response):
+            error_msg = f"Erreur inattendue: {e}"
+            self.logger.error(error_msg)
+            print(f"ERREUR CRITIQUE - {error_msg}")
+            return f"Une erreur inattendue s'est produite: {str(e)}"
+    
+    def _build_prompt(self, message):
         """
-        Traite la réponse en streaming de Ollama.
+        Construit le prompt complet à envoyer au modèle
         
         Args:
-            response: L'objet réponse de requests
-            
-        Yields:
-            str: Les parties de la réponse
+            message: Message de l'utilisateur
+        
+        Returns:
+            str: Prompt complet
         """
+        # Construire le prompt à partir de l'historique de conversation
+        prompt = "<s>"
+        
+        # Parcourir l'historique de conversation
+        for i, msg in enumerate(self.conversation_history):
+            role = msg["role"]
+            content = msg["content"]
+            
+            if role == "system":
+                prompt = f"<s>[INST] {content} [/INST]\n\n"
+            elif role == "user":
+                prompt += f"[INST] {content} [/INST]\n\n"
+            else:  # assistant
+                prompt += f"{content}\n\n"
+        
+        # Ajouter le nouveau message de l'utilisateur (qui n'est pas encore dans l'historique)
+        prompt += f"[INST] {message} [/INST]\n\n"
+        
+        return prompt
+    
+    def _stream_response(self, response):
+        """
+        Traite une réponse en streaming
+        
+        Args:
+            response: Réponse de l'API en streaming
+        
+        Returns:
+            generator: Générateur de morceaux de réponse
+        """
+        ai_response = ""
+        
         for line in response.iter_lines():
             if line:
                 try:
                     chunk = json.loads(line)
-                    if "response" in chunk:
-                        yield chunk["response"]
+                    text = chunk.get("response", "")
+                    ai_response += text
+                    yield text
                 except json.JSONDecodeError:
                     continue
-
-    def _get_complete_response(self, response):
-        """
-        Traite la réponse complète de Ollama.
         
-        Args:
-            response: L'objet réponse de requests
-            
-        Returns:
-            str: La réponse complète
-        """
-        try:
-            result = response.json()
-            if "response" in result:
-                return self._clean_response(result["response"])
-            return "Erreur : Format de réponse invalide"
-        except json.JSONDecodeError:
-            return "Erreur : Impossible de décoder la réponse"
-
+        # Ajouter la réponse complète à l'historique
+        self.conversation_history.append({"role": "assistant", "content": ai_response})
+    
     def _verify_model(self):
-        self.logger = logging.getLogger('AI.Model')
-        self.conversation_history = []
-        
-        # Vérifier que Ollama est en cours d'exécution et que le bon modèle est chargé
+        """Vérifie si le modèle est disponible"""
         try:
-            # Vérifier la version d'Ollama
-            response = requests.get("http://localhost:11434/api/version")
-            if response.status_code != 200:
-                self.logger.error("Ollama n'est pas accessible")
-                raise Exception("Ollama n'est pas accessible")
+            print(f"DEBUG - Vérification du modèle {self.model} via l'API Ollama")
             
-            # Vérifier que le modèle mistral:latest est disponible
-            response = requests.post(
-                "http://localhost:11434/api/show",
-                json={"name": "mistral"}
-            )
-            if response.status_code != 200:
-                self.logger.error("Le modèle mistral:latest n'est pas disponible")
-                raise Exception("Le modèle mistral:latest n'est pas disponible")
+            # Vérifier si l'API Ollama est accessible
+            try:
+                test_connection = requests.get("http://localhost:11434/api/version", timeout=5)
+                if test_connection.status_code != 200:
+                    self.logger.error(f"API Ollama non accessible: {test_connection.status_code}")
+                    print(f"ERREUR - API Ollama non accessible: {test_connection.status_code}")
+                    return False
+                
+                version_info = test_connection.json()
+                version = version_info.get('version', 'inconnue')
+                self.logger.info(f"Ollama API version: {version}")
+                print(f"DEBUG - Ollama API version: {version}")
+            except requests.exceptions.ConnectionError:
+                self.logger.error("Impossible de se connecter à l'API Ollama (service non démarré?)")
+                print("ERREUR CRITIQUE - Impossible de se connecter à l'API Ollama. Vérifiez que le service Ollama est démarré.")
+                return False
+            except Exception as e:
+                self.logger.error(f"Erreur lors de la vérification de l'API Ollama: {e}")
+                print(f"ERREUR - Erreur lors de la vérification de l'API Ollama: {e}")
+                return False
             
-            # Afficher les informations du modèle
-            model_info = response.json()
-            self.logger.info(f"Modèle chargé : {model_info.get('name', 'mistral:latest')}")
-            self.logger.info(f"Taille du modèle : {model_info.get('size', 'N/A')}")
-            self.logger.info(f"Dernière mise à jour : {model_info.get('modified_at', 'N/A')}")
+            # Liste des modèles supportés et disponibles en fallback
+            supported_models = ["llama3", "mistral", "phi3", "phi3:mini", "phi", "codellama"]
             
+            # Essayer d'abord le modèle configuré
+            try:
+                response = requests.post(
+                    "http://localhost:11434/api/show",
+                    json={"name": self.model},
+                    timeout=5
+                )
+                
+                if response.status_code == 200:
+                    model_info = response.json()
+                    model_name = model_info.get('name', 'N/A')
+                    model_size = model_info.get('size', 'N/A')
+                    self.logger.info(f"Modèle {self.model} disponible: {model_name} ({model_size} taille)")
+                    print(f"DEBUG - Modèle {self.model} disponible: {model_name}")
+                    return True
+                
+                # Si le modèle spécifié n'est pas disponible, essayer des alternatives
+                if response.status_code == 404:
+                    self.logger.warning(f"Modèle {self.model} non trouvé, recherche d'alternatives...")
+                    print(f"AVERTISSEMENT - Modèle {self.model} non trouvé, recherche d'alternatives...")
+                    
+                    # Obtenir la liste des modèles installés
+                    installed_models = []
+                    try:
+                        list_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                        if list_response.status_code == 200:
+                            models_data = list_response.json()
+                            installed_models = [model.get('name') for model in models_data.get('models', [])]
+                            print(f"DEBUG - Modèles installés: {', '.join(installed_models)}")
+                    except Exception as e:
+                        print(f"AVERTISSEMENT - Impossible de lister les modèles: {e}")
+                    
+                    # Chercher une alternative parmi les modèles supportés
+                    for alt_model in supported_models:
+                        if alt_model in installed_models or alt_model == self.model:
+                            continue  # Sauter le modèle courant ou déjà vérifié
+                            
+                        try:
+                            alt_response = requests.post(
+                                "http://localhost:11434/api/show",
+                                json={"name": alt_model},
+                                timeout=5
+                            )
+                            
+                            if alt_response.status_code == 200:
+                                # Mettre à jour le modèle
+                                self.model = alt_model
+                                alt_model_info = alt_response.json()
+                                self.logger.info(f"Utilisation du modèle alternatif {alt_model}")
+                                print(f"INFO - Utilisation du modèle alternatif {alt_model}")
+                                return True
+                        except Exception:
+                            continue  # Passer au modèle suivant en cas d'erreur
+                    
+                    # Aucune alternative trouvée
+                    self.logger.error("Aucun modèle LLM disponible")
+                    print(f"ERREUR - Aucun modèle disponible. Installez un modèle avec 'ollama pull {self.model}'")
+                    return False
+                    
+                else:
+                    # Autre erreur
+                    self.logger.warning(f"Modèle {self.model} non disponible: {response.text}")
+                    print(f"ERREUR - Modèle {self.model} non disponible: {response.text}")
+                    return False
+                    
+            except requests.exceptions.ConnectionError as e:
+                self.logger.error(f"Erreur de connexion à l'API Ollama: {e}")
+                print(f"ERREUR CRITIQUE - Impossible de se connecter à l'API Ollama: {e}")
+                return False
+            except Exception as e:
+                self.logger.error(f"Erreur lors de la vérification du modèle: {e}")
+                print(f"ERREUR - Vérification du modèle échouée: {e}")
+                return False
+                
         except Exception as e:
-            self.logger.error(f"Erreur lors de la vérification d'Ollama: {e}")
-            raise
+            self.logger.error(f"Erreur inattendue lors de la vérification du modèle: {e}")
+            print(f"ERREUR CRITIQUE - Erreur inattendue lors de la vérification du modèle: {e}")
+            return False
     
-    def _update_context(self, message, **kwargs):
-        """
-        Met à jour le contexte de la conversation en fonction du message et des paramètres optionnels.
-        
-        Args:
-            message (str): Le message de l'utilisateur
-            **kwargs: Paramètres optionnels pour mettre à jour le contexte directement
-        """
-        # D'abord mettre à jour avec les paramètres explicites
-        for key, value in kwargs.items():
-            if key in self.current_context:
-                self.current_context[key] = value
-        
-        # Normaliser le message pour la détection
-        message_lower = message.lower().strip()
-        
-        # Mettre à jour l'état de la conversation
-        if self.current_context["state"] == "initial":
-            if any(word in message_lower for word in ["salut", "bonjour", "hey", "hi", "hello"]):
-                self.current_context["state"] = "greeting"
-                self.current_context["last_action"] = "greeting"
-        elif self.current_context["state"] == "greeting":
-            if "cava" in message_lower or "ça va" in message_lower:
-                self.current_context["state"] = "ready"
-                self.current_context["last_action"] = "greeting_response"
-        
-        # Détecter les demandes de document
-        if any(word in message_lower for word in ["document", "modele", "modèle", "template", "contrat", "lettre"]):
-            if "creer" in message_lower or "créer" in message_lower or "nouveau" in message_lower:
-                self.current_context["state"] = "new_document"
-                self.current_context["last_action"] = "demande_nouveau_document"
-            else:
-                self.current_context["state"] = "asking_document_type"
-                self.current_context["last_action"] = "demande_document"
-        
-        # Détecter le type de document plus précisément
-        doc_types = {
-            "contrat": ["contrat", "accord", "convention"],
-            "lettre": ["lettre", "courrier", "mail", "correspondance"],
-            "rapport": ["rapport", "compte-rendu", "bilan"],
-            "formulaire": ["formulaire", "demande", "application"],
-            "facture": ["facture", "devis", "estimation"]
-        }
-        
-        for doc_type, keywords in doc_types.items():
-            if any(kw in message_lower for kw in keywords):
-                self.current_context["document_type"] = doc_type
-                # Initialiser le dictionnaire details s'il n'existe pas
-                if "details" not in self.current_context:
-                    self.current_context["details"] = {}
-                break
-        
-        # Détecter des détails spécifiques
-        if self.current_context.get("document_type") == "contrat":
-            # Initialiser le dictionnaire details s'il n'existe pas
-            if "details" not in self.current_context:
-                self.current_context["details"] = {}
-                
-            # Initialiser required_info s'il n'existe pas
-            if "required_info" not in self.current_context:
-                self.current_context["required_info"] = set()
-                
-            # Détecter les sujets de contrat
-            if "service" in message_lower:
-                self.current_context["subject"] = "contrat de service"
-                if "réparation" in message_lower:
-                    self.current_context["details"]["type"] = "réparation"
-                elif "maintenance" in message_lower:
-                    self.current_context["details"]["type"] = "maintenance"
-                
-                # Ajouter les informations requises
-                self.current_context["required_info"] = {"prix", "durée", "garantie"}
-            
-            # Détecter les informations sur le prix
-            if any(kw in message_lower for kw in ["prix", "coût", "tarif", "montant"]):
-                self.current_context["details"]["price_mentioned"] = True
-                if "required_info" in self.current_context:
-                    self.current_context["required_info"].discard("prix")
-                    
-            # Détecter les informations sur la durée
-            if any(kw in message_lower for kw in ["durée", "période", "temps", "mois", "ans", "années"]):
-                self.current_context["details"]["duration_mentioned"] = True
-                if "required_info" in self.current_context:
-                    self.current_context["required_info"].discard("durée")
-                    
-            # Détecter les informations sur la garantie
-            if "garantie" in message_lower:
-                self.current_context["details"]["warranty_mentioned"] = True
-                if "required_info" in self.current_context:
-                    self.current_context["required_info"].discard("garantie")
-                    
-        # Ajouter le message à l'historique
-        self.conversation_history.append({
-            "role": "user",
-            "content": message
-        })
-
-    def _prepare_context(self, message):
-        """
-        Prépare le contexte pour le modèle en incluant l'historique pertinent.
-        
-        Args:
-            message (str): Le message actuel
-            
-        Returns:
-            str: Le contexte complet pour le modèle
-        """
-        # Construire le contexte avec les règles de base
-        context = """Tu es un assistant IA spécialisé dans la création de documents professionnels. Tu as les capacités suivantes :
-
-1. Création de documents :
-   - Tu crées des documents professionnels en français
-   - Tu utilises des valeurs par défaut pour les informations manquantes
-   - Tu maintiens la cohérence dans les réponses
-   - Tu es direct et efficace
-
-2. Communication :
-   - Tu utilises un français professionnel et correct
-   - Tu es direct et précis dans tes réponses
-   - Tu évites les questions redondantes
-   - Tu utilises le vouvoiement
-
-3. Gestion du contexte :
-   - Tu prends en compte l'historique de la conversation
-   - Tu adaptes tes réponses selon le type de document
-   - Tu maintiens la cohérence dans les détails
-   - Tu évites de redemander des informations déjà fournies
-
-État actuel de la conversation :
-"""
-        
-        # Ajouter l'état actuel
-        context += f"- État : {self.current_context['state']}\n"
-        if self.current_context["last_action"]:
-            context += f"- Dernière action : {self.current_context['last_action']}\n"
-        
-        # Ajouter le contexte spécifique si disponible
-        if self.current_context["document_type"]:
-            context += f"\nType de document en cours : {self.current_context['document_type']}"
-            if self.current_context["subject"]:
-                context += f"\nSujet spécifique : {self.current_context['subject']}"
-            if self.current_context["details"]:
-                context += "\nDétails connus :"
-                for key, value in self.current_context["details"].items():
-                    context += f"\n- {key}: {value}"
-        
-        # Ajouter l'historique récent
-        recent_history = self.conversation_history[-5:] if len(self.conversation_history) > 5 else self.conversation_history
-        for msg in recent_history:
-            role = "Utilisateur" if msg["role"] == "user" else "Assistant"
-            context += f"\n{role}: {msg['content']}"
-        
-        # Ajouter le message actuel
-        context += f"\n\nUtilisateur: {message}\n\nAssistant: Je vais répondre en tenant compte du contexte de la conversation et en utilisant des valeurs par défaut pour les informations manquantes."
-        
-        return context
-    
-    def _clean_response(self, response):
-        """
-        Nettoie la réponse du modèle pour enlever les préfixes indésirables.
-        
-        Args:
-            response (str): La réponse brute du modèle
-            
-        Returns:
-            str: La réponse nettoyée
-        """
-        # Supprimer les préfixes courants
-        prefixes = [
-            "Assistant:", "Assistant IA:", "IA:", "A:", "Réponse:",
-            "Je vais répondre de manière professionnelle et détaillée,",
-            "En tant qu'assistant IA,",
-            "En tant qu'assistant,",
-            "Voici ma réponse :",
-            "Voici la réponse :"
-        ]
-        
-        # Nettoyer la réponse
-        response = response.strip()
-        
-        # Supprimer les préfixes
-        for prefix in prefixes:
-            if response.startswith(prefix):
-                response = response[len(prefix):].strip()
-        
-        # Supprimer les marqueurs de conversation
-        response = response.replace("Utilisateur:", "").replace("Assistant:", "")
-        
-        # Nettoyer les espaces multiples
-        response = " ".join(response.split())
-        
-        # Vérifier si la réponse est vide ou trop courte
-        if len(response.strip()) < 10:
-            return "Je m'excuse, mais je n'ai pas pu générer une réponse appropriée. Pourriez-vous reformuler votre question ?"
-        
-        return response.strip()
-    
+    # Commandes de l'interface de chat
     def _help_command(self):
-        """Affiche l'aide avec les commandes disponibles"""
-        help_text = "Voici les commandes disponibles :\n"
-        help_text += "/help - Affiche cette aide\n"
-        help_text += "/clear - Efface l'historique de la conversation\n"
-        help_text += "/status - Affiche le statut de l'assistant\n"
-        help_text += "/model - Affiche le modèle actuel\n\n"
-        help_text += "Vous pouvez me poser des questions sur :\n"
-        help_text += "- La gestion des documents\n"
-        help_text += "- La gestion des clients\n"
-        help_text += "- Les modèles de documents\n"
-        help_text += "- L'analyse de documents\n"
-        help_text += "- L'automatisation des tâches"
-        return help_text
+        """Affiche l'aide des commandes disponibles"""
+        return """
+Commandes disponibles:
+/help - Affiche cette aide
+/clear - Efface l'historique de la conversation
+/status - Affiche l'état du modèle
+/model - Affiche les informations sur le modèle utilisé
+"""
     
     def _clear_command(self):
         """Efface l'historique de la conversation"""
         self.conversation_history = []
-        return "L'historique de la conversation a été effacé."
+        return "Historique de conversation effacé."
     
     def _status_command(self):
-        """Affiche le statut de l'assistant"""
-        status = "Statut de l'assistant :\n"
-        status += f"- Nombre de messages dans l'historique : {len(self.conversation_history)}\n"
-        status += "- Mode : En ligne\n"
-        status += "- Modèle : Llama 3 (Latest)\n"
-        status += "- Version : 1.0.0"
-        return status
+        """Affiche l'état du modèle"""
+        return f"Modèle actif: {self.model}\nNombre de messages dans l'historique: {len(self.conversation_history)}"
     
     def _model_command(self):
-        """Affiche le modèle actuel"""
-        return f"Modèle actuel : {self.model}"
-    
+        """Affiche les informations sur le modèle utilisé"""
+        return f"Modèle: {self.model}\nTempérature: {self.temperature}\nMaximum de tokens: {self.max_tokens}"
+
     def _handle_simple_question(self, message):
         """
         Gère les questions simples et courantes sans passer par le modèle principal.
@@ -2040,3 +1948,54 @@ Pour commencer, j'ai besoin de quelques informations essentielles :
 Pour chaque question, répondez avec une phrase simple et claire.
 Ou tapez 'retour' pour revenir au menu précédent."""
         
+    def _load_document_templates(self):
+        """Charge les modèles de documents depuis le répertoire templates"""
+        try:
+            # Chemin vers les modèles
+            templates_path = os.path.join("data", "documents", "templates", "templates.json")
+            
+            if os.path.exists(templates_path):
+                with open(templates_path, "r", encoding="utf-8") as f:
+                    templates = json.load(f)
+                
+                # Organiser les templates par catégorie
+                for tmpl in templates:
+                    category = tmpl.get("category", "Autre").capitalize()
+                    if category not in self.templates_by_category:
+                        self.templates_by_category[category] = []
+                    self.templates_by_category[category].append(tmpl)
+                
+                # Extraire les types de documents uniques
+                self.document_types = list(set(tmpl.get("type", "Autre").capitalize() 
+                                             for tmpl in templates))
+                self.document_types.sort()
+                
+                self.logger.info(f"Templates chargés depuis {templates_path}")
+            else:
+                self.logger.warning(f"Fichier templates.json non trouvé")
+                
+                # Créer quelques catégories par défaut
+                default_categories = ["Juridique", "Commercial", "Administratif", 
+                                     "Ressources Humaines", "Fiscal", "Correspondance", 
+                                     "Bancaire", "Corporate", "Immobilier"]
+                                     
+                for category in default_categories:
+                    if category not in self.templates_by_category:
+                        self.templates_by_category[category] = []
+                
+                # Créer quelques types de documents par défaut
+                self.document_types = ["Contrat", "Lettre", "Attestation", "Facture", 
+                                     "Convention", "Procès-verbal", "Rapport", 
+                                     "Déclaration", "Formulaire"]
+            
+            # Mettre à jour les types de documents basés sur les catégories
+            for category in self.templates_by_category:
+                self.logger.info(f"{len(self.templates_by_category[category])} modèles trouvés pour la catégorie '{category}'")
+            
+            self.logger.info(f"Mise à jour des types de documents terminée: {len(self.document_types)} types trouvés")
+            
+        except Exception as e:
+            self.logger.error(f"Erreur lors du chargement des templates: {e}")
+            # Créer des types par défaut en cas d'erreur
+            self.document_types = ["Contrat", "Lettre", "Attestation", "Facture"]
+

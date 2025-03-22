@@ -1055,76 +1055,11 @@ class SettingsView:
     def save_settings(self):
         """Enregistre les paramètres avec validation"""
         try:
-            # Récupérer les valeurs actuelles
-            settings = {}
-            for key, var in self._variables.items():
-                try:
-                    value = var.get()
-                    settings[key] = value
-                except Exception as e:
-                    logger.error(f"Erreur lors de la récupération de la valeur pour {key}: {e}")
-                    continue
-            
-            # Valider les paramètres
-            valid, message = self._validate_settings(settings)
-            if not valid:
-                self.show_message("Erreur de validation", message, "error")
-                return
-            
-            # Sauvegarder de manière sécurisée
-            try:
-                # Sauvegarder les paramètres
-                for key, value in settings.items():
-                    try:
-                        self.model.config.set(key, value)
-                    except Exception as e:
-                        logger.error(f"Erreur lors de la sauvegarde du paramètre {key}: {e}")
-                        continue
-                
-                # Sauvegarder la configuration
-                self.model.config.save()
-                
-                # Mettre à jour les chemins
-                if "paths.documents" in settings:
-                    self.model.paths['documents'] = settings["paths.documents"]
-                if "paths.templates" in settings:
-                    self.model.paths['templates'] = settings["paths.templates"]
-                
-                # Mettre à jour le thème
-                if "app.theme" in settings:
-                    try:
-                        new_theme = settings["app.theme"].lower()
-                        if new_theme != "system":
-                            # Appliquer le thème
-                            ctk.set_appearance_mode(new_theme)
-                            
-                            # Sauvegarder dans les préférences utilisateur
-                            from utils.usage_tracker import UsageTracker
-                            usage_tracker = UsageTracker()
-                            if usage_tracker.is_user_registered():
-                                user_data = usage_tracker.get_user_data() or {}
-                                user_data["theme"] = new_theme
-                                usage_tracker.save_user_data(user_data)
-                    except Exception as e:
-                        logger.error(f"Erreur lors du changement de thème: {e}")
-                
-                # Confirmation
-                self.show_message(
-                    "Paramètres enregistrés",
-                    "Les paramètres ont été enregistrés avec succès.",
-                    "success"
-                )
-                
-                logger.info("Paramètres sauvegardés avec succès")
-                return True
-            except Exception as e:
-                logger.error(f"Erreur lors de la sauvegarde des paramètres: {e}")
-                self.show_message(
-                    "Erreur",
-                    f"Une erreur est survenue lors de la sauvegarde des paramètres: {e}",
-                    "error"
-                )
-                return False
+            logger.info("Sauvegarde des paramètres initiée")
+            # Appeler la méthode _apply_settings qui contient la logique complète
+            # y compris la mise à jour du moniteur d'activité
+            self._apply_settings()
+            return True
         except Exception as e:
             logger.error(f"Erreur lors de la sauvegarde des paramètres: {e}")
             self.show_message(
@@ -1374,3 +1309,92 @@ class SettingsView:
         """Affiche la fenêtre de configuration email"""
         from .email_config_view import EmailConfigDialog
         EmailConfigDialog(self.parent, self.app_key)
+
+    def _apply_settings(self):
+        """
+        Applique les paramètres modifiés
+        """
+        try:
+            # Récupérer les valeurs des variables
+            settings = {}
+            for key, var in self._variables.items():
+                settings[key] = var.get()
+            
+            # Valider les paramètres avant de les appliquer
+            valid, error_message = self._validate_settings(settings)
+            if not valid:
+                self.show_message("Erreur de validation", error_message, "error")
+                return
+            
+            # Vérifier si les paramètres de sécurité ont changé
+            security_changed = False
+            old_auto_lock = self.model.config.get("security.auto_lock", False)
+            old_lock_time = self.model.config.get("security.lock_time", 10)
+            old_require_password = self.model.config.get("security.require_password", False)
+            
+            if (settings.get("security.auto_lock") != old_auto_lock or
+                settings.get("security.lock_time") != old_lock_time or
+                settings.get("security.require_password") != old_require_password):
+                security_changed = True
+            
+            # Appliquer les paramètres
+            for key, value in settings.items():
+                self.model.config.set(key, value)
+            
+            # Sauvegarder la configuration
+            self.model.config.save()
+            
+            # Si les paramètres de sécurité ont changé, mettre à jour le moniteur d'activité
+            if security_changed:
+                # Mettre à jour le moniteur d'activité si présent
+                if hasattr(self.parent, 'update_activity_monitor'):
+                    self.parent.update_activity_monitor()
+                elif hasattr(self.parent, 'master') and hasattr(self.parent.master, 'update_activity_monitor'):
+                    self.parent.master.update_activity_monitor()
+            
+            # Montrer un message de confirmation
+            self.show_message("Paramètres mis à jour", "Les paramètres ont été appliqués avec succès.", "success")
+            
+            # Mettre à jour l'interface
+            self.update_view()
+        except Exception as e:
+            logger.error(f"Erreur lors de l'application des paramètres: {e}")
+            self.show_message("Erreur", f"Une erreur est survenue lors de l'application des paramètres: {e}", "error")
+
+    def show_message(self, title, message, message_type="info"):
+        """
+        Affiche un message à l'utilisateur en utilisant DialogUtils
+        
+        Args:
+            title (str): Titre du message
+            message (str): Contenu du message
+            message_type (str): Type de message ('info', 'success', 'warning', 'error')
+        """
+        try:
+            # Utiliser le DialogUtils défini dans ce fichier
+            DialogUtils.show_message(
+                self.parent,
+                title,
+                message,
+                message_type
+            )
+        except Exception as e:
+            # Fallback en cas d'erreur avec DialogUtils
+            logger.error(f"Erreur lors de l'affichage du message via DialogUtils: {e}")
+            try:
+                # Utiliser directement la méthode show_message du parent (MainView)
+                if hasattr(self.parent, 'show_message'):
+                    self.parent.show_message(title, message, message_type)
+                elif hasattr(self.parent, 'master') and hasattr(self.parent.master, 'show_message'):
+                    self.parent.master.show_message(title, message, message_type)
+                else:
+                    # Dernier recours: Messagebox standard
+                    import tkinter.messagebox as msgbox
+                    if message_type == "error":
+                        msgbox.showerror(title, message)
+                    elif message_type == "warning":
+                        msgbox.showwarning(title, message)
+                    else:
+                        msgbox.showinfo(title, message)
+            except Exception as e2:
+                logger.error(f"Erreur lors de l'affichage du message de secours: {e2}")

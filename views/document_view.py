@@ -2548,7 +2548,7 @@ class DocumentView:
             self.show_message("Erreur", f"Impossible de prévisualiser le document: {str(e)}", "error")
     
     def import_document(self):
-        """Importe un document externe avec validation de taille"""
+        """Importe un document externe avec validation de taille et analyse de contenu"""
         try:
             logger.debug("Début de l'importation d'un document")
             
@@ -2574,11 +2574,9 @@ class DocumentView:
             # Vérifier si le fichier existe
             if not os.path.exists(file_path):
                 logger.error(f"Le fichier n'existe pas: {file_path}")
-                DialogUtils.show_message(
-                    self.parent,
+                messagebox.showerror(
                     "Erreur",
-                    "Le fichier sélectionné n'existe pas.",
-                    "error"
+                    "Le fichier sélectionné n'existe pas."
                 )
                 return
             
@@ -2586,11 +2584,9 @@ class DocumentView:
             file_size = os.path.getsize(file_path)
             if file_size > self.MAX_FILE_SIZE:
                 logger.warning(f"Fichier trop volumineux: {file_path} ({file_size/1024/1024:.1f} Mo)")
-                DialogUtils.show_message(
-                    self.parent,
+                messagebox.showerror(
                     "Erreur",
-                    f"Le fichier est trop volumineux ({file_size/1024/1024:.1f} Mo). Maximum autorisé: {self.MAX_FILE_SIZE/1024/1024} Mo.",
-                    "error"
+                    f"Le fichier est trop volumineux ({file_size/1024/1024:.1f} Mo). Maximum autorisé: {self.MAX_FILE_SIZE/1024/1024} Mo."
                 )
                 return
             
@@ -2599,11 +2595,9 @@ class DocumentView:
             # Vérifier le type de fichier
             if not self._is_valid_file_type(file_path):
                 logger.error(f"Type de fichier invalide: {file_path}")
-                DialogUtils.show_message(
-                    self.parent,
+                messagebox.showerror(
                     "Erreur",
-                    "Type de fichier non autorisé ou fichier corrompu.",
-                    "error"
+                    "Type de fichier non autorisé ou fichier corrompu."
                 )
                 return
             
@@ -2613,55 +2607,246 @@ class DocumentView:
             filename = os.path.basename(file_path)
             title = os.path.splitext(filename)[0]
             
-            # Déterminer automatiquement le type de document
-            doc_type = "autre"
-            lower_title = title.lower()
+            # Créer une fenêtre de dialogue pour l'analyse
+            dialog = ctk.CTkToplevel(self.parent)
+            dialog.title("Analyse du document")
+            dialog.geometry("800x600")
+            dialog.transient(self.parent)
+            dialog.grab_set()
             
-            if "contrat" in lower_title or "agreement" in lower_title:
-                doc_type = "contrat"
-            elif "facture" in lower_title or "invoice" in lower_title:
-                doc_type = "facture"
-            elif "proposition" in lower_title or "proposal" in lower_title:
-                doc_type = "proposition"
-            elif "rapport" in lower_title or "report" in lower_title:
-                doc_type = "rapport"
+            # Créer l'interface de la fenêtre d'analyse
+            main_frame = ctk.CTkFrame(dialog)
+            main_frame.pack(fill="both", expand=True, padx=20, pady=20)
             
-            logger.debug(f"Type de document détecté: {doc_type}")
-            
-            # Créer un document avec les informations basiques
-            document_data = {
-                "title": title,
-                "type": doc_type,
-                "file_path": file_path,  # Sera copié plus tard
-                "imported": True
-            }
-            
-            # Si nous sommes dans un dossier personnalisé, associer le document à ce dossier
-            folder_id = None
-            if self.selected_folder == "custom" and self.current_subfolder:
-                folder_id = self.current_subfolder
-                logger.debug(f"Document associé au dossier personnalisé: {folder_id}")
-            
-            # Ouvrir le formulaire pour compléter les métadonnées
-            from views.document_form_view import DocumentFormView
-            form = DocumentFormView(
-                self.parent,
-                self.model,
-                document_data=document_data,
-                folder_id=folder_id,
-                import_mode=True,
-                on_save_callback=self.on_document_saved
+            # Titre
+            title_label = ctk.CTkLabel(
+                main_frame,
+                text=f"Analyse de {filename}",
+                font=ctk.CTkFont(size=18, weight="bold")
             )
+            title_label.pack(pady=(0, 20))
             
-            logger.info("Formulaire d'importation ouvert avec succès")
+            # Zone de contenu pour les résultats
+            content_frame = ctk.CTkFrame(main_frame)
+            content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Zone de statut et de progression
+            status_frame = ctk.CTkFrame(main_frame)
+            status_frame.pack(fill="x", padx=10, pady=(10, 0))
+            
+            # Indicateur de chargement
+            spinner = None
+            try:
+                from utils.ui_components import LoadingSpinner
+                spinner = LoadingSpinner(status_frame, size=20)
+                spinner.pack(side="left", padx=(10, 5), pady=5)
+                spinner.start()
+            except Exception as e:
+                logger.warning(f"Impossible de créer l'indicateur de chargement: {e}")
+            
+            # Étiquette de statut
+            status_label = ctk.CTkLabel(
+                status_frame,
+                text=f"Analyse de {filename} en cours...",
+                font=ctk.CTkFont(size=12)
+            )
+            status_label.pack(side="left", padx=5, pady=5)
+            
+            # Message initial
+            info_label = ctk.CTkLabel(
+                content_frame,
+                text=f"Analyse de {filename} en cours...\nCette opération peut prendre quelques instants.",
+                font=ctk.CTkFont(size=14)
+            )
+            info_label.pack(pady=40)
+            
+            dialog.update()
+            
+            # Boutons (initialement désactivés)
+            button_frame = ctk.CTkFrame(main_frame)
+            button_frame.pack(fill="x", padx=10, pady=10)
+            
+            # Bouton Annuler (toujours disponible)
+            ctk.CTkButton(
+                button_frame,
+                text="Annuler",
+                command=dialog.destroy
+            ).pack(side="right", padx=5)
+            
+            # Fonction pour passer de l'analyse à l'importation
+            def continue_import(analysis_results=None):
+                # Déterminer automatiquement le type de document
+                doc_type = "autre"
+                lower_title = title.lower()
+                
+                if "contrat" in lower_title or "agreement" in lower_title:
+                    doc_type = "contrat"
+                elif "facture" in lower_title or "invoice" in lower_title:
+                    doc_type = "facture"
+                elif "proposition" in lower_title or "proposal" in lower_title:
+                    doc_type = "proposition"
+                elif "rapport" in lower_title or "report" in lower_title:
+                    doc_type = "rapport"
+                
+                # Si des résultats d'analyse sont disponibles, utiliser ces informations
+                if analysis_results and isinstance(analysis_results, dict):
+                    # Extraire le type de document s'il est disponible
+                    detected_type = analysis_results.get("document_type")
+                    if detected_type:
+                        doc_type = detected_type
+                
+                # Créer un document avec les informations basiques
+                document_data = {
+                    "title": title,
+                    "type": doc_type,
+                    "file_path": file_path,  # Sera copié plus tard
+                    "imported": True
+                }
+                
+                # Si des variables ont été extraites, les inclure
+                if analysis_results and "variables" in analysis_results:
+                    document_data["variables"] = analysis_results["variables"]
+                
+                # Si nous sommes dans un dossier personnalisé, associer le document à ce dossier
+                folder_id = None
+                if self.selected_folder == "custom" and self.current_subfolder:
+                    folder_id = self.current_subfolder
+                    logger.debug(f"Document associé au dossier personnalisé: {folder_id}")
+                
+                # Fermer la fenêtre de dialogue
+                dialog.destroy()
+                
+                # Ouvrir le formulaire pour compléter les métadonnées
+                from views.document_form_view import DocumentFormView
+                form = DocumentFormView(
+                    self.parent,
+                    self.model,
+                    data=document_data,
+                    on_save=self.on_document_saved,
+                    mode="import",
+                    custom_folder_id=folder_id
+                )
+            
+            # Fonction pour afficher les résultats
+            def display_results(results):
+                # Supprimer le message de chargement
+                info_label.destroy()
+                
+                if spinner:
+                    spinner.stop()
+                    spinner.pack_forget()
+                
+                status_label.configure(text="Analyse terminée")
+                
+                # Créer une zone défilante pour les résultats
+                results_frame = ctk.CTkScrollableFrame(content_frame)
+                results_frame.pack(fill="both", expand=True, padx=10, pady=10)
+                
+                # Afficher des informations générales sur le document
+                if "document_type" in results:
+                    ctk.CTkLabel(
+                        results_frame,
+                        text=f"Type de document: {results['document_type']}",
+                        font=ctk.CTkFont(size=14, weight="bold")
+                    ).pack(anchor="w", pady=(5, 2))
+                
+                # Afficher les variables trouvées
+                if "variables" in results and results["variables"]:
+                    variables = results["variables"]
+                    ctk.CTkLabel(
+                        results_frame,
+                        text="Variables détectées:",
+                        font=ctk.CTkFont(size=14, weight="bold")
+                    ).pack(anchor="w", pady=(10, 5))
+                    
+                    for var_name, var_value in variables.items():
+                        var_frame = ctk.CTkFrame(results_frame)
+                        var_frame.pack(fill="x", padx=5, pady=2)
+                        
+                        ctk.CTkLabel(
+                            var_frame,
+                            text=f"{var_name}:",
+                            font=ctk.CTkFont(size=12, weight="bold"),
+                            width=150
+                        ).pack(side="left", padx=5, pady=2)
+                        
+                        ctk.CTkLabel(
+                            var_frame,
+                            text=str(var_value),
+                            font=ctk.CTkFont(size=12),
+                            anchor="w"
+                        ).pack(side="left", fill="x", expand=True, padx=5, pady=2)
+                
+                # Activer le bouton Continuer l'importation
+                ctk.CTkButton(
+                    button_frame,
+                    text="Continuer l'importation",
+                    command=lambda: continue_import(results)
+                ).pack(side="right", padx=5)
+            
+            # Fonction pour gérer l'échec de l'analyse
+            def handle_analysis_failure(error_msg):
+                if spinner:
+                    spinner.stop()
+                    spinner.pack_forget()
+                
+                info_label.destroy()
+                
+                # Afficher un message d'erreur
+                error_label = ctk.CTkLabel(
+                    content_frame,
+                    text=f"Impossible d'analyser le document:\n{error_msg}",
+                    font=ctk.CTkFont(size=14),
+                    text_color=("red", "#FF5555")
+                )
+                error_label.pack(pady=40)
+                
+                status_label.configure(text="Analyse échouée")
+                
+                # Activer le bouton pour continuer sans analyse
+                ctk.CTkButton(
+                    button_frame,
+                    text="Continuer sans analyse",
+                    command=lambda: continue_import()
+                ).pack(side="right", padx=5)
+            
+            # Initialiser l'analyseur de documents si nécessaire
+            if not hasattr(self, "doc_analyzer") or self.doc_analyzer is None:
+                try:
+                    from doc_analyzer import DocumentAnalyzer
+                    self.doc_analyzer = DocumentAnalyzer()
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'initialisation de l'analyseur: {e}")
+                    self.doc_analyzer = None
+            
+            # Lancer l'analyse automatiquement
+            def analyze_thread():
+                try:
+                    if self.doc_analyzer:
+                        # Analyser le document
+                        results = self.doc_analyzer.analyze_document(file_path)
+                        
+                        if results:
+                            # Mettre à jour l'interface dans le thread principal
+                            dialog.after(0, lambda: display_results(results))
+                        else:
+                            dialog.after(0, lambda: handle_analysis_failure("Aucun résultat d'analyse obtenu"))
+                    else:
+                        dialog.after(0, lambda: handle_analysis_failure("Analyseur non disponible"))
+                except Exception as error:
+                    logger.error(f"Erreur lors de l'analyse du document {file_path}: {error}")
+                    dialog.after(0, lambda err=error: handle_analysis_failure(str(err)))
+            
+            # Lancer l'analyse automatiquement sans attendre un clic sur un bouton
+            thread = threading.Thread(target=analyze_thread)
+            thread.daemon = True
+            thread.start()
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'importation du document: {e}", exc_info=True)
-            DialogUtils.show_message(
-                self.parent,
+            logger.error(f"Erreur lors de l'importation: {e}")
+            messagebox.showerror(
                 "Erreur",
-                f"Erreur lors de l'importation du document: {str(e)}",
-                "error"
+                f"Une erreur est survenue lors de l'importation: {e}"
             )
     
     def show(self):

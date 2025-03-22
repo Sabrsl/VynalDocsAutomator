@@ -2003,188 +2003,334 @@ class DocumentCreatorView:
             
     def show_validation(self) -> None:
         """
-        Affiche l'étape de validation du document
+        Affiche la page de validation du document
         """
         try:
-            # Nettoyer la zone de contenu
-            for widget in self.content_frame.winfo_children():
-                widget.destroy()
-                
-            # Créer un cadre conteneur pour centrer le contenu
-            container = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-            container.pack(fill="both", expand=True, padx=20, pady=20)
+            # Nettoyer d'abord l'interface
+            self._clear_content_frame()
             
-            # Titre
-            title = ctk.CTkLabel(
-                container,
+            # Vérifier si nous avons des données de document
+            if not hasattr(self, 'document_data') or not self.document_data:
+                self.show_error("Aucune donnée de document disponible.")
+                return
+                
+            # Mettre à jour la barre de progression
+            self.update_navigation()
+            
+            # Configuration du titre
+            title_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            title_frame.pack(fill="x", padx=20, pady=(20, 10), anchor="n")
+            
+            title_label = ctk.CTkLabel(
+                title_frame,
                 text="Validation du document",
                 font=("", 24, "bold")
             )
-            title.pack(pady=(0, 20))
+            title_label.pack(side="left", pady=10)
             
-            # Informations sur le template
-            if hasattr(self, 'selected_template') and self.selected_template:
-                template_frame = ctk.CTkFrame(container, fg_color=("gray95", "gray15"))
-                template_frame.pack(fill="x", padx=20, pady=10)
-                
-                template_title = ctk.CTkLabel(
-                    template_frame,
-                    text="Modèle sélectionné :",
-                    font=("", 16, "bold")
-                )
-                template_title.pack(pady=(10, 5), padx=20, anchor="w")
-                
-                # Nom du template
-                template_name = self.selected_template.get('name', 'Document sans nom')
-                template_info = ctk.CTkLabel(
-                    template_frame,
-                    text=f"{template_name}",
-                    font=("", 14)
-                )
-                template_info.pack(pady=2, padx=20, anchor="w")
-                
-                # Type
-                if self.selected_template.get('type'):
-                    template_type = ctk.CTkLabel(
-                        template_frame,
-                        text=f"Type: {self.selected_template['type']}",
-                        font=("", 12)
-                    )
-                    template_type.pack(pady=2, padx=20, anchor="w")
+            # Définir des couleurs de thème par défaut si self.model.theme_colors n'existe pas
+            theme_colors = {
+                'frame_secondary_bg': ("gray90", "gray20"),
+                'separator': ("gray75", "gray35"),
+                'text_muted': ("gray50", "gray70"),
+                'auto_detected_bg': ("#e6f7ff", "#1a3c4d"),
+                'heading_bg': ("#f0f0f0", "#2d2d2d"),
+                'field_bg': ("#ffffff", "#333333"),
+                'field_border': ("#e0e0e0", "#555555"),
+                'success_bg': ("#e6ffe6", "#1a4d1a")
+            }
             
-            # Informations sur le client
-            if hasattr(self, 'client_info') and self.client_info:
-                client_frame = ctk.CTkFrame(container, fg_color=("gray95", "gray15"))
-                client_frame.pack(fill="x", padx=20, pady=10)
-                
-                client_title = ctk.CTkLabel(
-                    client_frame,
-                    text="Client sélectionné :",
-                    font=("", 16, "bold")
-                )
-                client_title.pack(pady=(10, 5), padx=20, anchor="w")
-                
-                # Nom du client
-                client_name = self.client_info.get('nom', '') or self.client_info.get('name', '') or self.client_info.get('société', '') or "Client sans nom"
-                client_info = ctk.CTkLabel(
-                    client_frame,
-                    text=f"{client_name}",
-                    font=("", 14)
-                )
-                client_info.pack(pady=2, padx=20, anchor="w")
-                
-                # Email
-                if self.client_info.get('email'):
-                    email_info = ctk.CTkLabel(
-                        client_frame,
-                        text=f"Email: {self.client_info['email']}",
-                        font=("", 12)
-                    )
-                    email_info.pack(pady=2, padx=20, anchor="w")
-                
-                # Société
-                if self.client_info.get('société'):
-                    company_info = ctk.CTkLabel(
-                        client_frame,
-                        text=f"Société: {self.client_info['société']}",
-                        font=("", 12)
-                    )
-                    company_info.pack(pady=2, padx=20, anchor="w")
-                
-                # Téléphone
-                if self.client_info.get('telephone'):
-                    phone_info = ctk.CTkLabel(
-                        client_frame,
-                        text=f"Téléphone: {self.client_info['telephone']}",
-                        font=("", 12)
-                    )
-                    phone_info.pack(pady=2, padx=20, anchor="w")
+            # Utilisez les couleurs du modèle si disponibles
+            if hasattr(self.model, 'theme_colors'):
+                theme_colors = self.model.theme_colors
             
-            # Variables détectées
-            if hasattr(self, 'document_data') and self.document_data and self.document_data.get('variables'):
-                variables_frame = ctk.CTkFrame(container, fg_color=("gray95", "gray15"))
-                variables_frame.pack(fill="x", padx=20, pady=10)
-                
-                variables_title = ctk.CTkLabel(
-                    variables_frame,
-                    text="Variables détectées :",
-                    font=("", 16, "bold")
-                )
-                variables_title.pack(pady=(10, 5), padx=20, anchor="w")
-                
-                # Créer une zone déroulante pour les variables
-                variables_scroll = ctk.CTkScrollableFrame(variables_frame, height=200)
-                variables_scroll.pack(fill="x", padx=20, pady=10)
-                
-                # Afficher chaque variable
-                var_count = 0
-                for var_name, var_info in self.document_data.get('variables', {}).items():
-                    var_count += 1
-                    var_frame = ctk.CTkFrame(variables_scroll, fg_color="transparent")
-                    var_frame.pack(fill="x", padx=10, pady=3)
-                    
-                    # Nom de la variable
-                    var_label = ctk.CTkLabel(
-                        var_frame,
-                        text=f"{var_name}:",
-                        font=("", 12, "bold"),
-                        width=150
-                    )
-                    var_label.pack(side="left")
-                    
-                    # Valeur courante
-                    current_value = var_info.get('current_value', '') if isinstance(var_info, dict) else str(var_info)
-                    value_label = ctk.CTkLabel(
-                        var_frame,
-                        text=current_value,
-                        font=("", 12)
-                    )
-                    value_label.pack(side="left", padx=10)
-                
-                # Message récapitulatif
-                summary_label = ctk.CTkLabel(
-                    variables_frame,
-                    text=f"{var_count} variables trouvées",
-                    font=("", 12),
-                    text_color=("gray50", "gray70")
-                )
-                summary_label.pack(anchor="e", padx=10, pady=(5, 10))
+            # Cadre principal de validation
+            validation_frame = ctk.CTkFrame(self.content_frame)
+            validation_frame.pack(fill="both", expand=True, padx=20, pady=20)
             
-            # Message de confirmation
-            confirm_frame = ctk.CTkFrame(container)
-            confirm_frame.pack(fill="x", padx=20, pady=20)
+            # Créer un en-tête explicatif avec icône
+            header_frame = ctk.CTkFrame(
+                validation_frame,
+                fg_color=theme_colors['heading_bg'],
+                corner_radius=10,
+                height=80
+            )
+            header_frame.pack(fill="x", padx=20, pady=(20, 15))
+            header_frame.pack_propagate(False)
             
-            confirm_label = ctk.CTkLabel(
-                confirm_frame,
-                text="Confirmer la création du document ?",
+            # Icône d'information
+            check_icon = "✓"
+            info_label = ctk.CTkLabel(
+                header_frame,
+                text=check_icon,
+                font=("", 24)
+            )
+            info_label.pack(side="left", padx=(15, 0))
+            
+            # Cadre pour le texte
+            header_text_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+            header_text_frame.pack(side="left", fill="both", expand=True, padx=15, pady=10)
+            
+            # Titre d'information
+            header_title = ctk.CTkLabel(
+                header_text_frame,
+                text="Vérification finale",
+                font=("", 16, "bold"),
+                anchor="w"
+            )
+            header_title.pack(anchor="w")
+            
+            # Description
+            description_text = (
+                "Veuillez vérifier les informations ci-dessous avant de générer le document final."
+            )
+            description_label = ctk.CTkLabel(
+                header_text_frame,
+                text=description_text,
+                font=("", 12),
+                wraplength=700,
+                justify="left",
+                anchor="w"
+            )
+            description_label.pack(anchor="w", fill="x", pady=(5, 0))
+            
+            # Cadre pour le résumé du document
+            summary_container = ctk.CTkScrollableFrame(
+                validation_frame,
+                fg_color="transparent",
+                corner_radius=0,
+                height=400
+            )
+            summary_container.pack(fill="both", expand=True, padx=20, pady=(15, 20))
+            
+            # Cadre des informations du modèle
+            model_frame = ctk.CTkFrame(
+                summary_container,
+                fg_color=theme_colors['field_bg'],
+                corner_radius=10,
+                border_width=1,
+                border_color=theme_colors['field_border']
+            )
+            model_frame.pack(fill="x", padx=10, pady=10)
+            
+            # Titre du cadre modèle
+            model_title = ctk.CTkLabel(
+                model_frame,
+                text="Informations du document",
                 font=("", 16, "bold")
             )
-            confirm_label.pack(pady=10)
+            model_title.pack(anchor="w", padx=15, pady=(15, 10))
             
-            # Boutons de confirmation
-            buttons_frame = ctk.CTkFrame(confirm_frame, fg_color="transparent")
-            buttons_frame.pack(pady=10)
+            # Grille pour les informations du modèle
+            model_grid = ctk.CTkFrame(model_frame, fg_color="transparent")
+            model_grid.pack(fill="x", padx=15, pady=(0, 15))
+            model_grid.columnconfigure(0, weight=1)
+            model_grid.columnconfigure(1, weight=3)
             
+            # Récupérer les informations du modèle
+            model_info = [
+                ("Type de document", self.document_data.get('type_name', 'Non spécifié')),
+                ("Modèle", self.document_data.get('model_name', 'Non spécifié')),
+                ("Date de création", datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
+            ]
+            
+            # Afficher les informations du modèle
+            for idx, (label, value) in enumerate(model_info):
+                # Libellé
+                ctk.CTkLabel(
+                    model_grid,
+                    text=label,
+                    font=("", 12, "bold"),
+                    anchor="w"
+                ).grid(row=idx, column=0, sticky="w", padx=5, pady=3)
+                
+                # Valeur
+                ctk.CTkLabel(
+                    model_grid,
+                    text=str(value),
+                    font=("", 12),
+                    anchor="w"
+                ).grid(row=idx, column=1, sticky="w", padx=5, pady=3)
+            
+            # Cadre des informations client
+            client_frame = ctk.CTkFrame(
+                summary_container,
+                fg_color=theme_colors['field_bg'],
+                corner_radius=10,
+                border_width=1,
+                border_color=theme_colors['field_border']
+            )
+            client_frame.pack(fill="x", padx=10, pady=10)
+            
+            # Titre du cadre client
+            client_title = ctk.CTkLabel(
+                client_frame,
+                text="Informations du client",
+                font=("", 16, "bold")
+            )
+            client_title.pack(anchor="w", padx=15, pady=(15, 10))
+            
+            # Grille pour les informations client
+            client_grid = ctk.CTkFrame(client_frame, fg_color="transparent")
+            client_grid.pack(fill="x", padx=15, pady=(0, 15))
+            client_grid.columnconfigure(0, weight=1)
+            client_grid.columnconfigure(1, weight=3)
+            
+            # Afficher les informations client si disponibles
+            if hasattr(self, 'client_info') and self.client_info:
+                client_display_fields = [
+                    ('nom', 'Nom'),
+                    ('prénom', 'Prénom'),
+                    ('société', 'Société/Organisation'),
+                    ('email', 'Email'),
+                    ('téléphone', 'Téléphone'),
+                    ('adresse', 'Adresse')
+                ]
+                
+                row_idx = 0
+                for field_key, field_label in client_display_fields:
+                    # Vérifier si le champ existe et a une valeur
+                    if field_key in self.client_info and self.client_info[field_key]:
+                        # Libellé
+                        ctk.CTkLabel(
+                            client_grid,
+                            text=field_label,
+                            font=("", 12, "bold"),
+                            anchor="w"
+                        ).grid(row=row_idx, column=0, sticky="w", padx=5, pady=3)
+                        
+                        # Valeur
+                        ctk.CTkLabel(
+                            client_grid,
+                            text=str(self.client_info[field_key]),
+                            font=("", 12),
+                            anchor="w"
+                        ).grid(row=row_idx, column=1, sticky="w", padx=5, pady=3)
+                        
+                        row_idx += 1
+            else:
+                # Aucune information client
+                ctk.CTkLabel(
+                    client_grid,
+                    text="Aucune information client disponible",
+                    font=("", 12),
+                    text_color=theme_colors['text_muted']
+                ).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=10)
+            
+            # Cadre des variables
+            variables_frame = ctk.CTkFrame(
+                summary_container,
+                fg_color=theme_colors['field_bg'],
+                corner_radius=10,
+                border_width=1,
+                border_color=theme_colors['field_border']
+            )
+            variables_frame.pack(fill="x", padx=10, pady=10)
+            
+            # Titre du cadre variables
+            variables_title = ctk.CTkLabel(
+                variables_frame,
+                text="Variables du document",
+                font=("", 16, "bold")
+            )
+            variables_title.pack(anchor="w", padx=15, pady=(15, 10))
+            
+            # Grille pour les variables
+            variables_grid = ctk.CTkFrame(variables_frame, fg_color="transparent")
+            variables_grid.pack(fill="x", padx=15, pady=(0, 15))
+            variables_grid.columnconfigure(0, weight=1)
+            variables_grid.columnconfigure(1, weight=3)
+            
+            # Afficher les variables si disponibles
+            if 'variables' in self.document_data and self.document_data['variables']:
+                row_idx = 0
+                for var_name, var_info in self.document_data['variables'].items():
+                    # Récupérer la valeur actuelle
+                    current_value = ""
+                    is_auto_detected = False
+                    
+                    if isinstance(var_info, dict):
+                        current_value = var_info.get('current_value', '')
+                        is_auto_detected = var_info.get('auto_detected', False)
+                    else:
+                        current_value = str(var_info)
+                    
+                    # Libellé avec indication auto-détecté si applicable
+                    label_text = var_name
+                    if is_auto_detected:
+                        label_text = f"{var_name} (auto)"
+                    
+                    ctk.CTkLabel(
+                        variables_grid,
+                        text=label_text,
+                        font=("", 12, "bold"),
+                        anchor="w"
+                    ).grid(row=row_idx, column=0, sticky="w", padx=5, pady=3)
+                    
+                    # Valeur
+                    ctk.CTkLabel(
+                        variables_grid,
+                        text=str(current_value),
+                        font=("", 12),
+                        anchor="w"
+                    ).grid(row=row_idx, column=1, sticky="w", padx=5, pady=3)
+                    
+                    row_idx += 1
+            else:
+                # Aucune variable
+                ctk.CTkLabel(
+                    variables_grid,
+                    text="Aucune variable disponible",
+                    font=("", 12),
+                    text_color=theme_colors['text_muted']
+                ).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=10)
+            
+            # Message de confirmation
+            confirmation_frame = ctk.CTkFrame(
+                validation_frame,
+                fg_color=theme_colors['success_bg'],
+                corner_radius=10
+            )
+            confirmation_frame.pack(fill="x", padx=20, pady=(0, 15))
+            
+            confirmation_label = ctk.CTkLabel(
+                confirmation_frame,
+                text="Toutes les informations nécessaires ont été collectées. Vous pouvez maintenant confirmer le document.",
+                font=("", 12),
+                wraplength=700,
+                justify="center"
+            )
+            confirmation_label.pack(pady=10)
+            
+            # Boutons de navigation
+            buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            buttons_frame.pack(fill="x", padx=20, pady=(10, 20))
+            
+            # Bouton retour
+            back_button = ctk.CTkButton(
+                buttons_frame,
+                text="Retour",
+                width=120,
+                height=40,
+                fg_color=("gray70", "gray30"),
+                hover_color=("gray60", "gray40"),
+                command=lambda: self.show_step(self.current_step - 1)
+            )
+            back_button.pack(side="left", padx=10, pady=10)
+            
+            # Bouton de confirmation
             confirm_button = ctk.CTkButton(
                 buttons_frame,
-                text="Confirmer",
-                command=self._confirm_document,
-                width=150
+                text="Confirmer et continuer",
+                width=180,
+                height=40,
+                font=("", 14, "bold"),
+                command=self._confirm_document
             )
-            confirm_button.pack(side="left", padx=10)
+            confirm_button.pack(side="right", padx=10, pady=10)
             
-            cancel_button = ctk.CTkButton(
-                buttons_frame,
-                text="Modifier",
-                command=lambda: self.show_step(4),  # Aller à l'étape de personnalisation
-                width=150,
-                fg_color=("gray80", "gray30"),
-                text_color=("gray10", "gray90")
-            )
-            cancel_button.pack(side="left", padx=10)
-            
-            # Mettre à jour la navigation
-            self.update_navigation()
+            # Mettre à jour l'étape actuelle
+            self.current_step = 3
             
             logger.info("Affichage de l'étape de validation")
             
@@ -2290,8 +2436,8 @@ class DocumentCreatorView:
             
             # Description
             description_text = (
-                "Vérifiez et complétez les informations ci-dessous. Les cases surlignées en bleu "
-                "ont été pré-remplies automatiquement avec les données client."
+                "Vérifiez et complétez les informations ci-dessous. Les variables pré-remplies "
+                "sont affichées en haut (surlignées en bleu) et celles à compléter sont en bas."
             )
             description_label = ctk.CTkLabel(
                 header_text_frame,
@@ -2334,78 +2480,61 @@ class DocumentCreatorView:
                 # Afficher les variables
                 self.variable_entries = {}
                 
-                # Organiser les variables en catégories
-                categories = {
-                    "Client": [],
-                    "Document": [],
-                    "Autres": []
-                }
+                # Séparer les variables auto-détectées de celles à remplir
+                auto_detected_vars = []
+                to_fill_vars = []
                 
-                # Trier les variables en catégories
+                # Trier les variables 
                 for var_name, var_info in self.document_data['variables'].items():
-                    if var_name.lower().startswith(('client', 'cli_', 'cl_')):
-                        categories["Client"].append((var_name, var_info))
-                    elif var_name.lower().startswith(('doc', 'document', 'contrat')):
-                        categories["Document"].append((var_name, var_info))
-                    else:
-                        categories["Autres"].append((var_name, var_info))
-                
-                # Afficher les variables par catégorie
-                for category_name, category_vars in categories.items():
-                    if not category_vars:
-                        continue  # Ignorer les catégories vides
+                    is_auto_detected = False
+                    if isinstance(var_info, dict):
+                        is_auto_detected = var_info.get('auto_detected', False)
                     
-                    # En-tête de catégorie
-                    category_frame = ctk.CTkFrame(
+                    if is_auto_detected:
+                        auto_detected_vars.append((var_name, var_info))
+                    else:
+                        to_fill_vars.append((var_name, var_info))
+                
+                # Trier les variables par ordre alphabétique dans chaque groupe
+                auto_detected_vars.sort(key=lambda x: x[0].lower())
+                to_fill_vars.sort(key=lambda x: x[0].lower())
+                
+                # Afficher d'abord les variables auto-détectées si elles existent
+                if auto_detected_vars:
+                    # En-tête pour les variables auto-détectées
+                    auto_detected_header = ctk.CTkFrame(
                         variables_container,
                         fg_color=theme_colors['heading_bg'],
                         corner_radius=10,
                         height=30
                     )
-                    category_frame.pack(fill="x", padx=10, pady=(15, 5))
-                    category_frame.pack_propagate(False)
+                    auto_detected_header.pack(fill="x", padx=10, pady=(15, 5))
+                    auto_detected_header.pack_propagate(False)
                     
-                    category_label = ctk.CTkLabel(
-                        category_frame,
-                        text=category_name,
+                    auto_detected_label = ctk.CTkLabel(
+                        auto_detected_header,
+                        text="Variables pré-remplies",
                         font=("", 14, "bold")
                     )
-                    category_label.pack(side="left", padx=15, pady=5)
+                    auto_detected_label.pack(side="left", padx=15, pady=5)
                     
-                    # Créer un cadre pour contenir les variables de cette catégorie
-                    vars_frame = ctk.CTkFrame(
-                        variables_container,
-                        fg_color="transparent"
-                    )
-                    vars_frame.pack(fill="x", padx=10, pady=5)
-                    
-                    # Afficher chaque variable de la catégorie
-                    for var_name, var_info in category_vars:
-                        # Déterminer la valeur actuelle et si elle a été détectée automatiquement
+                    # Afficher les variables auto-détectées
+                    for var_name, var_info in auto_detected_vars:
                         current_value = ""
-                        is_auto_detected = False
-                        
                         if isinstance(var_info, dict):
                             current_value = var_info.get('current_value', '')
-                            is_auto_detected = var_info.get('auto_detected', False)
                         else:
                             current_value = str(var_info)
                         
-                        # Déterminer la couleur d'arrière-plan en fonction du statut
-                        bg_color = theme_colors['field_bg']
-                        border_color = theme_colors['field_border']
-                        if is_auto_detected:
-                            bg_color = theme_colors['auto_detected_bg']
-                        
-                        # Créer un cadre pour cette variable
+                        # Créer un cadre pour cette variable avec un fond bleu
                         var_frame = ctk.CTkFrame(
-                            vars_frame,
-                            fg_color=bg_color,
+                            variables_container,
+                            fg_color=theme_colors['auto_detected_bg'],
                             corner_radius=8,
                             border_width=1,
-                            border_color=border_color
+                            border_color=theme_colors['field_border']
                         )
-                        var_frame.pack(fill="x", pady=5, ipady=5)
+                        var_frame.pack(fill="x", pady=5, ipady=5, padx=10)
                         
                         # Conteneur pour le nom et la valeur
                         content_frame = ctk.CTkFrame(var_frame, fg_color="transparent")
@@ -2414,10 +2543,9 @@ class DocumentCreatorView:
                         content_frame.grid_columnconfigure(1, weight=3)
                         
                         # Étiquette pour le nom de la variable
-                        var_label_text = var_name
                         var_label = ctk.CTkLabel(
                             content_frame,
-                            text=var_label_text,
+                            text=var_name,
                             font=("", 13, "bold"),
                             wraplength=250,
                             justify="left"
@@ -2433,15 +2561,92 @@ class DocumentCreatorView:
                         )
                         var_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
                         
-                        # Ajouter un indicateur pour les variables auto-détectées
-                        if is_auto_detected:
-                            auto_label = ctk.CTkLabel(
-                                content_frame,
-                                text="Auto-détecté",
-                                font=("", 10),
-                                text_color=("gray60", "gray70")
-                            )
-                            auto_label.grid(row=1, column=0, sticky="w", padx=(5, 15))
+                        # Ajouter un indicateur auto-détecté
+                        auto_label = ctk.CTkLabel(
+                            content_frame,
+                            text="Auto-détecté",
+                            font=("", 10),
+                            text_color=("gray60", "gray70")
+                        )
+                        auto_label.grid(row=1, column=0, sticky="w", padx=(5, 15))
+                        
+                        # Mettre la valeur actuelle dans le champ
+                        if current_value:
+                            var_entry.insert(0, current_value)
+                        
+                        # Stocker l'entrée pour pouvoir récupérer la valeur plus tard
+                        self.variable_entries[var_name] = var_entry
+                
+                # Ajouter un séparateur si les deux types de variables sont présents
+                if auto_detected_vars and to_fill_vars:
+                    separator = ctk.CTkFrame(
+                        variables_container,
+                        height=2,
+                        fg_color=theme_colors['separator']
+                    )
+                    separator.pack(fill="x", padx=20, pady=15)
+                
+                # Afficher ensuite les variables à remplir
+                if to_fill_vars:
+                    # En-tête pour les variables à remplir
+                    to_fill_header = ctk.CTkFrame(
+                        variables_container,
+                        fg_color=theme_colors['heading_bg'],
+                        corner_radius=10,
+                        height=30
+                    )
+                    to_fill_header.pack(fill="x", padx=10, pady=(15 if not auto_detected_vars else 5, 5))
+                    to_fill_header.pack_propagate(False)
+                    
+                    to_fill_label = ctk.CTkLabel(
+                        to_fill_header,
+                        text="Variables à compléter",
+                        font=("", 14, "bold")
+                    )
+                    to_fill_label.pack(side="left", padx=15, pady=5)
+                    
+                    # Afficher les variables à remplir
+                    for var_name, var_info in to_fill_vars:
+                        current_value = ""
+                        if isinstance(var_info, dict):
+                            current_value = var_info.get('current_value', '')
+                        else:
+                            current_value = str(var_info)
+                        
+                        # Créer un cadre pour cette variable
+                        var_frame = ctk.CTkFrame(
+                            variables_container,
+                            fg_color=theme_colors['field_bg'],
+                            corner_radius=8,
+                            border_width=1,
+                            border_color=theme_colors['field_border']
+                        )
+                        var_frame.pack(fill="x", pady=5, ipady=5, padx=10)
+                        
+                        # Conteneur pour le nom et la valeur
+                        content_frame = ctk.CTkFrame(var_frame, fg_color="transparent")
+                        content_frame.pack(fill="x", padx=10, pady=5)
+                        content_frame.grid_columnconfigure(0, weight=2)
+                        content_frame.grid_columnconfigure(1, weight=3)
+                        
+                        # Étiquette pour le nom de la variable
+                        var_label = ctk.CTkLabel(
+                            content_frame,
+                            text=var_name,
+                            font=("", 13, "bold"),
+                            wraplength=250,
+                            justify="left"
+                        )
+                        var_label.grid(row=0, column=0, sticky="w", padx=(5, 15), pady=5)
+                        
+                        # Champ de saisie pour la valeur
+                        var_entry = ctk.CTkEntry(
+                            content_frame,
+                            width=300,
+                            height=35,
+                            placeholder_text="Entrez une valeur"
+                        )
+                        var_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
                         
                         # Mettre la valeur actuelle dans le champ
                         if current_value:
@@ -2601,158 +2806,158 @@ class DocumentCreatorView:
                 # Format {{variable}} (double accolades)
                 final_content = final_content.replace(f"{{{{{var_name}}}}}", str(var_value))
             
-            # Tenter d'abord de créer un fichier DOCX puis de le convertir en PDF pour une meilleure compatibilité
+            # Tenter d'abord de générer directement un PDF avec FPDF, plus fiable
             try:
-                # Créer un document Word
-                from docx import Document
-                from docx.shared import Pt, Inches
+                from fpdf import FPDF
                 
-                # Créer un nouveau document
-                doc = Document()
+                class PDF(FPDF):
+                    def header(self):
+                        pass
+                        
+                    def footer(self):
+                        self.set_y(-15)
+                        self.set_font('Arial', 'I', 8)
+                        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
                 
-                # Définir les marges du document (en pouces)
-                sections = doc.sections
-                for section in sections:
-                    section.top_margin = Inches(1)
-                    section.bottom_margin = Inches(1)
-                    section.left_margin = Inches(1)
-                    section.right_margin = Inches(1)
+                # Créer un document PDF
+                pdf = PDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                pdf.set_font('Arial', '', 11)
                 
-                # Parcourir chaque ligne du contenu
+                # Ajouter les lignes du document
                 for line in final_content.split('\n'):
-                    if not line.strip():
+                    if line.strip():
+                        if line.strip().startswith('#'):
+                            # Titre
+                            clean_line = line.strip().replace('#', '').strip()
+                            pdf.set_font('Arial', 'B', 16)
+                            pdf.cell(0, 10, txt=clean_line, ln=True)
+                            pdf.set_font('Arial', '', 11)
+                        else:
+                            # Texte normal - utiliser multi_cell pour le retour à la ligne automatique
+                            pdf.multi_cell(0, 5, txt=line)
+                    else:
                         # Ligne vide
-                        doc.add_paragraph()
-                    elif line.strip().startswith('#'):
-                        # Titre
-                        level = line.count('#', 0, 3)  # Compter les # au début (max 3)
-                        clean_line = line.strip().replace('#', '').strip()
-                        
-                        if level == 1:
-                            # Titre principal
-                            heading = doc.add_heading(clean_line, level=1)
-                        elif level == 2:
-                            # Sous-titre
-                            heading = doc.add_heading(clean_line, level=2)
-                        else:
-                            # Autre niveau de titre
-                            heading = doc.add_paragraph(clean_line)
-                            heading.style = 'Heading3'
-                    else:
-                        # Texte normal
-                        p = doc.add_paragraph(line)
+                        pdf.ln(5)
                 
-                # Sauvegarder le document Word
-                doc.save(docx_path)
-                logger.info(f"Document Word créé avec succès: {docx_path}")
+                # Sauvegarder le PDF
+                pdf.output(pdf_path)
                 
-                # Convertir DOCX en PDF
-                try:
-                    # Essayer d'utiliser docx2pdf
-                    from docx2pdf import convert
-                    convert(docx_path, pdf_path)
-                    logger.info(f"Document PDF généré avec succès via docx2pdf: {pdf_path}")
-                except ImportError:
-                    logger.warning("docx2pdf non disponible, tentative de conversion alternative")
-                    
-                    try:
-                        # Alternative : utiliser un module de génération PDF direct
-                        from fpdf import FPDF
-                        
-                        pdf = FPDF()
-                        pdf.add_page()
-                        pdf.set_auto_page_break(auto=True, margin=15)
-                        
-                        # Police par défaut
-                        pdf.set_font("Arial", size=11)
-                        
-                        # Traiter chaque ligne du contenu
-                        for line in final_content.split('\n'):
-                            if line.strip():
-                                if line.strip().startswith('#'):
-                                    # Titre
-                                    clean_line = line.strip().replace('#', '').strip()
-                                    pdf.set_font("Arial", 'B', 16)
-                                    pdf.cell(0, 10, txt=clean_line, ln=True)
-                                    pdf.set_font("Arial", size=11)
-                                else:
-                                    # Texte normal
-                                    pdf.multi_cell(0, 5, txt=line)
-                            else:
-                                # Ligne vide
-                                pdf.ln(5)
-                        
-                        # Sauvegarder le PDF
-                        pdf.output(pdf_path)
-                        logger.info(f"Document PDF généré avec succès via FPDF: {pdf_path}")
-                    except Exception as e:
-                        logger.error(f"Erreur FPDF: {e}")
-                        raise e
-                
-                # Vérifier que le PDF a été généré
                 if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    logger.info(f"Document PDF généré avec succès via FPDF: {pdf_path}")
                     self.generated_document_path = pdf_path
-                else:
-                    # Si le PDF n'a pas été généré correctement, utiliser le fichier DOCX
-                    self.generated_document_path = docx_path
-                    logger.warning(f"Utilisation du fichier DOCX comme solution de repli: {docx_path}")
-                
-            except ImportError as import_error:
-                logger.warning(f"Bibliothèque docx non disponible: {import_error}")
-                
-                # Alternative : essayer de générer directement un PDF
-                try:
-                    from fpdf import FPDF
                     
-                    class PDF(FPDF):
-                        def header(self):
-                            pass
+                    # Créer également une version DOCX pour les utilisateurs qui préfèrent Word
+                    # mais nous utilisons le PDF comme document principal
+                    try:
+                        from docx import Document
+                        from docx.shared import Pt, Inches
                         
-                        def footer(self):
-                            self.set_y(-15)
-                            self.set_font('Arial', 'I', 8)
-                            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-                    
-                    # Créer un document PDF
-                    pdf = PDF()
-                    pdf.add_page()
-                    pdf.set_auto_page_break(auto=True, margin=15)
-                    pdf.set_font('Arial', '', 11)
-                    
-                    # Ajouter les lignes du document
-                    for line in final_content.split('\n'):
-                        if line.strip():
-                            if line.strip().startswith('#'):
+                        # Créer un nouveau document
+                        doc = Document()
+                        
+                        # Définir les marges du document (en pouces)
+                        sections = doc.sections
+                        for section in sections:
+                            section.top_margin = Inches(1)
+                            section.bottom_margin = Inches(1)
+                            section.left_margin = Inches(1)
+                            section.right_margin = Inches(1)
+                        
+                        # Parcourir chaque ligne du contenu
+                        for line in final_content.split('\n'):
+                            if not line.strip():
+                                # Ligne vide
+                                doc.add_paragraph()
+                            elif line.strip().startswith('#'):
                                 # Titre
+                                level = line.count('#', 0, 3)  # Compter les # au début (max 3)
                                 clean_line = line.strip().replace('#', '').strip()
-                                pdf.set_font('Arial', 'B', 16)
-                                pdf.cell(0, 10, txt=clean_line, ln=True)
-                                pdf.set_font('Arial', '', 11)
+                                
+                                if level == 1:
+                                    # Titre principal
+                                    heading = doc.add_heading(clean_line, level=1)
+                                elif level == 2:
+                                    # Sous-titre
+                                    heading = doc.add_heading(clean_line, level=2)
+                                else:
+                                    # Autre niveau de titre
+                                    heading = doc.add_paragraph(clean_line)
+                                    heading.style = 'Heading3'
                             else:
-                                # Texte normal - utiliser multi_cell pour le retour à la ligne automatique
-                                pdf.multi_cell(0, 5, txt=line)
-                        else:
-                            # Ligne vide
-                            pdf.ln(5)
-                    
-                    # Sauvegarder le PDF
-                    pdf.output(pdf_path)
-                    
-                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                        logger.info(f"Document PDF généré avec succès via FPDF: {pdf_path}")
-                        self.generated_document_path = pdf_path
-                    else:
-                        raise Exception("Le fichier PDF généré est vide ou n'a pas été créé.")
+                                # Texte normal
+                                p = doc.add_paragraph(line)
                         
-                except Exception as pdf_error:
-                    logger.error(f"Erreur lors de la génération du PDF: {pdf_error}")
+                        # Sauvegarder le document Word comme option alternative
+                        doc.save(docx_path)
+                        logger.info(f"Document Word créé avec succès: {docx_path}")
+                    except Exception as docx_error:
+                        logger.warning(f"Impossible de créer la version DOCX: {docx_error}")
+                else:
+                    raise Exception("Le fichier PDF généré est vide ou n'a pas été créé.")
+                    
+            except Exception as pdf_error:
+                logger.error(f"Erreur lors de la génération du PDF: {pdf_error}")
+                
+                # En cas d'échec de FPDF, essayer la génération directe DOCX
+                try:
+                    from docx import Document
+                    from docx.shared import Pt, Inches
+                    
+                    # Créer un nouveau document
+                    doc = Document()
+                    
+                    # Définir les marges du document (en pouces)
+                    sections = doc.sections
+                    for section in sections:
+                        section.top_margin = Inches(1)
+                        section.bottom_margin = Inches(1)
+                        section.left_margin = Inches(1)
+                        section.right_margin = Inches(1)
+                    
+                    # Parcourir chaque ligne du contenu
+                    for line in final_content.split('\n'):
+                        if not line.strip():
+                            # Ligne vide
+                            doc.add_paragraph()
+                        elif line.strip().startswith('#'):
+                            # Titre
+                            level = line.count('#', 0, 3)  # Compter les # au début (max 3)
+                            clean_line = line.strip().replace('#', '').strip()
+                            
+                            if level == 1:
+                                # Titre principal
+                                heading = doc.add_heading(clean_line, level=1)
+                            elif level == 2:
+                                # Sous-titre
+                                heading = doc.add_heading(clean_line, level=2)
+                            else:
+                                # Autre niveau de titre
+                                heading = doc.add_paragraph(clean_line)
+                                heading.style = 'Heading3'
+                        else:
+                            # Texte normal
+                            p = doc.add_paragraph(line)
+                    
+                    # Sauvegarder le document Word
+                    doc.save(docx_path)
+                    logger.info(f"Document Word créé avec succès: {docx_path}")
+                    self.generated_document_path = docx_path
+                    
+                except Exception as docx_error:
+                    logger.error(f"Erreur lors de la création du document Word: {docx_error}")
                     
                     # En dernier recours, créer un fichier texte
-                    with open(txt_path, 'w', encoding='utf-8') as f:
-                        f.write(final_content)
-                    
-                    logger.info(f"Document texte créé comme solution de repli: {txt_path}")
-                    self.generated_document_path = txt_path
+                    try:
+                        with open(txt_path, 'w', encoding='utf-8') as f:
+                            f.write(final_content)
+                        
+                        logger.info(f"Document texte créé comme solution de repli: {txt_path}")
+                        self.generated_document_path = txt_path
+                    except Exception as txt_error:
+                        logger.error(f"Erreur lors de la création du fichier texte: {txt_error}")
+                        raise Exception(f"Impossible de générer le document dans aucun format.")
             
             # Enregistrer les informations du document dans la base de données
             document_info = {
@@ -2780,76 +2985,251 @@ class DocumentCreatorView:
         """
         try:
             # Nettoyer la zone de contenu
-            for widget in self.content_frame.winfo_children():
-                widget.destroy()
+            self._clear_content_frame()
                 
-            # Créer un cadre conteneur pour centrer le contenu
-            container = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-            container.pack(fill="both", expand=True, padx=20, pady=20)
+            # Mettre à jour la barre de progression
+            self.update_navigation()
             
-            # Titre
-            title = ctk.CTkLabel(
-                container,
+            # Configuration du titre
+            title_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            title_frame.pack(fill="x", padx=20, pady=(20, 10), anchor="n")
+            
+            title_label = ctk.CTkLabel(
+                title_frame,
                 text="Finalisation du document",
                 font=("", 24, "bold")
             )
-            title.pack(pady=(0, 20))
+            title_label.pack(side="left", pady=10)
             
-            # Message de confirmation
-            success_frame = ctk.CTkFrame(container, fg_color=("green", "#005000"))
-            success_frame.pack(fill="x", padx=20, pady=10)
+            # Définir des couleurs de thème par défaut si self.model.theme_colors n'existe pas
+            theme_colors = {
+                'frame_secondary_bg': ("gray90", "gray20"),
+                'separator': ("gray75", "gray35"),
+                'text_muted': ("gray50", "gray70"),
+                'auto_detected_bg': ("#e6f7ff", "#1a3c4d"),
+                'heading_bg': ("#f0f0f0", "#2d2d2d"),
+                'field_bg': ("#ffffff", "#333333"),
+                'field_border': ("#e0e0e0", "#555555"),
+                'success_bg': ("#e6ffe6", "#1a4d1a")
+            }
             
-            success_label = ctk.CTkLabel(
-                success_frame,
-                text="Document prêt à être utilisé !",
-                font=("", 16, "bold"),
-                text_color="white"
+            # Utilisez les couleurs du modèle si disponibles
+            if hasattr(self.model, 'theme_colors'):
+                theme_colors = self.model.theme_colors
+            
+            # Cadre principal de finalisation
+            finalization_frame = ctk.CTkFrame(self.content_frame)
+            finalization_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            
+            # Créer un en-tête explicatif avec icône
+            header_frame = ctk.CTkFrame(
+                finalization_frame,
+                fg_color=theme_colors['success_bg'],
+                corner_radius=10,
+                height=80
             )
-            success_label.pack(pady=10)
+            header_frame.pack(fill="x", padx=20, pady=(20, 15))
+            header_frame.pack_propagate(False)
             
-            # Options de finalisation
-            options_frame = ctk.CTkFrame(container)
-            options_frame.pack(fill="x", padx=20, pady=20)
-            
-            # Bouton pour télécharger le document
-            download_button = ctk.CTkButton(
-                options_frame,
-                text="Télécharger le document",
-                font=("", 14),
-                height=40,
-                command=self._download_document
+            # Icône de succès
+            success_icon = "✓"
+            icon_label = ctk.CTkLabel(
+                header_frame,
+                text=success_icon,
+                font=("", 32, "bold")
             )
-            download_button.pack(fill="x", pady=10)
+            icon_label.pack(side="left", padx=(15, 0))
             
-            # Bouton pour visualiser le document
-            view_button = ctk.CTkButton(
-                options_frame,
-                text="Visualiser le document",
-                font=("", 14),
-                height=40,
-                command=self._view_document
+            # Cadre pour le texte
+            header_text_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+            header_text_frame.pack(side="left", fill="both", expand=True, padx=15, pady=10)
+            
+            # Titre de succès
+            header_title = ctk.CTkLabel(
+                header_text_frame,
+                text="Document généré avec succès !",
+                font=("", 18, "bold"),
+                anchor="w"
             )
-            view_button.pack(fill="x", pady=10)
+            header_title.pack(anchor="w")
             
-            # Bouton pour envoyer par email
-            email_button = ctk.CTkButton(
-                options_frame,
-                text="Envoyer par email",
-                font=("", 14),
-                height=40,
-                command=self._send_email
+            # Description
+            description_text = (
+                "Votre document est prêt. Vous pouvez maintenant le télécharger, l'envoyer par email "
+                "ou le consulter directement."
             )
-            email_button.pack(fill="x", pady=10)
+            description_label = ctk.CTkLabel(
+                header_text_frame,
+                text=description_text,
+                font=("", 12),
+                wraplength=700,
+                justify="left",
+                anchor="w"
+            )
+            description_label.pack(anchor="w", fill="x", pady=(5, 0))
             
-            # Bouton pour revenir à l'accueil
-            home_button = ctk.CTkButton(
+            # Cadre pour les options de finalisation
+            options_frame = ctk.CTkFrame(
+                finalization_frame,
+                fg_color=theme_colors['field_bg'],
+                corner_radius=10,
+                border_width=1,
+                border_color=theme_colors['field_border']
+            )
+            options_frame.pack(fill="x", padx=20, pady=(20, 10))
+            
+            # Titre des options
+            options_title = ctk.CTkLabel(
                 options_frame,
-                text="Retour à l'accueil",
-                font=("", 14),
+                text="Que souhaitez-vous faire avec votre document ?",
+                font=("", 16, "bold")
+            )
+            options_title.pack(anchor="w", padx=20, pady=(15, 20))
+            
+            # Grille pour les boutons d'action
+            buttons_grid = ctk.CTkFrame(options_frame, fg_color="transparent")
+            buttons_grid.pack(fill="x", padx=20, pady=(0, 20))
+            buttons_grid.columnconfigure(0, weight=1)
+            buttons_grid.columnconfigure(1, weight=1)
+            buttons_grid.columnconfigure(2, weight=1)
+            
+            # Fonction pour créer un bouton d'action avec icône
+            def create_action_button(parent, icon, text, command, row, column):
+                button_frame = ctk.CTkFrame(parent, fg_color="transparent")
+                button_frame.grid(row=row, column=column, padx=10, pady=10, sticky="nsew")
+                
+                # Bouton principal
+                button = ctk.CTkButton(
+                    button_frame,
+                    text="",
+                    width=80,
+                    height=80,
+                    command=command,
+                    corner_radius=10
+                )
+                button.pack(anchor="center", pady=(0, 10))
+                
+                # Icône sur le bouton
+                icon_label = ctk.CTkLabel(
+                    button,
+                    text=icon,
+                    font=("", 36)
+                )
+                icon_label.place(relx=0.5, rely=0.4, anchor="center")
+                
+                # Texte descriptif sous le bouton
+                text_label = ctk.CTkLabel(
+                    button_frame,
+                    text=text,
+                    font=("", 12),
+                    wraplength=120,
+                    justify="center"
+                )
+                text_label.pack(pady=(0, 5))
+                
+                return button
+            
+            # Bouton de téléchargement
+            download_button = create_action_button(
+                buttons_grid,
+                "⬇️",
+                "Télécharger",
+                self._download_document,
+                0, 0
+            )
+            
+            # Bouton de visualisation
+            view_button = create_action_button(
+                buttons_grid,
+                "👁️",
+                "Visualiser",
+                self._view_document,
+                0, 1
+            )
+            
+            # Bouton d'envoi par email
+            email_button = create_action_button(
+                buttons_grid,
+                "✉️",
+                "Envoyer par email",
+                self._send_email,
+                0, 2
+            )
+            
+            # Afficher le chemin du fichier généré si disponible
+            if hasattr(self, 'generated_document_path') and self.generated_document_path:
+                file_frame = ctk.CTkFrame(
+                    finalization_frame,
+                    fg_color=theme_colors['field_bg'],
+                    corner_radius=10,
+                    border_width=1,
+                    border_color=theme_colors['field_border']
+                )
+                file_frame.pack(fill="x", padx=20, pady=10)
+                
+                file_title = ctk.CTkLabel(
+                    file_frame,
+                    text="Informations sur le fichier",
+                    font=("", 16, "bold")
+                )
+                file_title.pack(anchor="w", padx=20, pady=(15, 10))
+                
+                file_path_frame = ctk.CTkFrame(file_frame, fg_color="transparent")
+                file_path_frame.pack(fill="x", padx=20, pady=(0, 15))
+                
+                # Chemin du fichier
+                path_label = ctk.CTkLabel(
+                    file_path_frame,
+                    text="Emplacement :",
+                    font=("", 12, "bold"),
+                    anchor="w",
+                    width=100
+                )
+                path_label.pack(side="left", padx=(0, 10))
+                
+                # Tronquer le chemin s'il est trop long
+                display_path = self.generated_document_path
+                if len(display_path) > 50:
+                    parts = os.path.split(display_path)
+                    display_path = os.path.join('...', parts[1])
+                
+                path_value = ctk.CTkLabel(
+                    file_path_frame,
+                    text=display_path,
+                    font=("", 12),
+                    anchor="w"
+                )
+                path_value.pack(side="left", fill="x", expand=True)
+            
+            # Boutons de navigation
+            nav_buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+            nav_buttons_frame.pack(fill="x", padx=20, pady=(10, 20))
+            
+            # Bouton pour créer un nouveau document
+            new_doc_button = ctk.CTkButton(
+                nav_buttons_frame,
+                text="Créer un nouveau document",
+                width=200,
                 height=40,
+                font=("", 14, "bold"),
                 command=self.reset_process
             )
-            home_button.pack(fill="x", pady=10)
+            new_doc_button.pack(side="right", padx=10, pady=10)
+            
+            # Bouton pour revenir au tableau de bord
+            dashboard_button = ctk.CTkButton(
+                nav_buttons_frame,
+                text="Retour au tableau de bord",
+                width=200,
+                height=40,
+                fg_color=("gray70", "gray30"),
+                hover_color=("gray60", "gray40"),
+                command=lambda: self.parent.winfo_toplevel().show_view("dashboard")
+            )
+            dashboard_button.pack(side="left", padx=10, pady=10)
+            
+            # Mettre à jour l'étape actuelle
+            self.current_step = 5
             
             logger.info("Affichage de l'étape de finalisation")
             

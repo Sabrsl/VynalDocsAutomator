@@ -12,6 +12,7 @@ import logging
 import shutil
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Union
+import time
 
 logger = logging.getLogger("VynalDocsAutomator.ConfigManager")
 
@@ -470,3 +471,86 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Erreur lors de l'exportation de la configuration: {e}")
             return False
+    
+    def get_config(self) -> Dict[str, Any]:
+        """
+        Récupère la configuration actuelle
+        
+        Returns:
+            Dict contenant la configuration
+        """
+        default_config = {
+            "app": {
+                "theme": "light",
+                "language": "fr",
+                "auto_save": True,
+                "auto_backup": True,
+                "backup_interval": 600,  # 10 minutes
+                "show_tooltips": True,
+                "confirm_exit": True,
+                "max_recent_files": 10,
+                "default_save_location": "",
+                "check_updates": True
+            },
+            "clients": {
+                "auto_load": True,
+                "save_on_exit": True,
+                "data_file": "clients.json"
+            },
+            "documents": {
+                "templates_folder": "templates",
+                "output_folder": "documents_generated",
+                "default_document_format": "docx",
+                "enable_pdf_export": True,
+                "paper_size": "A4",
+                "fast_analysis": True,  # Option pour l'analyse rapide
+                "max_analysis_time": 20,  # Temps maximum d'analyse en secondes
+                "auto_detect_variables": True,
+                "show_document_preview": True,
+                "default_document_locale": "fr_FR"
+            },
+            "ai": {
+                "enabled": True,
+                "model": "llama3",
+                "api_key": "",
+                "server_url": "http://localhost:11434/api",
+                "temperature": 0.1,
+                "max_tokens": 1024,
+                "timeout": 20,
+                "context_window": 2048,
+                "top_p": 0.85,
+                "frequency_penalty": 0.1
+            },
+            "advanced": {
+                "debug_mode": False,
+                "log_level": "INFO",
+                "performance_mode": False,
+                "cache_enabled": True,
+                "cache_size_limit": 100,  # MB
+                "concurrent_tasks": 2
+            }
+        }
+        
+        # Fusionner avec la configuration sauvegardée
+        config = default_config.copy()
+        
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    saved_config = json.load(f)
+                
+                # Mise à jour récursive
+                self._update_dict_recursive(config, saved_config)
+                
+        except Exception as e:
+            logging.error(f"Erreur lors du chargement de la configuration: {e}")
+            # Créer une sauvegarde du fichier corrompu
+            if os.path.exists(self.config_file):
+                corrupted = f"{self.config_file}.corrupted.{int(time.time())}"
+                try:
+                    os.rename(self.config_file, corrupted)
+                    logging.warning(f"Fichier de configuration corrompu sauvegardé sous {corrupted}")
+                except:
+                    pass
+        
+        return config

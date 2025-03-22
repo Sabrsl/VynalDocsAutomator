@@ -1038,13 +1038,13 @@ class TemplateView:
 
     def show_import_dialog(self):
         """
-        Affiche la boîte de dialogue d'importation de modèle
+        Affiche la boîte de dialogue d'importation de modèle avec analyse de document
         """
         # Créer une fenêtre de dialogue
         dialog = ctk.CTkToplevel(self.parent)
-        dialog.title("Importer un modèle")
-        dialog.geometry("500x300")
-        dialog.resizable(False, False)
+        dialog.title("Importer et analyser un modèle")
+        dialog.geometry("800x600")
+        dialog.resizable(True, True)
         dialog.transient(self.parent)
         dialog.grab_set()
         
@@ -1061,7 +1061,7 @@ class TemplateView:
         # Titre avec icône
         title_label = ctk.CTkLabel(
             main_frame,
-            text="📄 Importer un modèle",
+            text="📄 Importer et analyser un modèle",
             font=ctk.CTkFont(size=20, weight="bold")
         )
         title_label.pack(pady=(0, 20))
@@ -1069,8 +1069,8 @@ class TemplateView:
         # Message d'instructions
         message_label = ctk.CTkLabel(
             main_frame,
-            text="Sélectionnez un fichier de modèle à importer.\nFormats supportés : .docx, .txt",
-            wraplength=360
+            text="Sélectionnez un fichier à analyser et importer comme modèle.\nL'analyse permettra d'identifier les variables dans le document.",
+            wraplength=760
         )
         message_label.pack(pady=10)
         
@@ -1082,13 +1082,242 @@ class TemplateView:
         file_frame.pack(fill=ctk.X, pady=10)
         
         # Entry pour afficher le chemin du fichier
-        file_entry = ctk.CTkEntry(file_frame, textvariable=file_path_var, width=300)
+        file_entry = ctk.CTkEntry(file_frame, textvariable=file_path_var, width=500)
         file_entry.pack(side=ctk.LEFT, padx=(0, 10))
+        
+        # Zone de contenu pour les résultats d'analyse
+        content_frame = ctk.CTkFrame(main_frame)
+        content_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Message initial
+        info_label = ctk.CTkLabel(
+            content_frame,
+            text="Sélectionnez un fichier pour commencer l'analyse",
+            font=ctk.CTkFont(size=14)
+        )
+        info_label.pack(pady=40)
+        
+        # Zone de statut et de progression
+        status_frame = ctk.CTkFrame(main_frame)
+        status_frame.pack(fill=ctk.X, padx=10, pady=(10, 0))
+        
+        # Indicateur de chargement
+        spinner = None
+        try:
+            from utils.ui_components import LoadingSpinner
+            spinner = LoadingSpinner(status_frame, size=20)
+            spinner.pack(side=ctk.LEFT, padx=(10, 5), pady=5)
+            # Ne pas démarrer immédiatement
+            spinner.pack_forget()
+        except Exception as e:
+            logger.warning(f"Impossible de créer l'indicateur de chargement: {e}")
+        
+        # Étiquette de statut
+        status_label = ctk.CTkLabel(
+            status_frame,
+            text="En attente de sélection d'un fichier",
+            font=ctk.CTkFont(size=12)
+        )
+        status_label.pack(side=ctk.LEFT, padx=5, pady=5)
+        
+        # Boutons (initialement désactivés)
+        button_frame = ctk.CTkFrame(main_frame)
+        button_frame.pack(fill=ctk.X, padx=10, pady=10)
+        
+        # Bouton Annuler (toujours disponible)
+        ctk.CTkButton(
+            button_frame,
+            text="Annuler",
+            command=dialog.destroy
+        ).pack(side=ctk.RIGHT, padx=5)
+        
+        # Fonction pour importer le fichier après l'analyse
+        def import_file_with_analysis(analysis_results=None):
+            file_path = file_path_var.get()
+            if not file_path:
+                self.show_error("Veuillez sélectionner un fichier")
+                return
+            
+            try:
+                # Extraire l'extension pour déterminer le type de fichier
+                ext = os.path.splitext(file_path)[1].lower()
+                
+                # Créer les données de base du modèle
+                template_data = {
+                    "name": os.path.basename(os.path.splitext(file_path)[0]),
+                    "category": "Importé",
+                    "description": "Modèle importé et analysé"
+                }
+                
+                # Si des variables ont été détectées, les ajouter
+                if analysis_results and "variables" in analysis_results:
+                    variables = analysis_results["variables"]
+                    template_data["variables"] = list(variables.keys())
+                
+                # Importer en fonction du type de fichier
+                if ext == '.docx':
+                    result = self._import_docx(file_path, template_data)
+                elif ext == '.txt' or ext == '.odt' or ext == '.rtf':
+                    result = self._import_text(file_path, template_data)
+                elif ext == '.pdf':
+                    self.show_error("L'importation directe de fichiers PDF n'est pas prise en charge")
+                    return
+                else:
+                    self.show_error("Format de fichier non pris en charge")
+                    return
+                
+                if result:
+                    # Mettre à jour la vue
+                    self.update_view()
+                    dialog.destroy()
+                    self.show_success(f"Le modèle '{template_data['name']}' a été importé avec succès")
+            except Exception as e:
+                logger.error(f"Erreur lors de l'importation: {e}")
+                self.show_error(f"Erreur lors de l'importation: {e}")
+        
+        # Fonction pour analyser le fichier
+        def analyze_file(file_path):
+            if not file_path:
+                return
+            
+            # Vérifier que le fichier existe
+            if not os.path.exists(file_path):
+                self.show_error("Le fichier sélectionné n'existe pas")
+                return
+            
+            # Afficher l'indicateur de chargement
+            if spinner:
+                spinner.pack(side=ctk.LEFT, padx=(10, 5), pady=5)
+                spinner.start()
+            
+            # Mettre à jour le message et le statut
+            info_label.configure(text=f"Analyse de {os.path.basename(file_path)} en cours...\nCette opération peut prendre quelques instants.")
+            status_label.configure(text=f"Analyse de {os.path.basename(file_path)} en cours...")
+            
+            # Initialiser l'analyseur de documents si nécessaire
+            if not hasattr(self, "doc_analyzer"):
+                try:
+                    from doc_analyzer import DocumentAnalyzer
+                    self.doc_analyzer = DocumentAnalyzer()
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'initialisation de l'analyseur: {e}")
+                    self.doc_analyzer = None
+            
+            # Fonction pour afficher les résultats
+            def display_results(results):
+                # Supprimer le message de chargement
+                info_label.destroy()
+                
+                if spinner:
+                    spinner.stop()
+                    spinner.pack_forget()
+                
+                status_label.configure(text="Analyse terminée")
+                
+                # Créer une zone défilante pour les résultats
+                results_frame = ctk.CTkScrollableFrame(content_frame)
+                results_frame.pack(fill=ctk.BOTH, expand=True, padx=10, pady=10)
+                
+                # Afficher des informations générales sur le document
+                if "document_type" in results:
+                    ctk.CTkLabel(
+                        results_frame,
+                        text=f"Type de document: {results['document_type']}",
+                        font=ctk.CTkFont(size=14, weight="bold")
+                    ).pack(anchor="w", pady=(5, 2))
+                
+                # Afficher les variables trouvées
+                if "variables" in results and results["variables"]:
+                    variables = results["variables"]
+                    ctk.CTkLabel(
+                        results_frame,
+                        text="Variables détectées:",
+                        font=ctk.CTkFont(size=14, weight="bold")
+                    ).pack(anchor="w", pady=(10, 5))
+                    
+                    for var_name, var_value in variables.items():
+                        var_frame = ctk.CTkFrame(results_frame)
+                        var_frame.pack(fill=ctk.X, padx=5, pady=2)
+                        
+                        ctk.CTkLabel(
+                            var_frame,
+                            text=f"{var_name}:",
+                            font=ctk.CTkFont(size=12, weight="bold"),
+                            width=150
+                        ).pack(side=ctk.LEFT, padx=5, pady=2)
+                        
+                        ctk.CTkLabel(
+                            var_frame,
+                            text=str(var_value),
+                            font=ctk.CTkFont(size=12),
+                            anchor="w"
+                        ).pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=5, pady=2)
+                
+                # Activer le bouton
+                ctk.CTkButton(
+                    button_frame,
+                    text="Importer comme modèle",
+                    command=lambda: import_file_with_analysis(results)
+                ).pack(side=ctk.RIGHT, padx=5)
+            
+            # Fonction pour gérer l'échec de l'analyse
+            def handle_analysis_failure(error_msg):
+                if spinner:
+                    spinner.stop()
+                    spinner.pack_forget()
+                
+                info_label.destroy()
+                
+                # Afficher un message d'erreur
+                error_label = ctk.CTkLabel(
+                    content_frame,
+                    text=f"Impossible d'analyser le document:\n{error_msg}",
+                    font=ctk.CTkFont(size=14),
+                    text_color=("red", "#FF5555")
+                )
+                error_label.pack(pady=40)
+                
+                status_label.configure(text="Analyse échouée")
+                
+                # Activer le bouton
+                ctk.CTkButton(
+                    button_frame,
+                    text="Continuer sans analyse",
+                    command=lambda: import_file_with_analysis()
+                ).pack(side=ctk.RIGHT, padx=5)
+            
+            # Lancer l'analyse dans un thread séparé
+            import threading
+            
+            def analyze_thread():
+                try:
+                    if self.doc_analyzer:
+                        # Analyser le document
+                        results = self.doc_analyzer.analyze_document(file_path)
+                        
+                        if results:
+                            # Mettre à jour l'interface dans le thread principal
+                            dialog.after(0, lambda: display_results(results))
+                        else:
+                            dialog.after(0, lambda: handle_analysis_failure("Aucun résultat d'analyse obtenu"))
+                    else:
+                        dialog.after(0, lambda: handle_analysis_failure("Analyseur non disponible"))
+                except Exception as error:
+                    logger.error(f"Erreur lors de l'analyse du document {file_path}: {error}")
+                    dialog.after(0, lambda err=error: handle_analysis_failure(str(err)))
+            
+            # Lancer l'analyse
+            thread = threading.Thread(target=analyze_thread)
+            thread.daemon = True
+            thread.start()
         
         def browse_file():
             file_types = [
-                ('Fichiers Word', '*.docx'),
-                ('Fichiers texte', '*.txt'),
+                ('Documents', '*.pdf;*.docx;*.doc;*.txt;*.odt'),
+                ('PDF', '*.pdf'),
+                ('Word', '*.docx;*.doc'),
+                ('Texte', '*.txt'),
+                ('OpenDocument', '*.odt'),
                 ('Tous les fichiers', '*.*')
             ]
             file_path = filedialog.askopenfilename(
@@ -1098,6 +1327,9 @@ class TemplateView:
             )
             if file_path:
                 file_path_var.set(file_path)
+                
+                # Lancer automatiquement l'analyse quand un fichier est choisi
+                analyze_file(file_path)
         
         # Bouton Parcourir
         browse_button = ctk.CTkButton(
@@ -1108,160 +1340,116 @@ class TemplateView:
         )
         browse_button.pack(side=ctk.LEFT)
         
-        def import_file():
-            file_path = file_path_var.get()
-            if not file_path:
-                self.show_error("Veuillez sélectionner un fichier")
-                return
-            
-            if not os.path.exists(file_path):
-                self.show_error("Le fichier sélectionné n'existe pas")
-                return
-            
-            try:
-                # Importer le fichier selon son extension
-                ext = os.path.splitext(file_path)[1].lower()
-                
-                if ext == '.docx':
-                    success = self._import_docx(file_path)
-                elif ext == '.txt':
-                    success = self._import_text(file_path)
-                else:
-                    self.show_error("Format de fichier non supporté")
-                    return
-                
-                if success:
-                    self.show_success_toast("Modèle importé avec succès")
-                    dialog.destroy()
-                    self.update_view()
-                else:
-                    self.show_error("Erreur lors de l'importation du modèle")
-            
-            except Exception as e:
-                self.show_error(f"Erreur lors de l'importation : {str(e)}")
-        
-        # Frame pour les boutons
-        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        buttons_frame.pack(fill=ctk.X, pady=20)
-        
-        # Bouton Annuler
-        cancel_button = ctk.CTkButton(
-            buttons_frame,
-            text="Annuler",
-            width=100,
-            command=dialog.destroy
-        )
-        cancel_button.pack(side=ctk.RIGHT, padx=10)
-        
-        # Bouton Importer
-        import_button = ctk.CTkButton(
-            buttons_frame,
-            text="Importer",
-            width=100,
-            command=import_file
-        )
-        import_button.pack(side=ctk.RIGHT, padx=10)
-
-    def _import_docx(self, file_path):
-        """
-        Importe un fichier Word comme modèle
-        
-        Args:
-            file_path: Chemin du fichier à importer
-            
-        Returns:
-            bool: True si l'importation a réussi, False sinon
-        """
+    def _import_docx(self, file_path, template_data=None):
+        # Code d'importation de docx existant...
+        # à adapter pour utiliser template_data si fourni
         try:
             import docx
+            from docx.opc.exceptions import PackageNotFoundError
             
-            # Ouvrir le document Word
-            doc = docx.Document(file_path)
-            
-            # Extraire le texte
-            content = "\n\n".join([para.text for para in doc.paragraphs if para.text])
-            
-            # Extraire le nom du fichier sans extension pour le titre
-            file_name = os.path.basename(file_path)
-            name = os.path.splitext(file_name)[0]
-            
-            # Créer les données du modèle
-            template_data = {
-                "name": name,
-                "type": "autre",
-                "description": f"Modèle importé depuis {file_name}",
-                "content": content,
-                "variables": [],
-                "created_at": datetime.now().isoformat()
-            }
-            
-            # Créer une nouvelle instance du formulaire
-            TemplateFormView(
-                self.parent,
-                self.model,
-                template_data=template_data,
-                update_view_callback=self.update_view
-            )
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de l'import du fichier Word: {e}")
-            return False
-    
-    def _import_text(self, file_path):
-        """
-        Importe un fichier texte comme modèle
-        
-        Args:
-            file_path: Chemin du fichier à importer
-            
-        Returns:
-            bool: True si l'importation a réussi, False sinon
-        """
-        try:
-            # Déterminer l'encodage du fichier
-            encodings = ['utf-8', 'latin-1', 'cp1252']
-            content = None
-            
-            for encoding in encodings:
-                try:
-                    with open(file_path, 'r', encoding=encoding) as file:
-                        content = file.read()
-                        break
-                except UnicodeDecodeError:
-                    continue
-            
-            if content is None:
-                logger.error(f"Impossible de déterminer l'encodage du fichier: {file_path}")
+            # Convertir le fichier DOCX en données de modèle
+            try:
+                # Charger le document
+                doc = docx.Document(file_path)
+                
+                # Extraire le texte complet
+                full_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                
+                # Si aucune donnée de modèle n'est fournie, créer un dictionnaire de base
+                if template_data is None:
+                    template_data = {
+                        "name": os.path.basename(os.path.splitext(file_path)[0]),
+                        "category": "Importé",
+                        "description": "Modèle importé directement"
+                    }
+                
+                # Détecter les variables si elles ne sont pas déjà définies
+                if "variables" not in template_data:
+                    # Détecter les variables du type {nom_variable}
+                    import re
+                    variable_pattern = r"\{([a-zA-Z0-9_]+)\}"
+                    variables = re.findall(variable_pattern, full_text)
+                    
+                    # Détecter les variables du type {{nom_variable}}
+                    variable_pattern2 = r"\{\{([a-zA-Z0-9_]+)\}\}"
+                    variables2 = re.findall(variable_pattern2, full_text)
+                    
+                    # Fusionner les listes de variables
+                    all_variables = list(set(variables + variables2))
+                    
+                    if all_variables:
+                        template_data["variables"] = all_variables
+                
+                # Ajouter les données du document
+                template_data["content"] = full_text
+                
+                # Enregistrer le modèle dans la base de données
+                self.model.templates.add_template(template_data)
+                
+                return True
+            except PackageNotFoundError:
+                self.show_error("Le fichier n'est pas un document Word valide")
                 return False
+        except ImportError:
+            self.show_error("Module python-docx non disponible")
+            return False
+        except Exception as e:
+            logger.error(f"Erreur lors de l'importation du fichier DOCX: {e}")
+            self.show_error(f"Erreur lors de l'importation: {e}")
+            return False
+
+    def _import_text(self, file_path, template_data=None):
+        # Code d'importation de texte existant...
+        # à adapter pour utiliser template_data si fourni
+        try:
+            # Lire le fichier texte
+            import chardet
             
-            # Extraire le nom du fichier sans extension pour le titre
-            file_name = os.path.basename(file_path)
-            name = os.path.splitext(file_name)[0]
+            # Détecter l'encodage du fichier
+            with open(file_path, 'rb') as f:
+                raw_data = f.read()
+                detection = chardet.detect(raw_data)
+                encoding = detection['encoding']
             
-            # Créer les données du modèle
-            template_data = {
-                "name": name,
-                "type": "autre",
-                "description": f"Modèle importé depuis {file_name}",
-                "content": content,
-                "variables": [],
-                "created_at": datetime.now().isoformat()
-            }
+            # Lire le fichier avec l'encodage détecté
+            with open(file_path, 'r', encoding=encoding) as f:
+                content = f.read()
             
-            # Créer une nouvelle instance du formulaire
-            TemplateFormView(
-                self.parent,
-                self.model,
-                template_data=template_data,
-                update_view_callback=self.update_view
-            )
+            # Si aucune donnée de modèle n'est fournie, créer un dictionnaire de base
+            if template_data is None:
+                template_data = {
+                    "name": os.path.basename(os.path.splitext(file_path)[0]),
+                    "category": "Importé",
+                    "description": "Modèle importé directement"
+                }
+            
+            # Détecter les variables si elles ne sont pas déjà définies
+            if "variables" not in template_data:
+                # Détecter les variables du type {nom_variable}
+                import re
+                variable_pattern = r"\{([a-zA-Z0-9_]+)\}"
+                variables = re.findall(variable_pattern, content)
+                
+                # Détecter les variables du type {{nom_variable}}
+                variable_pattern2 = r"\{\{([a-zA-Z0-9_]+)\}\}"
+                variables2 = re.findall(variable_pattern2, content)
+                
+                # Fusionner les listes de variables
+                all_variables = list(set(variables + variables2))
+                
+                if all_variables:
+                    template_data["variables"] = all_variables
+            
+            # Ajouter les données du document
+            template_data["content"] = content
+            
+            # Enregistrer le modèle dans la base de données
+            self.model.templates.add_template(template_data)
             
             return True
-            
         except Exception as e:
-            logger.error(f"Erreur lors de l'import du fichier texte: {e}")
+            logger.error(f"Erreur lors de l'importation du fichier texte: {e}")
+            self.show_error(f"Erreur lors de l'importation: {e}")
             return False
 
 class TemplateFormView:

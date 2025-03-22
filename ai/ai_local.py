@@ -29,9 +29,17 @@ def ouvrir_formulaire_modele(contenu):
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "mistral",
+                "model": "llama3",
                 "prompt": f"Identifie les variables à compléter dans ce texte. Pour chaque variable, écris une ligne avec le format:\nVARIABLE: nom_variable | DESCRIPTION: description de la variable\n\nTexte:\n{contenu}\n\n---FIN---",
-                "stream": True
+                "stream": True,
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 0.85,
+                    "num_predict": 1024,
+                    "frequency_penalty": 0.1,
+                    "stop": ["\n\n\n", "###", "```"],
+                    "timeout": 20
+                }
             }
         )
 
@@ -93,27 +101,20 @@ def generer_document(prompt, callback=None):
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "mistral",
+                "model": "llama3",
                 "prompt": context,
                 "stream": True,
                 "options": {
-                    "temperature": 0.7,
+                    "temperature": 0.1,
                     "top_p": 0.85,
-                    "max_tokens": 300,
-                    "presence_penalty": 0.5,
-                    "frequency_penalty": 0.4,
-                    "stop": ["\n\n", "Assistant:", "Utilisateur:"],
-                    "repetition_penalty": 1.1,
-                    "num_predict": 50,
-                    "num_ctx": 1024,
+                    "num_predict": 1024,
+                    "frequency_penalty": 0.1,
+                    "stop": ["\n\n\n", "###", "```"],
+                    "timeout": 20,
+                    "num_ctx": 2048,
                     "num_thread": 6,
                     "num_gpu": 1,
-                    "num_batch": 2,
-                    "repeat_penalty": 1.1,
-                    "seed": -1,
-                    "top_k": 40,
-                    "tfs_z": 0.75,
-                    "num_keep": 10
+                    "repetition_penalty": 1.1
                 }
             },
             timeout=60,

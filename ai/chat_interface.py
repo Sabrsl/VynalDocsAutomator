@@ -25,6 +25,8 @@ class AIChatInterface:
         "text_secondary": "#A0AEC0", # Texte secondaire gris
         "welcome": "#A0AEC0",        # Gris pour messages d'accueil
         "success": "#68D391",        # Vert doux pour succès
+        "warning": "#F6AD55",        # Orange doux pour avertissements
+        "info": "#63B3ED",           # Bleu doux pour information
     }
     
     def __init__(self, parent):
@@ -36,7 +38,9 @@ class AIChatInterface:
         """
         self.parent = parent
         self.frame = tk.Frame(parent, bg=self.COLORS["background"])
-        self.ai = AIModel()
+        self.ai = None  # Initialisation différée
+        self.connection_attempts = 0
+        self.max_connection_attempts = 3
         
         # File d'attente pour la communication entre threads
         self.response_queue = queue.Queue()
@@ -49,6 +53,9 @@ class AIChatInterface:
         
         # Démarrer le vérificateur de file d'attente
         self.parent.after(100, self.check_queue)
+        
+        # Initialiser l'IA
+        self.initialize_ai()
         
         # Afficher un message de bienvenue
         self.display_welcome_message()
@@ -65,6 +72,19 @@ class AIChatInterface:
             style.theme_use("clam")  # Utiliser un thème moderne si disponible
         except tk.TclError:
             pass  # Ignorer si le thème n'est pas disponible
+        
+        # Initialiser les polices pour les messages
+        try:
+            self.message_font = font.Font(family="Segoe UI", size=11)
+            self.user_tag_font = font.Font(family="Segoe UI", size=11, weight="bold")
+            self.ai_tag_font = font.Font(family="Segoe UI", size=11, weight="bold")
+            self.system_font = font.Font(family="Segoe UI", size=10, slant="italic")
+        except:
+            # Fallback vers les polices système
+            self.message_font = font.Font(size=11)
+            self.user_tag_font = font.Font(size=11, weight="bold")
+            self.ai_tag_font = font.Font(size=11, weight="bold")
+            self.system_font = font.Font(size=10, slant="italic")
         
         # Style simple pour les boutons ttk
         style.configure(
@@ -93,12 +113,32 @@ class AIChatInterface:
             
         self.header_label = tk.Label(
             self.header_frame,
-            text="Assistant Documents",
+            text="Vynal•GPT",
             font=header_font,
             foreground=self.COLORS["text_primary"],
             background=self.COLORS["background"]
         )
         self.header_label.pack(side="left", pady=10)
+        
+        # Bouton de réinitialisation à côté du titre
+        self.reset_button = tk.Button(
+            self.header_frame,
+            text="🔄",  # Icône de rafraîchissement
+            command=self.reset_chat,
+            bg=self.COLORS["background"],
+            fg=self.COLORS["text_primary"],
+            relief="flat",
+            padx=5,
+            pady=0,
+            font=("Segoe UI", 14) if "Segoe UI" in font.families() else (None, 14),
+            cursor="hand2",  # Pointeur de type main
+            activebackground=self.COLORS["surface"],  # Couleur au survol
+            activeforeground=self.COLORS["text_primary"]  # Couleur du texte au survol
+        )
+        self.reset_button.pack(side="left", padx=(10, 0), pady=10)
+        
+        # Info-bulle pour le bouton de réinitialisation
+        self.create_tooltip(self.reset_button, "Réinitialiser la conversation")
         
         # Statut de l'IA avec design minimaliste
         self.status_frame = tk.Frame(self.header_frame, bg=self.COLORS["background"])
@@ -388,15 +428,26 @@ class AIChatInterface:
     def display_welcome_message(self):
         """Affiche un message de bienvenue pour expliquer les fonctionnalités"""
         welcome_message = """
+Je suis Vynal•GPT, votre assistant spécialisé en création et rédaction de documents professionnels.
+
 Je peux vous aider à :
 
-• 📄 Créer un nouveau document
-• 🧩 Utiliser un modèle existant
-• 📝 Remplir des modèles avec vos informations
+• 📝 Rédiger des documents complets (contrats, lettres, attestations, rapports...)
+• 📋 Structurer professionnellement vos contenus (titres, sections, articles)
+• ✏️ Améliorer vos textes existants (corrections, reformulations, optimisations)
+• 📊 Formater le contenu pour une lisibilité optimale
+• 🔍 Expliquer des termes juridiques, techniques ou administratifs
+• 📄 Personnaliser les documents avec vos informations spécifiques
 
-Pour commencer, demandez-moi simplement ce que vous souhaitez faire.
+Pour obtenir un document, précisez simplement :
+- Le type exact de document souhaité
+- Le contexte professionnel
+- Les informations essentielles à inclure
+- Toute exigence particulière de format ou de ton
+
+Comment puis-je vous assister aujourd'hui ?
 """
-        # Utiliser notre nouvelle méthode add_message
+        # Utiliser notre méthode add_message
         self.add_message(welcome_message, "welcome")
     
     def safe_insert_text(self, text, tag=None):
@@ -452,7 +503,7 @@ Pour commencer, demandez-moi simplement ce que vous souhaitez faire.
         # Si c'est un message de l'assistant
         elif sender == "assistant":
             self.chat_text.insert("end", "🤖 ", "assistant_icon")
-            self.chat_text.insert("end", "Assistant\n", "assistant_prefix")
+            self.chat_text.insert("end", "Vynal•GPT\n", "assistant_prefix")
             self.chat_text.insert("end", f"{message}", "assistant")
         
         # Si c'est un message d'erreur
@@ -462,7 +513,7 @@ Pour commencer, demandez-moi simplement ce que vous souhaitez faire.
         # Si c'est un message de bienvenue
         elif sender == "welcome":
             # Ajoute le titre de bienvenue
-            self.chat_text.insert("end", "Bienvenue dans l'Assistant Vynal!\n\n", "welcome_title")
+            self.chat_text.insert("end", "Bienvenue dans Vynal•GPT\n\n", "welcome_title")
             
             # Ajoute le message de bienvenue
             self.chat_text.insert("end", message, "welcome")
@@ -470,7 +521,7 @@ Pour commencer, demandez-moi simplement ce que vous souhaitez faire.
             # Ajoute une astuce
             self.chat_text.insert("end", "\n\n")
             self.chat_text.insert("end", "💡 ", "tip_badge")
-            self.chat_text.insert("end", "Astuce: Posez des questions sur vos fichiers ou demandez de l'aide pour naviguer dans l'application.", "tip")
+            self.chat_text.insert("end", "Astuce: Soyez précis et détaillé dans vos demandes pour obtenir un document parfaitement adapté à vos besoins professionnels. Plus votre requête est spécifique, meilleur sera le résultat.", "tip")
         
         # Défile vers le bas pour voir le dernier message
         self.chat_text.see("end")
@@ -546,145 +597,348 @@ Pour commencer, demandez-moi simplement ce que vous souhaitez faire.
             self.status_indicator.config(foreground=self.COLORS["secondary"])
             self.status_label.config(text="Prêt")
     
+    def initialize_ai(self):
+        """Initialise le modèle d'IA avec traitement des erreurs"""
+        try:
+            from ai import AIModel
+            self.ai = AIModel()
+            self.connection_attempts = 0
+            logging.info("Modèle AI initialisé avec succès")
+            
+            # Vérifier la connexion à l'API
+            self.display_status_message("Vérification de la connexion au modèle...")
+            self.parent.update_idletasks()
+            
+            # Test simple
+            test_result = self.ai._verify_model()
+            if test_result:
+                self.display_status_message("Connexion au modèle établie.", "success")
+            else:
+                self.display_status_message("Impossible de se connecter au modèle LLaMa. Vérifiez qu'Ollama est en cours d'exécution.", "error")
+                self.display_chat_message("⚠️ Attention: Le modèle LLaMa n'est pas disponible. Vérifiez qu'Ollama est en cours d'exécution et redémarrez l'application.", "error")
+        except Exception as e:
+            logging.error(f"Erreur lors de l'initialisation du modèle AI: {e}")
+            self.display_status_message(f"Erreur d'initialisation: {e}", "error")
+            self.display_chat_message(f"⚠️ Erreur: Impossible d'initialiser le modèle AI. Détails: {e}", "error")
+
     def send_message(self):
-        """Envoie le message et gère la réponse de l'IA"""
-        # Obtenir le texte de l'entrée
-        message_text = self.message_entry.get("1.0", "end-1c").strip()
+        """Envoie le message de l'utilisateur à l'IA"""
+        # Récupérer le message
+        user_message = self.message_entry.get("1.0", "end-1c").strip()
         
-        # Si le message est vide ou contient seulement le placeholder, ne rien faire
-        if not message_text or message_text == self.placeholder_text:
+        # Ne pas envoyer de message vide
+        if not user_message or user_message == self.placeholder_text:
             return
         
-        # Vérifier si le message contient le placeholder et le supprimer
-        if self.placeholder_text in message_text:
-            message = message_text.replace(self.placeholder_text, "").strip()
-        else:
-            message = message_text
+        # Vérifier si le modèle AI est disponible
+        if self.ai is None:
+            self.initialize_ai()
+            if self.ai is None:
+                # Toujours pas disponible après tentative de réinitialisation
+                self.display_chat_message("⚠️ Le modèle n'est pas disponible. Tentative de reconnexion...", "error")
+                self.retry_connection()
+                return
             
-        if not message:
-            return
-            
-        # Journaliser le message réel envoyé
-        print(f"DEBUG - Message envoyé à l'IA: '{message}'")
-        
-        # Afficher le message de l'utilisateur avec le style simplifié
-        self.add_message(message, "user")
-        
-        # Réinitialiser l'entrée
+        # Effacer le champ de texte
         self.message_entry.delete("1.0", "end")
         self.message_entry.focus_set()
-        self.message_entry.config(foreground=self.COLORS["text_primary"])
         
-        # Ajouter le message à l'historique
-        self.ai.conversation_history.append({
-            "role": "user",
-            "content": message
-        })
+        # Ajouter le message utilisateur à l'interface
+        self.display_user_message(user_message)
         
-        # Afficher un indicateur de chargement
+        # Indiquer que l'IA est en train de répondre
+        self.set_ai_status("thinking")
+        
+        # Traiter le message dans un thread séparé
+        threading.Thread(target=self.process_message, args=(user_message,), daemon=True).start()
+    
+    def process_message(self, message):
+        """Traite le message dans un thread séparé"""
+        try:
+            # Obtenir la réponse du modèle AI
+            for chunk in self.ai.generate_response(message, stream=True):
+                self.response_queue.put(("chunk", chunk))
+            
+            # Indiquer que le traitement est terminé
+            self.response_queue.put(("end", None))
+        except Exception as e:
+            logging.error(f"Erreur lors du traitement du message: {e}")
+            error_message = f"Une erreur est survenue: {str(e)}"
+            self.response_queue.put(("error", error_message))
+            
+            # Vérifier si c'est une erreur de connexion et tenter une reconnexion
+            if "connexion" in str(e).lower() or "connection" in str(e).lower():
+                self.retry_connection()
+    
+    def retry_connection(self):
+        """Tente de se reconnecter au modèle AI"""
+        if self.connection_attempts < self.max_connection_attempts:
+            self.connection_attempts += 1
+            self.display_status_message(f"Tentative de reconnexion ({self.connection_attempts}/{self.max_connection_attempts})...", "warning")
+            
+            # Attendre un peu avant de réessayer
+            def delayed_retry():
+                self.initialize_ai()
+                if self.ai is not None and self.ai._verify_model():
+                    self.display_status_message("Reconnexion réussie", "success")
+                    self.display_chat_message("✅ Connexion au modèle rétablie", "success")
+                else:
+                    self.display_status_message("Échec de la reconnexion", "error")
+                    if self.connection_attempts < self.max_connection_attempts:
+                        self.parent.after(2000, self.retry_connection)
+                    else:
+                        self.display_chat_message("❌ Impossible de se connecter au modèle après plusieurs tentatives. Vérifiez qu'Ollama est en cours d'exécution.", "error")
+            
+            self.parent.after(2000, delayed_retry)
+        else:
+            self.display_status_message("Nombre maximal de tentatives atteint", "error")
+
+    def check_queue(self):
+        """Vérifie la file d'attente pour les réponses du thread de traitement"""
+        try:
+            # Récupérer les messages sans bloquer
+            while not self.response_queue.empty():
+                msg_type, content = self.response_queue.get_nowait()
+                
+                if msg_type == "chunk":
+                    # Ajouter un morceau de la réponse
+                    self.display_ai_response_chunk(content)
+                elif msg_type == "end":
+                    # Indiquer que l'IA a fini de répondre
+                    self.set_ai_status("ready")
+                elif msg_type == "error":
+                    # Afficher un message d'erreur
+                    self.display_chat_message(content, "error")
+                    self.set_ai_status("error")
+        except queue.Empty:
+            pass
+        
+        # Continuer à vérifier
+        self.parent.after(100, self.check_queue)
+    
+    def display_status_message(self, message, status_type="info"):
+        """Affiche un message de statut"""
+        # Couleur selon le type de statut
+        colors = {
+            "info": self.COLORS["secondary"],
+            "success": self.COLORS["success"],
+            "warning": self.COLORS["warning"],
+            "error": self.COLORS["error"]
+        }
+        
+        color = colors.get(status_type, self.COLORS["secondary"])
+        
+        # Mettre à jour le statut
+        self.status_indicator.config(foreground=color)
+        self.status_label.config(text=message, foreground=color)
+        
+        # Forcer la mise à jour
+        self.parent.update_idletasks()
+    
+    def set_ai_status(self, status):
+        """Configure l'état visuel de l'IA"""
+        statuses = {
+            "ready": {"text": "●", "color": self.COLORS["success"], "status": "Prêt"},
+            "thinking": {"text": "●", "color": self.COLORS["warning"], "status": "En attente de réponse..."},
+            "error": {"text": "●", "color": self.COLORS["error"], "status": "Erreur"}
+        }
+        
+        if status in statuses:
+            status_info = statuses[status]
+            self.status_indicator.config(text=status_info["text"], foreground=status_info["color"])
+            self.status_label.config(text=status_info["status"])
+        
+        # Forcer la mise à jour
+        self.parent.update_idletasks()
+
+    def display_user_message(self, message):
+        """Affiche un message de l'utilisateur dans le chat"""
         self.chat_text.config(state="normal")
-        start_pos = self.chat_text.index("end-1c")
-        self.chat_text.insert("end", "\n\nAssistant en cours de réflexion...")
-        self.chat_text.tag_add("thinking", start_pos, "end-1c")
+        
+        # Ajouter un peu d'espace si nécessaire
+        if self.chat_text.index("end-1c linestart") != self.chat_text.index("1.0"):
+            self.chat_text.insert("end", "\n\n")
+        
+        # Tag pour l'utilisateur
+        user_tag_start = self.chat_text.index("end-1c")
+        self.chat_text.insert("end", "Vous: ", "user_tag")
+        self.chat_text.tag_add("user_tag", user_tag_start, "end-1c")
+        self.chat_text.tag_config("user_tag", foreground=self.COLORS["primary"], font=self.user_tag_font)
+        
+        # Message de l'utilisateur
+        message_start = self.chat_text.index("end-1c")
+        self.chat_text.insert("end", message, "user_message")
+        self.chat_text.tag_add("user_message", message_start, "end-1c")
+        self.chat_text.tag_config("user_message", foreground=self.COLORS["text_primary"], font=self.message_font)
+        
+        # Faire défiler vers le bas
+        self.chat_text.see("end")
+        self.chat_text.config(state="disabled")
+    
+    def display_ai_response_chunk(self, chunk):
+        """Affiche un morceau de réponse de l'IA dans le chat"""
+        self.chat_text.config(state="normal")
+        
+        # Si c'est le premier morceau, ajouter l'en-tête
+        if not hasattr(self, 'ai_response_started') or not self.ai_response_started:
+            # Ajouter un peu d'espace
+            if self.chat_text.index("end-1c linestart") != self.chat_text.index("1.0"):
+                self.chat_text.insert("end", "\n\n")
+            
+            # Tag pour l'assistant
+            ai_tag_start = self.chat_text.index("end-1c")
+            self.chat_text.insert("end", "Vynal•GPT: ", "ai_tag")
+            self.chat_text.tag_add("ai_tag", ai_tag_start, "end-1c")
+            self.chat_text.tag_config("ai_tag", foreground=self.COLORS["secondary"], font=self.ai_tag_font)
+            
+            # Marquer que la réponse a commencé
+            self.ai_response_started = True
+            self.ai_response_start = self.chat_text.index("end-1c")
+        
+        # Ajouter le morceau de la réponse
+        chunk_start = self.chat_text.index("end-1c")
+        self.chat_text.insert("end", chunk, "ai_message")
+        self.chat_text.tag_add("ai_message", chunk_start, "end-1c")
+        self.chat_text.tag_config("ai_message", foreground=self.COLORS["text_primary"], font=self.message_font)
+        
+        # Faire défiler vers le bas
         self.chat_text.see("end")
         self.chat_text.config(state="disabled")
         
-        # Mettre à jour le statut
-        self.update_status(is_thinking=True)
-        
-        # Force une mise à jour de l'interface pour montrer l'indicateur de chargement
+        # Forcer la mise à jour
         self.parent.update_idletasks()
-        
-        # Désactiver l'interface pendant la génération
-        self.message_entry.config(state="disabled")
-        self.send_button.config(state="disabled")
-        
-        # Démarrer la génération dans un thread séparé
-        threading.Thread(target=self.generate_response, args=(message,), daemon=True).start()
-        
-    def generate_response(self, message):
-        """
-        Génère une réponse de l'IA dans un thread séparé
-        
-        Args:
-            message (str): Le message de l'utilisateur
-        """
-        try:
-            # Obtenir la réponse directement de model_patch.py
-            response = self.ai.generate_response(message)
-            
-            # Journal de débogage
-            print(f"DEBUG - Réponse reçue : {response}")
-            
-            # Mettre la réponse dans la file d'attente
-            self.response_queue.put({
-                "type": "response",
-                "content": response,
-                "state": self.ai.current_context.get("state", "initial"),
-                "last_action": self.ai.current_context.get("last_action", None)
-            })
-            
-        except Exception as e:
-            error_message = f"Erreur : {str(e)}"
-            self.response_queue.put({
-                "type": "error",
-                "content": error_message
-            })
-            print(f"DEBUG - Exception dans generate_response: {str(e)}")
-            logging.error(f"Erreur lors de la génération de réponse: {e}", exc_info=True)
     
-    def check_queue(self):
-        """Vérifie la file d'attente pour les messages du thread de génération"""
+    def display_chat_message(self, message, message_type="info"):
+        """Affiche un message système dans le chat"""
+        # Couleur selon le type
+        colors = {
+            "info": self.COLORS["info"],
+            "success": self.COLORS["success"],
+            "warning": self.COLORS["warning"],
+            "error": self.COLORS["error"]
+        }
+        color = colors.get(message_type, self.COLORS["info"])
+        
+        self.chat_text.config(state="normal")
+        
+        # Ajouter un peu d'espace
+        if self.chat_text.index("end-1c linestart") != self.chat_text.index("1.0"):
+            self.chat_text.insert("end", "\n\n")
+        
+        # Message système
+        system_start = self.chat_text.index("end-1c")
+        self.chat_text.insert("end", message, "system_message")
+        self.chat_text.tag_add("system_message", system_start, "end-1c")
+        self.chat_text.tag_config("system_message", foreground=color, font=self.system_font)
+        
+        # Faire défiler vers le bas
+        self.chat_text.see("end")
+        self.chat_text.config(state="disabled")
+        
+        # Réinitialiser le statut de la réponse AI
+        self.ai_response_started = False
+
+    def create_tooltip(self, widget, text):
+        """Crée une info-bulle pour un widget"""
+        def enter(event):
+            x, y, _, _ = widget.bbox("insert")
+            x += widget.winfo_rootx() + 25
+            y += widget.winfo_rooty() + 25
+            
+            # Créer une fenêtre toplevel
+            self.tooltip = tk.Toplevel(widget)
+            self.tooltip.wm_overrideredirect(True)
+            self.tooltip.wm_geometry(f"+{x}+{y}")
+            
+            label = tk.Label(self.tooltip, text=text, background=self.COLORS["surface"],
+                            foreground=self.COLORS["text_primary"], relief="solid", borderwidth=1,
+                            font=("Segoe UI", 9) if "Segoe UI" in font.families() else (None, 9),
+                            padx=5, pady=2)
+            label.pack()
+            
+        def leave(event):
+            if hasattr(self, "tooltip"):
+                self.tooltip.destroy()
+                
+        widget.bind("<Enter>", enter)
+        widget.bind("<Leave>", leave)
+        
+    def reset_chat(self):
+        """Réinitialise le chat et l'historique de conversation"""
         try:
-            if not self.response_queue.empty():
-                item = self.response_queue.get_nowait()
+            # Effacer complètement le contenu du chat
+            self.chat_text.configure(state="normal")
+            self.chat_text.delete("1.0", "end")
+            
+            # Forcer la mise à jour de l'interface
+            self.chat_text.update()
+            self.parent.update_idletasks()
+            
+            # Réinitialiser le statut
+            self.chat_text.configure(state="disabled")
+            
+            # Réinitialiser tous les attributs liés à l'état du chat
+            self.ai_response_started = False
+            
+            # Réinitialiser l'historique du modèle AI si disponible
+            if self.ai:
+                # Réinitialiser complètement l'historique de conversation
+                self.ai.conversation_history = [{"role": "system", "content": self.ai.system_prompt}]
+                self.ai.conversation_state = {}
                 
-                # Supprimer l'indicateur de chargement quelle que soit la réponse
-                self.clear_thinking_indicator()
+                # Afficher un message de confirmation
+                self.display_status_message("Conversation réinitialisée", "success")
+            else:
+                # Si l'AI n'est pas initialisée, essayer de l'initialiser
+                self.initialize_ai()
+                self.display_status_message("Initialisation du modèle AI", "info")
+            
+            # Nettoyer toute autre donnée résiduelle
+            if hasattr(self, 'response_queue'):
+                while not self.response_queue.empty():
+                    try:
+                        self.response_queue.get_nowait()
+                    except:
+                        pass
+            
+            # Recréer complètement le widget de chat si nécessaire
+            if self.chat_text.get("1.0", "end-1c") != "":
+                # Détruire et recréer le widget de chat
+                self.chat_text.destroy()
                 
-                if item["type"] == "response":
-                    response = item["content"]
-                    if response:
-                        self.add_message(response, "assistant")
-                        # Ajouter la réponse à l'historique
-                        self.ai.conversation_history.append({
-                            "role": "assistant",
-                            "content": response
-                        })
-                    else:
-                        # Message par défaut en cas de réponse vide
-                        default_response = "Je n'ai pas pu traiter votre demande. Veuillez réessayer."
-                        self.add_message(default_response, "assistant")
-                        self.ai.conversation_history.append({
-                            "role": "assistant",
-                            "content": default_response
-                        })
+                # Recréer le widget
+                try:
+                    chat_font = font.Font(family="Segoe UI", size=10)
+                except:
+                    chat_font = font.Font(size=10)
                 
-                elif item["type"] == "error":
-                    # Afficher l'erreur
-                    self.add_message(item["content"], "error")
+                self.chat_text = scrolledtext.ScrolledText(
+                    self.chat_container,
+                    wrap="word",
+                    height=20,
+                    background=self.COLORS["background"],
+                    foreground=self.COLORS["text_primary"],
+                    borderwidth=1,
+                    relief="solid",
+                    padx=15,
+                    pady=15,
+                    font=chat_font
+                )
+                self.chat_text.pack(fill="both", expand=True)
                 
-                # Réactiver l'interface
-                self.message_entry.config(state="normal")
-                self.send_button.config(state="normal")
-                
-                # Focus sur l'entrée de message
-                self.message_entry.focus_set()
-                
-                # Réinitialiser le statut
-                self.update_status(is_thinking=False)
-                
-                # Gérer le placeholder si nécessaire
-                if not self.message_entry.get("1.0", "end-1c").strip():
-                    self.message_entry.delete("1.0", "end")
-                    self.message_entry.insert("1.0", self.placeholder_text)
-                    self.message_entry.config(foreground=self.COLORS["text_secondary"])
-                
-                # Forcer une mise à jour de l'interface
-                self.parent.update_idletasks()
-        
+                # Reconfigurer les tags de style
+                self.configure_text_tags()
+            
+            # Afficher à nouveau le message de bienvenue
+            self.display_welcome_message()
+            
+            # Remettre le focus sur la zone de texte
+            self.message_entry.focus_set()
+            
+            # Forcer une dernière mise à jour
+            self.frame.update()
+            self.parent.update_idletasks()
+            
         except Exception as e:
-            logging.error(f"Erreur lors de la vérification de la file d'attente: {e}", exc_info=True)
-        
-        # Reprogrammer la vérification
-        self.parent.after(100, self.check_queue)
+            logging.error(f"Erreur lors de la réinitialisation du chat: {e}", exc_info=True)
+            self.display_status_message(f"Erreur lors de la réinitialisation", "error")

@@ -33,7 +33,7 @@ VynalDocsAutomator est une application Python conçue pour automatiser la créat
 - **Suggestions intelligentes** basées sur le contenu
 - **Analyse avancée par modèles de langage**:
   - Intégration avec **Ollama** pour traitement local
-  - Support des modèles **Mistral** pour l'analyse en français
+  - Support du modèle **Llama3** pour l'analyse en français
   - Utilisation de **Llama** pour l'extraction d'informations complexes
 - **Extraction contextuelle** d'informations spécifiques au domaine
 - **Résumé automatique** de documents longs
@@ -183,7 +183,7 @@ print(f"Montant total : {results['total_amount']}")
 from ai.document_analyzer import AIDocumentAnalyzer
 
 # Initialisation avec un modèle Ollama local
-analyzer = AIDocumentAnalyzer(model="mistral")
+analyzer = AIDocumentAnalyzer(model="llama3")
 
 # Analyse d'un contrat
 results = analyzer.analyze_contract("contrat_location.pdf")

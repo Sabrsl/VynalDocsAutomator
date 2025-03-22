@@ -11,6 +11,8 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 import json
 import tkinter as tk
+import hashlib
+from datetime import datetime
 
 # Importation des vues
 from views.dashboard_view import DashboardView
@@ -18,7 +20,10 @@ from views.client_view import ClientView
 from views.document_view import DocumentView
 from views.template_view import TemplateView
 from views.settings_view import SettingsView
-from views.analysis_view import AnalysisView
+from views.chat_ai_view import ChatAIView
+
+# Importer le moniteur d'activité
+from utils.activity_monitor import ActivityMonitor
 
 logger = logging.getLogger("VynalDocsAutomator.MainView")
 
@@ -28,16 +33,18 @@ class MainView:
     Gère l'interface utilisateur globale et la navigation entre les différentes vues
     """
     
-    def __init__(self, root, app_model):
+    def __init__(self, root, app_model, on_ready=None):
         """
         Initialise la vue principale
         
         Args:
             root: Fenêtre principale CTk
             app_model: Modèle de l'application
+            on_ready: Callback appelé lorsque l'interface est prête
         """
         self.root = root
         self.model = app_model
+        self.on_ready = on_ready
         
         # Initialiser les trackers avant tout
         from utils.usage_tracker import UsageTracker
@@ -72,6 +79,13 @@ class MainView:
         # Créer l'interface
         self._create_widgets()
         
+        # Initialiser le moniteur d'activité
+        self.activity_monitor = None
+        self._setup_activity_monitor()
+        
+        # Configurer les événements pour détecter l'activité
+        self._setup_activity_events()
+        
         logger.info("Vue principale initialisée")
     
     def _create_widgets(self):
@@ -98,7 +112,7 @@ class MainView:
                 f"Une erreur est survenue lors de l'initialisation de l'application: {e}",
                 "error"
             ))
-    
+
     def create_sidebar(self):
         """
         Crée la barre latérale avec le menu de navigation
@@ -163,7 +177,7 @@ class MainView:
             {"id": "clients", "text": "Clients", "icon": "👥"},
             {"id": "templates", "text": "Modèles", "icon": "📋"},
             {"id": "documents", "text": "Documents", "icon": "📄"},
-            {"id": "analysis", "text": "Analyse", "icon": "🔍"},
+            {"id": "analysis", "text": "Chat IA", "icon": "🤖"},
             {"id": "settings", "text": "Paramètres", "icon": "⚙️"}
         ]
         
@@ -238,130 +252,6 @@ class MainView:
         # Ils seront ajoutés par update_auth_button
         self.update_auth_button()
 
-    def create_user_menu(self, parent_frame):
-        """Crée le menu utilisateur dans la barre latérale"""
-        # Frame pour le menu utilisateur
-        user_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
-        user_frame.pack(fill=ctk.X, pady=5)
-        
-        # Bouton principal "Mon compte"
-        if self.usage_tracker.is_user_registered():
-            user_data = self.usage_tracker.get_user_data()
-            display_name = user_data.get('email', 'Utilisateur').split('@')[0]
-            button_text = f"👤 {display_name}"
-            button_color = "#3498db"
-            hover_color = "#2980b9"
-        else:
-            button_text = "👤 Se connecter"
-            button_color = "#2ecc71"
-            hover_color = "#27ae60"
-        
-        self.auth_button = ctk.CTkButton(
-            user_frame,
-            text=button_text,
-            fg_color=button_color,
-            hover_color=hover_color,
-            command=self._show_auth_dialog
-        )
-        self.auth_button.pack(fill=ctk.X)
-        
-        # Si l'utilisateur est connecté, ajouter l'option de déconnexion
-        if self.usage_tracker.is_user_registered():
-            # Séparateur
-            ctk.CTkFrame(user_frame, height=1, fg_color="gray50").pack(fill=ctk.X, pady=5)
-            
-            # Option de déconnexion
-            logout_button = ctk.CTkButton(
-                user_frame,
-                text="🔒 Déconnexion",
-                fg_color="transparent",
-                hover_color=("gray80", "gray30"),
-                anchor="w",
-                command=self._handle_logout
-            )
-            logout_button.pack(fill=ctk.X, pady=2)
-    
-    def _show_account_settings(self):
-        """Affiche les paramètres du compte utilisateur"""
-        if hasattr(self, 'auth_view'):
-            self.auth_view.show_account()
-            self.auth_view._show_tab("account")
-        else:
-            self._show_auth_dialog()
-    
-    def _show_usage_stats(self):
-        """Affiche les statistiques d'utilisation"""
-        # À implémenter - Afficher les statistiques d'utilisation
-        self.show_message("Statistiques", "Les statistiques d'utilisation seront disponibles prochainement.")
-    
-    def _handle_logout(self):
-        """Gère la déconnexion de l'utilisateur"""
-        if hasattr(self, 'auth_view'):
-            try:
-                # Appeler la méthode de déconnexion de AuthView
-                self.auth_view._handle_logout()
-                
-                # Fermer la fenêtre d'authentification
-                try:
-                    self.auth_view.hide()
-                except:
-                    pass
-                
-                # Mettre à jour l'interface après la déconnexion
-                self.update_auth_button()
-                
-                # Afficher un message de confirmation
-                self.show_message("Déconnexion", "Vous avez été déconnecté avec succès.", "success")
-            except Exception as e:
-                logger.error(f"Erreur lors de la déconnexion: {e}")
-                self.show_message("Erreur", f"Une erreur est survenue lors de la déconnexion: {e}", "error")
-        else:
-            # Si auth_view n'existe pas, effectuer une déconnexion directe
-            try:
-                # Réinitialiser l'état de connexion dans UsageTracker
-                if hasattr(self, 'usage_tracker'):
-                    # Supprimer les données de connexion
-                    users_file = os.path.join(self.usage_tracker.data_dir, "users.json")
-                    if os.path.exists(users_file):
-                        with open(users_file, 'w') as f:
-                            json.dump({}, f)
-                    
-                    # Mettre à jour l'interface
-                    self.update_auth_button()
-                    
-                    # Afficher un message de confirmation
-                    self.show_message("Déconnexion", "Vous avez été déconnecté avec succès.", "success")
-            except Exception as e:
-                logger.error(f"Erreur lors de la déconnexion directe: {e}")
-                self.show_message("Erreur", f"Une erreur est survenue lors de la déconnexion: {e}", "error")
-    
-    def create_toolbar_buttons(self):
-        """Crée les boutons de la barre d'outils"""
-        # Bouton Paramètres
-        settings_button = ctk.CTkButton(
-            self.toolbar,
-            text="⚙️ Paramètres",
-            fg_color="transparent",
-            hover_color=("gray80", "gray30"),
-            command=lambda: self.show_view("settings")
-        )
-        settings_button.pack(fill=ctk.X, pady=5)
-        
-        # Bouton Aide
-        help_button = ctk.CTkButton(
-            self.toolbar,
-            text="❓ Aide",
-            fg_color="transparent",
-            hover_color=("gray80", "gray30"),
-            command=self._show_help
-        )
-        help_button.pack(fill=ctk.X, pady=5)
-    
-    def _show_help(self):
-        """Affiche l'aide de l'application"""
-        # À implémenter - Afficher l'aide
-        self.show_message("Aide", "L'aide sera disponible prochainement.")
-
     def create_content_area(self):
         """
         Crée la zone de contenu principal
@@ -430,7 +320,7 @@ class MainView:
                 "clients": ClientView,
                 "templates": TemplateView,
                 "documents": DocumentView,
-                "analysis": AnalysisView,
+                "analysis": ChatAIView,
                 "settings": SettingsView
             }
             
@@ -484,7 +374,7 @@ class MainView:
                     "clients": ClientView,
                     "templates": TemplateView,
                     "documents": DocumentView,
-                    "analysis": AnalysisView,
+                    "analysis": ChatAIView,
                     "settings": SettingsView
                 }
                 # Ajouter DocumentCreatorView si elle n'est pas déjà là
@@ -511,7 +401,7 @@ class MainView:
             "clients": "Gestion des clients",
             "templates": "Modèles de documents",
             "documents": "Bibliothèque de documents",
-            "analysis": "Analyse",
+            "analysis": "Chat IA",
             "settings": "Paramètres",
             "document_creator": "Traitement de document"
         }
@@ -553,6 +443,11 @@ class MainView:
                 
                 # Si c'est le tableau de bord, envoyer le signal ready au splash screen
                 if view_id == "dashboard":
+                    # Appeler le callback on_ready si disponible
+                    if hasattr(self, 'on_ready') and self.on_ready is not None:
+                        self.on_ready()
+                    
+                    # Pour la compatibilité, maintenir aussi l'ancien code
                     try:
                         import socket
                         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -872,3 +767,248 @@ class MainView:
                 self.auth_view._show_tab(tab_name)
         except Exception as e:
             logger.error(f"Erreur lors de l'affichage de l'onglet {tab_name}: {e}")
+
+    # Methods for activity monitor integration and lock/unlock functionality
+    def _setup_activity_monitor(self):
+        """Configure et initialise le moniteur d'activité si nécessaire"""
+        try:
+            # Créer une instance du moniteur d'activité
+            self.activity_monitor = ActivityMonitor(
+                lock_callback=self._lock_application,
+                config_manager=self.model.config
+            )
+            
+            # Démarrer le moniteur si les conditions sont remplies
+            self.activity_monitor.start()
+            
+            logger.info("Moniteur d'activité configuré")
+        except Exception as e:
+            logger.error(f"Erreur lors de la configuration du moniteur d'activité: {e}")
+    
+    def _setup_activity_events(self):
+        """Configure les événements pour détecter l'activité de l'utilisateur"""
+        try:
+            if self.activity_monitor:
+                # Associer les événements de la fenêtre principale
+                self.root.bind("<Motion>", self._on_user_activity)
+                self.root.bind("<Key>", self._on_user_activity)
+                self.root.bind("<Button>", self._on_user_activity)
+                self.root.bind("<MouseWheel>", self._on_user_activity)
+                
+                # Bind événements sur le frame principal aussi
+                self.main_frame.bind("<Motion>", self._on_user_activity)
+                self.main_frame.bind("<Button>", self._on_user_activity)
+                
+                logger.debug("Événements de surveillance d'activité configurés")
+        except Exception as e:
+            logger.error(f"Erreur lors de la configuration des événements d'activité: {e}")
+    
+    def _on_user_activity(self, event=None):
+        """Callback appelé lors d'une activité utilisateur"""
+        if self.activity_monitor:
+            self.activity_monitor.register_activity(event)
+    
+    def _lock_application(self):
+        """Verrouille l'application et affiche l'écran de connexion"""
+        try:
+            # Exécuter sur le thread principal pour éviter les problèmes d'interface
+            self.root.after(0, self._show_unlock_dialog)
+            logger.info("Application verrouillée par inactivité")
+        except Exception as e:
+            logger.error(f"Erreur lors du verrouillage de l'application: {e}")
+    
+    def _show_unlock_dialog(self):
+        """Affiche la boîte de dialogue de déverrouillage"""
+        try:
+            # Masquer l'application principale
+            for widget in self.root.winfo_children():
+                widget.pack_forget()
+            
+            # Créer une fenêtre modale par-dessus l'application
+            self.lock_dialog = ctk.CTkToplevel(self.root)
+            self.lock_dialog.title("Déverrouillage requis")
+            self.lock_dialog.attributes("-topmost", True)
+            
+            # Rendre la fenêtre modale
+            self.lock_dialog.grab_set()
+            self.lock_dialog.focus_force()
+            
+            # Empêcher la fermeture par la croix
+            self.lock_dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+            
+            # Dimensions
+            width = 400
+            height = 250
+            self.lock_dialog.geometry(f"{width}x{height}")
+            
+            # Centrer la fenêtre
+            self.lock_dialog.update_idletasks()
+            x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+            y = (self.root.winfo_screenheight() // 2) - (height // 2)
+            self.lock_dialog.geometry(f"{width}x{height}+{x}+{y}")
+            
+            # Frame principal avec padding
+            main_frame = ctk.CTkFrame(self.lock_dialog)
+            main_frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+            
+            # Titre
+            title_label = ctk.CTkLabel(
+                main_frame,
+                text="🔒 Session verrouillée",
+                font=ctk.CTkFont(size=20, weight="bold")
+            )
+            title_label.pack(pady=(0, 20))
+            
+            # Message
+            message_label = ctk.CTkLabel(
+                main_frame,
+                text="Votre session a été verrouillée en raison d'inactivité.\nVeuillez entrer votre mot de passe pour continuer.",
+                wraplength=350
+            )
+            message_label.pack(pady=(0, 20))
+            
+            # Champ de mot de passe
+            password_var = ctk.StringVar()
+            password_entry = ctk.CTkEntry(
+                main_frame,
+                placeholder_text="Mot de passe",
+                show="•",
+                width=200,
+                textvariable=password_var
+            )
+            password_entry.pack(pady=(0, 10))
+            password_entry.focus_set()
+            
+            # Message d'erreur
+            error_label = ctk.CTkLabel(
+                main_frame,
+                text="",
+                text_color="red"
+            )
+            error_label.pack(pady=(0, 10))
+            
+            # Fonction de validation
+            def validate_password():
+                password = password_var.get()
+                if not password:
+                    error_label.configure(text="Veuillez entrer votre mot de passe")
+                    return
+                
+                # Vérifier le mot de passe
+                if self._check_password(password):
+                    # Fermer la boîte de dialogue
+                    self.lock_dialog.destroy()
+                    
+                    # Réafficher les widgets principaux de l'application
+                    self._restore_main_view()
+                    
+                    # Réinitialiser le moniteur d'activité
+                    if self.activity_monitor:
+                        self.activity_monitor.reset()
+                    
+                    logger.info("Application déverrouillée avec succès")
+                else:
+                    error_label.configure(text="Mot de passe incorrect")
+                    password_entry.delete(0, "end")
+            
+            # Gestion de l'événement Entrée
+            password_entry.bind("<Return>", lambda event: validate_password())
+            
+            # Bouton de déverrouillage
+            unlock_button = ctk.CTkButton(
+                main_frame,
+                text="Déverrouiller",
+                width=150,
+                command=validate_password
+            )
+            unlock_button.pack(pady=10)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'affichage de la boîte de dialogue de déverrouillage: {e}")
+            # En cas d'erreur, restaurer l'interface principale
+            self._restore_main_view()
+    
+    def _restore_main_view(self):
+        """Restaure l'affichage principal de l'application après déverrouillage"""
+        try:
+            # Réafficher les widgets principaux
+            if hasattr(self, 'main_frame'):
+                # Clear le root d'abord
+                for widget in self.root.winfo_children():
+                    if widget != self.lock_dialog:  # Ne pas toucher au dialogue de verrouillage
+                        widget.pack_forget()
+                
+                # Réafficher le frame principal
+                self.main_frame.pack(fill=ctk.BOTH, expand=True)
+                
+                # Réorganiser les composants principaux
+                if hasattr(self, 'sidebar'):
+                    self.sidebar.pack(side=ctk.LEFT, fill=ctk.Y, padx=0, pady=0)
+                
+                if hasattr(self, 'content_area'):
+                    self.content_area.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True)
+                    
+                    # Réafficher les composants de la zone de contenu
+                    if hasattr(self, 'toolbar_frame'):
+                        self.toolbar_frame.pack(side=ctk.TOP, fill=ctk.X, padx=0, pady=0)
+                    
+                    if hasattr(self, 'main_content'):
+                        self.main_content.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True, padx=20, pady=20)
+                    
+                    if hasattr(self, 'status_bar'):
+                        self.status_bar.pack(side=ctk.BOTTOM, fill=ctk.X)
+            
+            # Redessiner la fenêtre
+            self.root.update_idletasks()
+            logger.info("Interface principale restaurée après déverrouillage")
+        except Exception as e:
+            logger.error(f"Erreur lors de la restauration de l'interface principale: {e}")
+            # En cas d'erreur grave, essayer de recharger complètement l'interface
+            try:
+                self._create_widgets()
+                logger.info("Interface réinitialisée après erreur de restauration")
+            except Exception as e2:
+                logger.critical(f"Erreur critique lors de la réinitialisation de l'interface: {e2}")
+    
+    def _check_password(self, password):
+        """
+        Vérifie si le mot de passe est correct
+        
+        Args:
+            password: Mot de passe à vérifier
+            
+        Returns:
+            bool: True si le mot de passe est correct, False sinon
+        """
+        try:
+            # Vérifier si la configuration contient un hash de mot de passe
+            password_hash = self.model.config.get("security.password_hash", "")
+            if not password_hash:
+                logger.error("Aucun mot de passe n'est configuré")
+                return False
+            
+            # Hacher le mot de passe entré
+            input_hash = hashlib.sha256(password.encode()).hexdigest()
+            
+            # Comparer les hash
+            return input_hash == password_hash
+        except Exception as e:
+            logger.error(f"Erreur lors de la vérification du mot de passe: {e}")
+            return False
+    
+    def update_activity_monitor(self):
+        """Met à jour le moniteur d'activité selon les paramètres actuels"""
+        if self.activity_monitor:
+            # Arrêter l'ancien moniteur
+            self.activity_monitor.stop()
+            
+            # Redémarrer avec les nouveaux paramètres
+            self.activity_monitor.start()
+            
+            logger.info("Moniteur d'activité mis à jour")
+    
+    def shutdown(self):
+        """Arrête proprement le moniteur d'activité lors de la fermeture"""
+        if self.activity_monitor:
+            self.activity_monitor.stop()
+            logger.info("Moniteur d'activité arrêté lors de la fermeture de l'application")

@@ -16,6 +16,10 @@ from pathlib import Path
 from datetime import datetime
 import customtkinter as ctk
 from PIL import Image, ImageTk
+from tkinter import messagebox
+import argparse
+import tkinter as tk
+import hashlib
 
 # Import de la configuration globale
 from config import (
@@ -246,6 +250,13 @@ def main():
         logger = setup_logging()
         logger.info("Démarrage de l'application...")
         
+        # Analyser les arguments de ligne de commande
+        parser = argparse.ArgumentParser(description="Lance Vynal Docs Automator")
+        parser.add_argument("--no-splash", action="store_true", help="Désactiver l'écran de démarrage")
+        parser.add_argument("--no-splash-recursion", action="store_true", help="Flag interne pour éviter la récursion")
+        parser.add_argument("--skip-auth", action="store_true", help="Ignorer l'authentification (déjà faite)")
+        args = parser.parse_args()
+        
         # Création des objets principaux
         config = ConfigManager()
         app_model = AppModel(config=config)
@@ -275,43 +286,17 @@ def main():
         root.geometry(WINDOW_SIZE)
         root.minsize(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1])
         
-        def on_closing():
-            """Gestionnaire d'événement pour la fermeture de l'application"""
-            logger.info("Fermeture de l'application initiée par l'utilisateur")
-            try:
-                app_model.cleanup()
-            except Exception as e:
-                logger.error(f"Erreur lors du nettoyage de l'application: {e}")
-            
-            # Fermeture sécurisée de la fenêtre
-            try:
-                if hasattr(root, 'winfo_children'):
-                    for widget in root.winfo_children():
-                        try:
-                            if hasattr(widget, 'destroy'):
-                                widget.destroy()
-                        except:
-                            pass
-                
-                root.quit()
-                root.destroy()
-            except Exception as e:
-                logger.error(f"Erreur lors de la fermeture de la fenêtre: {e}")
-                sys.exit(0)
+        # Configurer pour le plein écran
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
         
-        root.protocol("WM_DELETE_WINDOW", on_closing)
+        # Centrer et mettre à une taille raisonnable (90% de l'écran)
+        width = int(screen_width * 0.9)
+        height = int(screen_height * 0.9)
+        x_offset = (screen_width - width) // 2
+        y_offset = (screen_height - height) // 2
         
-        # Chargement de l'icône
-        try:
-            icon_path = os.path.join("assets", "icon.ico")
-            if os.path.exists(icon_path):
-                root.iconbitmap(icon_path)
-        except Exception as e:
-            logger.warning(f"Impossible de charger l'icône: {e}")
-        
-        # Vérifier si la protection par mot de passe est activée
-        require_password = app_model.config.get("security.require_password", False)
-        password_hash = app_model.config.get("security.password_hash", "")
+        root.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
         
         # Importer les vues ici pour éviter les importations circulaires
         from views.main_view import MainView
@@ -342,32 +327,123 @@ def main():
             thread = threading.Thread(target=run_background_tasks, daemon=True)
             thread.start()
         
-        if require_password and password_hash:
-            # Cacher la fenêtre principale pendant la connexion
-            root.withdraw()
-            
-            def on_login_success():
-                """Callback appelé après une connexion réussie"""
-                root.deiconify()  # Afficher la fenêtre principale
-                # Création de la vue principale après la connexion réussie
-                main_view = MainView(root, app_model)
-                # Création du contrôleur
-                controller = AppController(app_model, main_view)
-                logger.info("Connexion réussie, affichage de l'application")
-                
-                # Démarrer les tâches en arrière-plan après l'affichage de l'interface
-                root.after(100, start_background_tasks)
-            
-            # Afficher la fenêtre de connexion
-            login_view = LoginView(root, on_login_success)
-            login_view.show(password_hash)
-        else:
-            # Si pas de protection par mot de passe, créer directement la vue et le contrôleur
-            main_view = MainView(root, app_model)
+        # Vérifier s'il faut se synchroniser avec le splash screen
+        sync_with_splash = False
+        sync_port = None
+        if not args.no_splash and not args.no_splash_recursion:
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                sync_file = os.path.join(current_dir, ".sync_splash")
+                if os.path.exists(sync_file):
+                    with open(sync_file, 'r') as f:
+                        sync_port = int(f.read().strip())
+                    sync_with_splash = True
+                    logger.info(f"Synchronisation avec le splash screen sur le port {sync_port}")
+            except Exception as e:
+                logger.warning(f"Erreur lors de la lecture du fichier de synchronisation: {e}")
+        
+        # Vérifier si la protection par mot de passe est activée
+        require_password = app_model.config.get("security.require_password", False)
+        password_hash = app_model.config.get("security.password_hash", "")
+        
+        # Callback pour une fois que l'interface principale est prête
+        def on_main_view_ready():
+            """Appelé une fois que l'interface principale est prête"""
+            # Si nous devons nous synchroniser avec le splash screen
+            if sync_with_splash and sync_port:
+                try:
+                    import socket
+                    import json
+                    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    client.connect(('127.0.0.1', sync_port))
+                    client.send(json.dumps({'status': 'ready'}).encode('utf-8'))
+                    client.close()
+                    logger.info("Signal 'ready' envoyé au splash screen depuis main.py")
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'envoi du signal 'ready': {e}")
+        
+        # Si --skip-auth est passé, on considère que l'authentification a déjà été faite
+        if args.skip_auth:
+            logger.info("Authentification ignorée (déjà faite)")
+            # Créer directement la vue principale et le contrôleur
+            main_view = MainView(root, app_model, on_ready=on_main_view_ready)
             controller = AppController(app_model, main_view)
             
             # Démarrer les tâches en arrière-plan après l'affichage de l'interface
             root.after(100, start_background_tasks)
+        elif require_password and password_hash:
+            # Utiliser une approche différente: ne pas créer la vue principale tout de suite
+            # La fenêtre reste vide avant la connexion
+            root.withdraw()  # Cacher la fenêtre vide
+            
+            def on_login_success():
+                """Callback appelé après une connexion réussie"""
+                try:
+                    logger.info("Connexion réussie, création de l'interface principale...")
+                    
+                    # Créer la vue principale et le contrôleur UNIQUEMENT après la connexion réussie
+                    nonlocal main_view, controller
+                    main_view = MainView(root, app_model, on_ready=on_main_view_ready)
+                    controller = AppController(app_model, main_view)
+                    
+                    # Démarrer les tâches en arrière-plan
+                    start_background_tasks()
+                    
+                    # Maintenant qu'on a tout initialisé, afficher la fenêtre
+                    root.deiconify()
+                    logger.info("Application complètement initialisée et affichée")
+                except Exception as e:
+                    logger.error(f"ERREUR CRITIQUE lors de l'initialisation après connexion: {e}")
+                    messagebox.showerror("Erreur d'initialisation", 
+                                        f"Une erreur est survenue lors de l'initialisation de l'application: {e}")
+                    root.destroy()
+            
+            # Déclarer ces variables pour pouvoir les référencer dans on_login_success
+            main_view = None
+            controller = None
+            
+            # Préparer la vue de connexion
+            login_view = LoginView(root, on_login_success)
+            
+            # Délai fixe avant d'afficher la boîte de dialogue de mot de passe
+            # Ce délai est suffisant pour que le splash screen se termine
+            def show_login_after_delay():
+                logger.info("Délai écoulé, affichage de la boîte de dialogue de connexion")
+                try:
+                    login_view.show(password_hash)
+                except Exception as e:
+                    logger.error(f"ERREUR lors de l'affichage de la boîte de dialogue: {e}")
+                    messagebox.showerror("Erreur critique", 
+                                        f"Impossible d'afficher la boîte de dialogue de connexion: {e}")
+                    root.destroy()
+            
+            # Utiliser un délai de 3 secondes pour s'assurer que le splash screen est terminé
+            logger.info("Attente d'un délai avant d'afficher la boîte de dialogue de connexion...")
+            root.after(3000, show_login_after_delay)
+        else:
+            # Si pas de protection par mot de passe, créer directement la vue et le contrôleur
+            main_view = MainView(root, app_model, on_ready=on_main_view_ready)
+            controller = AppController(app_model, main_view)
+            
+            # Démarrer les tâches en arrière-plan après l'affichage de l'interface
+            root.after(100, start_background_tasks)
+        
+        # Configurer le gestionnaire de fermeture pour arrêter le moniteur d'activité
+        def on_closing():
+            """Gestionnaire d'événement pour la fermeture de l'application"""
+            try:
+                # Arrêter le moniteur d'activité
+                if hasattr(main_view, 'shutdown'):
+                    main_view.shutdown()
+                
+                # Fermer l'application
+                root.destroy()
+            except Exception as e:
+                logger.error(f"Erreur lors de la fermeture de l'application: {e}")
+                root.destroy()
+        
+        # Configurer le protocole de fermeture
+        root.protocol("WM_DELETE_WINDOW", on_closing)
         
         # Démarrage de l'application
         logger.info("Application démarrée")
@@ -378,6 +454,8 @@ def main():
             logger.error(f"Erreur fatale: {e}")
         else:
             print(f"Erreur fatale avant l'initialisation du logger: {e}")
+        messagebox.showerror("Erreur critique", f"Une erreur critique est survenue: {e}\n"
+                            "L'application va se fermer. Veuillez consulter les logs pour plus de détails.")
         sys.exit(1)
 
 if __name__ == "__main__":

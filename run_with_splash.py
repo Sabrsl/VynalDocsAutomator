@@ -17,7 +17,8 @@ import argparse
 import customtkinter as ctk
 import logging
 import tkinter as tk
-from tkinter import ttk
+import hashlib
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageDraw
 
 # Import de la configuration globale
@@ -25,6 +26,9 @@ from config import (
     APP_NAME, WINDOW_SIZE, MIN_WINDOW_SIZE,
     setup_logging, ensure_directories
 )
+
+# Import de ConfigManager pour charger la configuration
+from utils.config_manager import ConfigManager
 
 # Port pour la communication entre les processus
 SYNC_PORT = 12345
@@ -86,6 +90,65 @@ def cleanup_recursion_flag():
             os.remove(flag_file)
     except Exception as e:
         print(f"Erreur lors de la suppression du fichier drapeau: {e}")
+
+# Nouvelle fonction pour vérifier le mot de passe avant le lancement
+def check_password():
+    """
+    Vérifie le mot de passe avant de lancer l'application.
+    Si le mot de passe est correct, lance l'application.
+    Sinon, ferme le programme.
+    
+    Returns:
+        bool: True si le mot de passe est correct, False sinon
+    """
+    # Charger la configuration pour vérifier si un mot de passe est requis
+    try:
+        config = ConfigManager()
+        require_password = config.get("security.require_password", False)
+        password_hash = config.get("security.password_hash", "")
+        
+        if not require_password or not password_hash:
+            # Aucun mot de passe requis
+            return True
+        
+        # Importer la classe LoginView
+        from views.login_view import LoginView
+        
+        # Créer une fenêtre temporaire pour héberger la vue de connexion
+        temp_root = tk.Tk()
+        temp_root.withdraw()  # Cacher la fenêtre temporaire
+        
+        # Variables pour stocker le résultat de l'authentification
+        auth_result = [False]
+        
+        # Fonction de callback pour l'authentification réussie
+        def on_auth_success():
+            auth_result[0] = True
+            temp_root.quit()
+        
+        # Créer la vue de connexion
+        login_view = LoginView(temp_root, on_auth_success)
+        
+        # Afficher la vue de connexion
+        login_view.show(password_hash)
+        
+        # Attendre que l'authentification soit terminée
+        temp_root.mainloop()
+        
+        # Détruire la fenêtre temporaire
+        try:
+            temp_root.destroy()
+        except:
+            pass
+        
+        # Retourner le résultat de l'authentification
+        return auth_result[0]
+    
+    except Exception as e:
+        print(f"Erreur lors de la vérification du mot de passe: {e}")
+        # En cas d'erreur, autoriser l'accès pour éviter de bloquer l'application
+        messagebox.showerror("Erreur", f"Une erreur est survenue lors de la vérification du mot de passe: {e}")
+        return False
 
 class SplashScreen:
     def __init__(self, root, app_name="Vynal Docs Automator", width=550, height=300, demo_mode=False):
@@ -470,7 +533,14 @@ if __name__ == "__main__":
         # Analyser les arguments de ligne de commande
         parser = argparse.ArgumentParser(description="Lance Vynal Docs Automator avec un écran de démarrage")
         parser.add_argument("--demo", action="store_true", help="Mode démo pour voir les animations")
+        parser.add_argument("--skip-auth", action="store_true", help="Ignorer l'authentification (pour le développement)")
         args = parser.parse_args()
+        
+        # Vérifier le mot de passe avant de lancer l'application
+        if not args.skip_auth and not args.demo:
+            if not check_password():
+                print("Authentification échouée. L'application ne sera pas démarrée.")
+                sys.exit(1)
         
         # Afficher des informations de débogage
         print("Démarrage de l'écran de démarrage...")
@@ -481,9 +551,51 @@ if __name__ == "__main__":
         splash_root = tk.Tk()
         splash = SplashScreen(splash_root, demo_mode=args.demo)
         
-        # Lancer l'application principale (sauf en mode démo)
+        # Lancer l'application principale avec synchronisation (sauf en mode démo)
         if not args.demo:
             print("Lancement de l'application principale...")
+            # Utiliser le mécanisme de synchronisation et passer le flag --skip-auth
+            # Modifier launch_app_with_sync pour ajouter le flag --skip-auth
+            def modified_launch_app_with_sync():
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                
+                # Supprimer le fichier de synchronisation s'il existe déjà
+                sync_file = os.path.join(current_dir, ".sync_splash")
+                if os.path.exists(sync_file):
+                    try:
+                        os.remove(sync_file)
+                    except Exception as e:
+                        print(f"Erreur lors de la suppression du fichier de synchronisation existant: {e}")
+                
+                # Créer un fichier temporaire pour indiquer que l'application doit se synchroniser
+                try:
+                    with open(sync_file, 'w') as f:
+                        f.write(str(SYNC_PORT))
+                except Exception as e:
+                    print(f"Erreur lors de la création du fichier de synchronisation: {e}")
+                    return
+                
+                # Lancer l'application principale avec les flags appropriés
+                try:
+                    subprocess.Popen([sys.executable, os.path.join(current_dir, "main.py"), 
+                                     "--no-splash-recursion", "--skip-auth"])
+                except Exception as e:
+                    print(f"Erreur lors du lancement de l'application principale: {e}")
+                    # Supprimer le fichier de synchronisation en cas d'erreur
+                    cleanup_sync_file()
+                    return
+                
+                # Supprimer le fichier de synchronisation après un délai
+                def cleanup_sync_file_delayed():
+                    time.sleep(10)  # Attendre 10 secondes
+                    cleanup_sync_file()
+                
+                threading.Thread(target=cleanup_sync_file_delayed, daemon=True).start()
+            
+            # Utiliser la version modifiée pour lancer l'application
+            launch_app_with_sync = modified_launch_app_with_sync
+            
+            # Lancer l'application principale avec le mécanisme de synchronisation
             launch_main_app()
         else:
             print("Mode démo - L'application principale ne sera pas lancée")
@@ -498,11 +610,56 @@ if __name__ == "__main__":
 else:
     # Si le module est importé, vérifier d'abord la récursion
     if not check_recursion():
+        # Vérifier le mot de passe avant de lancer l'application
+        if not check_password():
+            print("Authentification échouée. L'application ne sera pas démarrée.")
+            sys.exit(1)
+        
         # Créer et afficher l'écran de démarrage
         splash_root = tk.Tk()
         splash = SplashScreen(splash_root)
         
-        # Lancer l'application principale
+        # Utiliser la même approche pour lancer l'application principale avec synchronisation
+        def modified_launch_app_with_sync():
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Supprimer le fichier de synchronisation s'il existe déjà
+            sync_file = os.path.join(current_dir, ".sync_splash")
+            if os.path.exists(sync_file):
+                try:
+                    os.remove(sync_file)
+                except Exception as e:
+                    print(f"Erreur lors de la suppression du fichier de synchronisation existant: {e}")
+            
+            # Créer un fichier temporaire pour indiquer que l'application doit se synchroniser
+            try:
+                with open(sync_file, 'w') as f:
+                    f.write(str(SYNC_PORT))
+            except Exception as e:
+                print(f"Erreur lors de la création du fichier de synchronisation: {e}")
+                return
+            
+            # Lancer l'application principale avec les flags appropriés
+            try:
+                subprocess.Popen([sys.executable, os.path.join(current_dir, "main.py"), 
+                                 "--no-splash-recursion", "--skip-auth"])
+            except Exception as e:
+                print(f"Erreur lors du lancement de l'application principale: {e}")
+                # Supprimer le fichier de synchronisation en cas d'erreur
+                cleanup_sync_file()
+                return
+            
+            # Supprimer le fichier de synchronisation après un délai
+            def cleanup_sync_file_delayed():
+                time.sleep(10)  # Attendre 10 secondes
+                cleanup_sync_file()
+            
+            threading.Thread(target=cleanup_sync_file_delayed, daemon=True).start()
+        
+        # Utiliser la version modifiée pour lancer l'application
+        launch_app_with_sync = modified_launch_app_with_sync
+        
+        # Lancer l'application principale avec le mécanisme de synchronisation
         launch_main_app()
         
         # Démarrer la boucle principale

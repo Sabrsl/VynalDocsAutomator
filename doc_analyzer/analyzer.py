@@ -152,6 +152,29 @@ class DocumentAnalyzer:
             dict: Résultats de l'analyse
         """
         try:
+            # Vérifier si le fichier est un JSON (rejeter ces fichiers)
+            if document_path.lower().endswith('.json'):
+                logger.error(f"Les fichiers JSON ne sont pas supportés pour l'analyse: {document_path}")
+                return {
+                    'file_path': document_path,
+                    'error': "Les fichiers JSON ne sont pas supportés pour l'analyse de document"
+                }
+                
+            # Vérifier le contenu du fichier pour détecter les JSON non déclarés par l'extension
+            try:
+                with open(document_path, 'r', encoding='utf-8') as f:
+                    first_chars = f.read(100).strip()
+                    if first_chars.startswith('{') and ('"' in first_chars or "'" in first_chars):
+                        # C'est probablement un JSON
+                        logger.error(f"Le fichier semble être un JSON non déclaré: {document_path}")
+                        return {
+                            'file_path': document_path,
+                            'error': "Ce fichier semble être au format JSON, qui n'est pas supporté pour l'analyse de document"
+                        }
+            except UnicodeDecodeError:
+                # Ce n'est pas un fichier texte UTF-8, donc pas un JSON
+                pass
+            
             # Prétraitement du document
             text_result = self.text_processor.process_document(document_path)
             

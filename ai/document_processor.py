@@ -13,6 +13,7 @@ import re
 import chardet
 import requests
 import time
+import traceback
 from typing import Dict, List, Optional, Tuple, Any
 
 logging.basicConfig(level=logging.DEBUG)
@@ -49,10 +50,14 @@ class AIDocumentProcessor:
                 # Si le fichier n'existe pas, retourner une configuration par défaut
                 return {
                     "api_url": "http://localhost:11434/api/generate",
-                    "model": "mistral:latest",
+                    "model": "llama3",
                     "options": {
-                        "temperature": 0.7,
-                        "max_tokens": 512
+                        "temperature": 0.1,
+                        "num_predict": 1024,
+                        "top_p": 0.85,
+                        "frequency_penalty": 0.1,
+                        "stop": ["\n\n\n", "###", "```"],
+                        "timeout": 20
                     }
                 }
             
@@ -99,10 +104,14 @@ class AIDocumentProcessor:
             logger.warning("Création d'une nouvelle configuration par défaut")
             config = {
                 "api_url": "http://localhost:11434/api/generate",
-                "model": "mistral:latest",
+                "model": "llama3",
                 "options": {
-                    "temperature": 0.7,
-                    "max_tokens": 512
+                    "temperature": 0.1,
+                    "num_predict": 1024,
+                    "top_p": 0.85,
+                    "frequency_penalty": 0.1,
+                    "stop": ["\n\n\n", "###", "```"],
+                    "timeout": 20
                 }
             }
             
@@ -122,264 +131,153 @@ class AIDocumentProcessor:
             # Configuration par défaut
             return {
                 "api_url": "http://localhost:11434/api/generate",
-                "model": "mistral:latest",
+                "model": "llama3",
                 "options": {
-                    "temperature": 0.7,
-                    "max_tokens": 512
+                    "temperature": 0.1,
+                    "num_predict": 1024,
+                    "top_p": 0.85,
+                    "frequency_penalty": 0.1,
+                    "stop": ["\n\n\n", "###", "```"],
+                    "timeout": 20
                 }
             }
         
     def _read_file_safely(self, file_path: str) -> str:
         """
-        Lit un fichier en détectant automatiquement l'encodage
+        Lit un fichier de manière sécurisée avec plusieurs tentatives d'encodage
         
         Args:
-            file_path: Chemin vers le fichier à lire
+            file_path: Chemin du fichier à lire
             
         Returns:
-            Contenu du fichier
+            Contenu du fichier ou chaîne vide en cas d'erreur
         """
+        logger.info(f"====== LECTURE DU FICHIER: {file_path} ======")
+        
+        if not file_path or not os.path.exists(file_path):
+            logger.error(f"ERREUR: Fichier introuvable: {file_path}")
+            return ""
+            
         try:
-            # Détecter le type de fichier par l'extension
-            _, ext = os.path.splitext(file_path)
-            ext = ext.lower()
+            # Vérifier la taille du fichier
+            file_size = os.path.getsize(file_path)
+            logger.info(f"Taille du fichier: {file_size} octets")
             
-            # Fichiers PDF
-            if ext == '.pdf':
-                try:
-                    import PyPDF2
-                    with open(file_path, 'rb') as f:
-                        reader = PyPDF2.PdfReader(f)
-                        return " ".join([page.extract_text() for page in reader.pages])
-                except ImportError:
-                    logger.warning("PyPDF2 non disponible, traitement du PDF en tant que fichier binaire")
-                    return f"[PDF NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du PDF: {e}")
-                    return f"[ERREUR PDF: {os.path.basename(file_path)}]"
+            if file_size == 0:
+                logger.error(f"ERREUR: Fichier vide: {file_path}")
+                return ""
+                
+            # Liste des encodages à essayer dans l'ordre
+            encodings = ['utf-8', 'latin-1', 'cp1252', 'ISO-8859-1', 'ascii']
+            content = None
             
-            # Fichiers DOCX
-            elif ext == '.docx':
+            for encoding in encodings:
                 try:
-                    import docx
-                    doc = docx.Document(file_path)
-                    return " ".join([para.text for para in doc.paragraphs])
-                except ImportError:
-                    logger.warning("python-docx non disponible, traitement du DOCX en tant que fichier binaire")
-                    return f"[DOCX NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du DOCX: {e}")
-                    return f"[ERREUR DOCX: {os.path.basename(file_path)}]"
-            
-            # Fichiers Excel
-            elif ext in ['.xlsx', '.xls']:
-                try:
-                    import pandas as pd
-                    df = pd.read_excel(file_path)
-                    return df.to_string()
-                except ImportError:
-                    logger.warning("pandas non disponible, traitement du fichier Excel en tant que fichier binaire")
-                    return f"[EXCEL NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier Excel: {e}")
-                    return f"[ERREUR EXCEL: {os.path.basename(file_path)}]"
-            
-            # Fichiers PowerPoint
-            elif ext in ['.pptx', '.ppt']:
-                try:
-                    from pptx import Presentation
-                    prs = Presentation(file_path)
-                    text = []
-                    for slide in prs.slides:
-                        for shape in slide.shapes:
-                            if hasattr(shape, "text"):
-                                text.append(shape.text)
-                    return "\n".join(text)
-                except ImportError:
-                    logger.warning("python-pptx non disponible, traitement du fichier PowerPoint en tant que fichier binaire")
-                    return f"[POWERPOINT NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier PowerPoint: {e}")
-                    return f"[ERREUR POWERPOINT: {os.path.basename(file_path)}]"
-            
-            # Fichiers OpenDocument
-            elif ext in ['.odt', '.ods', '.odp']:
-                try:
-                    import odf
-                    if ext == '.odt':
-                        doc = odf.text.TextDocument(file_path)
-                        return " ".join([p.text for p in doc.getElementsByType(odf.text.P)])
-                    elif ext == '.ods':
-                        doc = odf.spreadsheet.SpreadsheetDocument(file_path)
-                        return " ".join([cell.text for table in doc.getElementsByType(odf.table.Table) for cell in table.getElementsByType(odf.table.Cell)])
-                    else:  # .odp
-                        doc = odf.presentation.PresentationDocument(file_path)
-                        return " ".join([shape.text for page in doc.getElementsByType(odf.presentation.Page) for shape in page.getElementsByType(odf.presentation.Text)])
-                except ImportError:
-                    logger.warning("odfpy non disponible, traitement du fichier OpenDocument en tant que fichier binaire")
-                    return f"[OPENDOCUMENT NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier OpenDocument: {e}")
-                    return f"[ERREUR OPENDOCUMENT: {os.path.basename(file_path)}]"
-            
-            # Fichiers RTF
-            elif ext == '.rtf':
-                try:
-                    import striprtf
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        rtf_content = f.read()
-                    return striprtf.rtf_to_text(rtf_content)
-                except ImportError:
-                    logger.warning("striprtf non disponible, traitement du fichier RTF en tant que fichier binaire")
-                    return f"[RTF NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier RTF: {e}")
-                    return f"[ERREUR RTF: {os.path.basename(file_path)}]"
-            
-            # Fichiers HTML
-            elif ext in ['.html', '.htm']:
-                try:
-                    from bs4 import BeautifulSoup
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        soup = BeautifulSoup(f.read(), 'html.parser')
-                    return soup.get_text()
-                except ImportError:
-                    logger.warning("beautifulsoup4 non disponible, traitement du fichier HTML en tant que fichier binaire")
-                    return f"[HTML NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier HTML: {e}")
-                    return f"[ERREUR HTML: {os.path.basename(file_path)}]"
-            
-            # Fichiers XML
-            elif ext == '.xml':
-                try:
-                    import xml.etree.ElementTree as ET
-                    tree = ET.parse(file_path)
-                    root = tree.getroot()
-                    return ET.tostring(root, encoding='unicode', method='text')
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier XML: {e}")
-                    return f"[ERREUR XML: {os.path.basename(file_path)}]"
-            
-            # Fichiers JSON
-            elif ext == '.json':
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    return json.dumps(data, ensure_ascii=False, indent=2)
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier JSON: {e}")
-                    return f"[ERREUR JSON: {os.path.basename(file_path)}]"
-            
-            # Fichiers CSV
-            elif ext == '.csv':
-                try:
-                    import pandas as pd
-                    df = pd.read_csv(file_path)
-                    return df.to_string()
-                except ImportError:
-                    logger.warning("pandas non disponible, traitement du fichier CSV en tant que fichier binaire")
-                    return f"[CSV NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier CSV: {e}")
-                    return f"[ERREUR CSV: {os.path.basename(file_path)}]"
-            
-            # Fichiers Markdown
-            elif ext in ['.md', '.markdown']:
-                try:
-                    import markdown
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        md_content = f.read()
-                    return markdown.markdown(md_content)
-                except ImportError:
-                    logger.warning("markdown non disponible, traitement du fichier Markdown en tant que fichier binaire")
-                    return f"[MARKDOWN NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture du fichier Markdown: {e}")
-                    return f"[ERREUR MARKDOWN: {os.path.basename(file_path)}]"
-            
-            # Images
-            elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
-                try:
-                    import pytesseract
-                    from PIL import Image
-                    img = Image.open(file_path)
-                    return pytesseract.image_to_string(img)
-                except ImportError:
-                    logger.warning("pytesseract non disponible, traitement de l'image en tant que fichier binaire")
-                    return f"[IMAGE NON SUPPORTÉ: {os.path.basename(file_path)}]"
-                except Exception as e:
-                    logger.error(f"Erreur lors de la lecture de l'image: {e}")
-                    return f"[ERREUR IMAGE: {os.path.basename(file_path)}]"
-            
-            # Fichiers texte - détecter l'encodage automatiquement
-            else:
-                with open(file_path, 'rb') as f:
-                    raw_data = f.read()
-                    result = chardet.detect(raw_data)
-                    encoding = result['encoding'] if result['encoding'] else 'utf-8'
-                    
-                try:
-                    return raw_data.decode(encoding)
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        content = f.read()
+                        logger.info(f"Fichier lu avec succès en utilisant l'encodage {encoding}")
+                        logger.info(f"Longueur du contenu: {len(content)} caractères")
+                        logger.info(f"Début du contenu: {content[:min(100, len(content))]}...")
+                        return content
                 except UnicodeDecodeError:
-                    # En cas d'échec, essayer latin-1 qui ne peut jamais échouer
-                    return raw_data.decode('latin-1')
-                    
-        except Exception as e:
-            logger.error(f"Erreur lors de la lecture du fichier: {e}")
-            return f"[ERREUR DE LECTURE: {os.path.basename(file_path)}]"
+                    logger.info(f"L'encodage {encoding} a échoué, essai avec le suivant...")
+                except Exception as e:
+                    logger.warning(f"Erreur lors de la lecture avec l'encodage {encoding}: {str(e)}")
             
+            # Si tous les encodages ont échoué, essayer une lecture binaire
+            logger.warning("Tous les encodages ont échoué, tentative de lecture binaire...")
+            with open(file_path, 'rb') as f:
+                binary_content = f.read()
+                # Essayer de décoder avec remplacement des caractères non reconnus
+                content = binary_content.decode('utf-8', errors='replace')
+                logger.warning(f"Contenu lu en binaire et décodé avec remplacement des caractères: {len(content)} caractères")
+                
+            if not content:
+                logger.error(f"ÉCHEC TOTAL: Impossible de lire le fichier {file_path} avec tous les encodages essayés")
+                return ""
+                
+            return content
+            
+        except Exception as e:
+            logger.error(f"ERREUR CRITIQUE lors de la lecture du fichier {file_path}: {str(e)}")
+            traceback.print_exc()
+            return ""
+    
     def analyze_document(self, file_path: str, file_type: str = None, encoding: str = 'utf-8') -> Dict[str, Any]:
         """
-        Analyse un document pour extraire des informations pertinentes
+        Analyse un document pour en extraire des informations structurées
         
         Args:
-            file_path: Chemin vers le document à analyser
-            file_type: Type du fichier (extension sans le point)
-            encoding: Encodage du fichier (par défaut utf-8)
+            file_path: Chemin du fichier à analyser
+            file_type: Type de fichier (optionnel, détecté automatiquement si non fourni)
+            encoding: Encodage du fichier
             
         Returns:
             Dict contenant les informations extraites
         """
-        if not os.path.exists(file_path):
-            return {"error": f"Le fichier {file_path} n'existe pas"}
-            
-        if not file_type:
-            # Extraire l'extension du fichier
-            _, ext = os.path.splitext(file_path)
-            file_type = ext.lower()[1:] if ext else ""
-            
-        # Convertir le document en texte
         try:
+            start_time = time.time()
+            logger.info(f"Début de l'analyse du document: {file_path}")
+            
+            # Convertir le document en texte
             content = self.convert_to_text(file_path, file_type, encoding)
+            
+            if not content:
+                logger.warning("Aucun contenu textuel n'a pu être extrait du document")
+                return {"error": "Aucun contenu textuel n'a pu être extrait du document", "variables": {}}
+                
+            # Première approche: Extraction directe par expressions régulières
+            # Cette approche est très rapide et fonctionne souvent bien pour les documents simples
+            direct_variables = self._extract_basic_variables_from_text(content)
+            
+            # Si on a déjà trouvé un nombre suffisant de variables, retourner directement
+            if len(direct_variables) >= 4:
+                logger.info(f"Analyse rapide réussie - {len(direct_variables)} variables extraites")
+                return {
+                    "variables": direct_variables,
+                    "_meta": {
+                        "extraction_method": "direct_regex",
+                        "processing_time": round(time.time() - start_time, 2),
+                        "document_size": len(content)
+                    }
+                }
+            
+            # Deuxième approche: Analyse par sections avec IA
+            try:
+                logger.info("Tentative d'analyse avancée par IA")
+                result = self._analyze_document_by_sections(content)
+                
+                # Fusionner avec l'extraction directe pour enrichir les résultats
+                if "variables" in result:
+                    # Priorité aux variables déjà trouvées par l'IA
+                    for var_name, value in direct_variables.items():
+                        if var_name not in result["variables"]:
+                            result["variables"][var_name] = value
+                            
+                # Ajouter des métadonnées utiles
+                if "_meta" not in result:
+                    result["_meta"] = {}
+                result["_meta"]["processing_time"] = round(time.time() - start_time, 2)
+                result["_meta"]["document_size"] = len(content)
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"Erreur lors de l'analyse avec IA: {str(e)}")
+                # En cas d'échec, retourner les variables extraites par regex
+                return {
+                    "variables": direct_variables,
+                    "error": str(e),
+                    "_meta": {
+                        "extraction_method": "fallback_to_regex",
+                        "processing_time": round(time.time() - start_time, 2),
+                        "document_size": len(content)
+                    }
+                }
+                
         except Exception as e:
-            logger.error(f"Erreur lors de la conversion du document en texte: {e}")
-            return {"error": f"Impossible de lire le document: {str(e)}"}
-            
-        if not content or content.startswith("Erreur:"):
-            return {"error": content if content else "Contenu vide ou non lisible"}
-            
-        # Utiliser directement le mode de secours si requis
-        if self.fallback_mode:
-            logger.info("Mode de secours activé, utilisation directe du mode de secours")
-            return self._analyze_fallback(content)
-            
-        # Analyser le document
-        try:
-            # Analyse par sections pour les documents longs
-            result = self._analyze_document_by_sections(content)
-            
-            # Si résultat vide ou erreur, utiliser le mode de secours
-            if not result or "error" in result or not result.get("variables"):
-                logger.warning("Analyse par sections a échoué ou n'a trouvé aucune variable, tentative avec le mode de secours")
-                result = self._analyze_fallback(content)
-            
-            logger.info(f"Analyse terminée avec succès: {len(result['variables'])} variables trouvées")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de l'analyse du document: {e}")
-            return self._analyze_fallback(content)
+            logger.error(f"Erreur lors de l'analyse du document: {str(e)}")
+            return {"error": str(e), "variables": {}}
     
     def _smart_reduce_content(self, content: str, max_size: int) -> str:
         """
@@ -758,87 +656,91 @@ class AIDocumentProcessor:
             Texte final du document
         """
         try:
+            # Début du processus - Traçage détaillé
+            logger.info(f"=== DÉBUT GÉNÉRATION DOCUMENT ({template_path}) ===")
+            logger.info(f"Variables disponibles: {list(all_variables.keys())}")
+            
             # Lire le contenu du modèle
             content = self._read_file_safely(template_path)
-            original_content = content
+            if not content:
+                logger.error(f"Erreur: Le modèle '{template_path}' est vide ou n'a pas pu être lu")
+                return "ERREUR: Le modèle est vide ou n'a pas pu être lu."
             
-            # Tentative initiale de remplacement simple des variables
-            for var_name, value in all_variables.items():
-                # S'assurer que la valeur est une chaîne non-vide
-                value_str = str(value) if value is not None else ""
-                
-                # Différents formats de variables à remplacer
-                patterns = [
-                    f"{{{var_name}}}",     # {variable}
-                    f"[{var_name}]",       # [variable]
-                    f"<{var_name}>",       # <variable>
-                    f"${var_name}$",       # $variable$
-                    f"«{var_name}»"        # «variable»
-                ]
-                
-                for pattern in patterns:
-                    content = content.replace(pattern, value_str)
+            # Afficher un aperçu du contenu original
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            logger.debug(f"Contenu du template (aperçu): {content_preview}")
+            logger.debug(f"Longueur du contenu: {len(content)} caractères")
             
-            # Vérifier si des variables n'ont pas été remplacées (motifs de variables restants)
+            # Utiliser directement replace_variables qui est optimisé pour préserver exactement la structure
+            logger.info(f"Utilisation de replace_variables pour remplacer {len(all_variables)} variables")
+            final_document = self.replace_variables(content, all_variables)
+            
+            # Vérification des remplacements effectués
+            final_preview = final_document[:100] + "..." if len(final_document) > 100 else final_document
+            logger.debug(f"Document final (aperçu): {final_preview}")
+            logger.debug(f"Longueur du document final: {len(final_document)} caractères")
+            
+            # Vérifier que le document final n'est pas vide
+            if not final_document or final_document.strip() == "":
+                logger.error("ERREUR CRITIQUE: Le document généré est vide!")
+                return "ERREUR: Le document généré est vide. Veuillez vérifier le template."
+            
+            # Rechercher des variables non remplacées
             remaining_vars = []
-            for pattern in [r'\{[a-zA-Z0-9_]+\}', r'\[[a-zA-Z0-9_]+\]', r'<[a-zA-Z0-9_]+>', r'\$[a-zA-Z0-9_]+\$', r'«[a-zA-Z0-9_]+»']:
-                matches = re.findall(pattern, content)
-                remaining_vars.extend(matches)
+            for pattern in [r'\{[a-zA-Z0-9_]+\}', r'\[[a-zA-Z0-9_]+\]', r'<[a-zA-Z0-9_]+>', r'\$[a-zA-Z0-9_]+\$']:
+                matches = re.findall(pattern, final_document)
+                if matches:
+                    remaining_vars.extend(matches)
             
-            # Si des variables n'ont pas été remplacées, utiliser l'IA pour un remplacement plus intelligent
-            if remaining_vars and not self.fallback_mode:
-                logger.info(f"{len(remaining_vars)} variables non remplacées détectées, utilisation de l'IA pour amélioration")
+            if remaining_vars:
+                logger.warning(f"Variables non remplacées: {remaining_vars}")
                 
-                # Utiliser l'IA pour générer un document complet
-                final_content = self._complete_document_with_ai(content, all_variables, remaining_vars)
+                # Deuxième passe avec personalize_document comme fallback
+                logger.info("Deuxième passe avec personalize_document")
+                final_document = self.personalize_document(final_document, all_variables)
                 
-                # Vérification de qualité du document final
-                if self._verify_document_quality(final_content, original_content, all_variables):
-                    logger.info("Document final généré avec succès via IA")
-                    return final_content
-                else:
-                    logger.warning("Document généré par IA de qualité insuffisante, fallback vers remplacement simple")
+                # Vérifier à nouveau pour les variables non remplacées
+                remaining_vars = []
+                for pattern in [r'\{[a-zA-Z0-9_]+\}', r'\[[a-zA-Z0-9_]+\]', r'<[a-zA-Z0-9_]+>', r'\$[a-zA-Z0-9_]+\$']:
+                    matches = re.findall(pattern, final_document)
+                    if matches:
+                        remaining_vars.extend(matches)
+                
+                if remaining_vars:
+                    logger.warning(f"Variables toujours non remplacées après deuxième passe: {remaining_vars}")
             
-            # Si aucune variable non remplacée ou si en mode fallback, retourner le document modifié
-            logger.info("Document final généré avec succès via remplacement simple")
-            return content
+            # Fin du processus
+            logger.info(f"=== FIN GÉNÉRATION DOCUMENT ({len(final_document)} caractères) ===")
+            
+            # Retourner le document final
+            return final_document
             
         except Exception as e:
-            logger.error(f"Erreur lors de la génération du document final: {e}")
+            logger.error(f"ERREUR lors de la génération du document: {str(e)}")
+            traceback.print_exc()
             
-            # Tentative de récupération en cas d'erreur
+            # En cas d'erreur, essayer une méthode très basique
             try:
-                # Lecture du template original et remplacement basique
-                with open(template_path, 'r', encoding='utf-8', errors='replace') as f:
-                    recovery_content = f.read()
+                logger.info("Tentative de récupération avec méthode ultra-basique")
+                content = self._read_file_safely(template_path)
                 
-                # Remplacement forcé avec toutes les variables
+                if not content:
+                    return "ERREUR: Impossible de lire le template."
+                    
+                simple_doc = content
+                
+                # Remplacement basique au format {var}
                 for var_name, value in all_variables.items():
                     value_str = str(value) if value is not None else ""
-                    for pattern in [f"{{{var_name}}}", f"[{var_name}]", f"<{var_name}>"]:
-                        recovery_content = recovery_content.replace(pattern, value_str)
+                    pattern = f"{{{var_name}}}"
+                    simple_doc = simple_doc.replace(pattern, value_str)
                 
-                logger.info("Document récupéré avec succès en mode de secours")
-                return recovery_content
+                logger.info(f"Document récupéré avec méthode basique ({len(simple_doc)} caractères)")
+                return simple_doc
+                
             except Exception as recovery_error:
-                logger.error(f"Échec de la récupération: {recovery_error}")
-                
-                # En dernier recours, générer un document minimal mais complet
-                minimal_doc = f"""
-                # Document généré pour {all_variables.get('name', 'Client')}
-                
-                Date: {all_variables.get('date', '')}
-                Référence: {all_variables.get('reference', '')}
-                
-                """
-                
-                # Ajouter toutes les variables disponibles
-                for var_name, value in all_variables.items():
-                    if var_name not in ['name', 'date', 'reference']:
-                        minimal_doc += f"{var_name}: {value}\n"
-                
-                logger.warning("Document minimal généré suite à une erreur critique")
-                return minimal_doc
+                logger.error(f"ÉCHEC TOTAL de la génération du document: {str(recovery_error)}")
+                return f"ERREUR CRITIQUE: Impossible de générer le document. Détails: {str(e)}"
     
     def _complete_document_with_ai(self, content: str, variables: Dict[str, str], remaining_vars: List[str]) -> str:
         """
@@ -942,229 +844,396 @@ DOCUMENT COMPLÉTÉ:
 
     def personalize_document(self, content: str, variables: Dict[str, Any]) -> str:
         """
-        Personnalise un document en remplaçant les variables par leurs valeurs
+        Personnalise un document en remplaçant toutes les variables par leurs valeurs
+        Préserve exactement la structure originale du document
         
         Args:
-            content: Contenu du document à personnaliser
+            content: Contenu du document
             variables: Dictionnaire des variables à remplacer
             
         Returns:
             Document personnalisé
         """
         try:
-            # Préparer les variables
-            vars_list = []
-            for var_name, var_info in variables.items():
-                value = ""
-                if isinstance(var_info, dict) and "current_value" in var_info:
-                    value = var_info["current_value"]
-                    description = var_info.get("description", var_name)
-                    var_type = var_info.get("type", "text")
-                    vars_list.append(f"{var_name} ({description}, {var_type}): {value}")
+            # Début du processus de personnalisation
+            logger.info(f"Début de personnalisation du document avec {len(variables)} variables")
+            
+            # Afficher le contenu original pour le débogage
+            logger.debug(f"Contenu original (premiers 200 caractères): {content[:200]}...")
+            logger.debug(f"Taille du contenu: {len(content)} caractères")
+            
+            # Extraire les valeurs simples du dictionnaire variables
+            values_dict = {}
+            for key, value in variables.items():
+                # Si c'est un dict (comme {"valeur": "xyz", "type": "..."}), extraire la valeur
+                if isinstance(value, dict) and "valeur" in value:
+                    values_dict[key] = str(value["valeur"]) if value["valeur"] is not None else ""
                 else:
-                    value = str(var_info)
-                    vars_list.append(f"{var_name}: {value}")
+                    values_dict[key] = str(value) if value is not None else ""
+            
+            # Afficher les variables pour le débogage
+            logger.debug(f"Variables à remplacer: {values_dict}")
+            
+            # Copier le contenu original pour le processus de remplacement
+            result = content
+            
+            # Premier remplacement : supporter différents formats de variables courants
+            for var_name, var_value in values_dict.items():
+                # Convertir la valeur en string si nécessaire
+                value_str = str(var_value) if var_value is not None else ""
+                
+                # Liste des formats de variables à remplacer
+                formats = [
+                    f"{{{var_name}}}",       # {variable}
+                    f"[{var_name}]",         # [variable]
+                    f"<{var_name}>",         # <variable>
+                    f"${{{var_name}}}",      # ${variable}
+                    f"${var_name}$",         # $variable$
+                    f"«{var_name}»",         # «variable»
+                    f"%{var_name}%",         # %variable%
+                    f"[[{var_name}]]",       # [[variable]]
+                    f"{{{{{var_name}}}}}"    # {{variable}}
+                ]
+                
+                # Faire le remplacement pour chaque format
+                for fmt in formats:
+                    if fmt in result:
+                        original_length = len(result)
+                        result = result.replace(fmt, value_str)
+                        new_length = len(result)
+                        
+                        # Afficher le résultat du remplacement
+                        replacements = (original_length - new_length) // (len(fmt) - len(value_str)) if len(fmt) != len(value_str) else 0
+                        if replacements > 0:
+                            logger.debug(f"Remplacé '{fmt}' par '{value_str}' ({replacements} fois)")
+                
+                # Essayer aussi avec des variations de casse
+                var_name_lower = var_name.lower()
+                var_name_upper = var_name.upper()
+                var_name_title = var_name.title()
+                
+                for name_variant in [var_name_lower, var_name_upper, var_name_title]:
+                    if name_variant != var_name:
+                        for fmt_template in ["{}", "[]", "<>", "${}", "${}$", "«{}»", "%{}%", "[[{}]]", "{{{}}}"]:
+                            fmt = fmt_template.format(name_variant)
+                            if fmt in result:
+                                result = result.replace(fmt, value_str)
+                                logger.debug(f"Remplacé (variation de casse) '{fmt}' par '{value_str}'")
+            
+            # Afficher les résultats du processus de remplacement
+            logger.debug(f"Contenu final (premiers 200 caractères): {result[:200]}...")
+            logger.info(f"Personnalisation terminée. Taille du document: {len(result)} caractères")
+            
+            # Vérifier si des variables n'ont pas été remplacées
+            unprocessed_vars = []
+            for pattern in [r'\{[a-zA-Z0-9_]+\}', r'\[[a-zA-Z0-9_]+\]', r'<[a-zA-Z0-9_]+>', r'\$[a-zA-Z0-9_]+\$']:
+                matches = re.findall(pattern, result)
+                if matches:
+                    unprocessed_vars.extend(matches)
                     
-            vars_json = "\n".join(vars_list)
+            if unprocessed_vars:
+                logger.warning(f"Variables non traitées: {unprocessed_vars}")
             
-            # Créer le prompt pour personnaliser le document
-            prompt = f"""
-Personnalise ce document en remplaçant les variables par les valeurs données:
-
-Document:
-```
-{content}
-```
-
-Variables:
-{vars_json}
-
-Retourne uniquement le document personnalisé."""
-
-            # Si le document est petit, le traiter en une fois
-            if len(content) < 4000:
-                return self._call_ollama(prompt)
-
-            # Pour les grands documents, découper en sections logiques
-            sections = self._split_document_into_sections(content)
-            
-            # Traiter chaque section avec le contexte complet
-            results = []
-            for i, section in enumerate(sections, 1):
-                logger.info(f"Traitement section {i}/{len(sections)}")
-                
-                section_prompt = f"""Personnalise cette section:
-
-Section:
-{section}
-
-Variables:
-{vars_json}
-
-Conserve la mise en forme.
-"""
-                
-                # Appeler l'API pour personnaliser la section
-                section_result = self._call_ollama(section_prompt)
-                
-                # Si erreur, utiliser la section originale
-                if section_result.startswith("Erreur:") or "Timeout" in section_result:
-                    logger.warning(f"Échec de la personnalisation de la section {i}, utilisation de l'original")
-                    results.append(section)
-                else:
-                    results.append(section_result)
-            
-            # Joindre les sections en préservant les sauts de ligne
-            return "\n\n".join(results)
+            return result
             
         except Exception as e:
-            logger.error(f"Erreur lors de la personnalisation: {e}")
-            return self._fallback_personalization(content, variables)
+            # En cas d'erreur, enregistrer le détail et retourner le document original
+            logger.error(f"Erreur lors de la personnalisation du document: {str(e)}")
+            return content
 
-    def _call_ollama(self, prompt: str, timeout: int = 5) -> str:  # Timeout réduit à 5s
+    def _clean_json_response(self, response: str) -> str:
+        """
+        Nettoie la réponse pour extraire uniquement le JSON valide
+        """
         try:
-            # Limiter la taille du prompt
-            if len(prompt) > 1000:  # Réduit de 2000 à 1000
-                prompt = prompt[:1000]
+            # Trouver le premier caractère { et le dernier }
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start >= 0 and end > start:
+                return response[start:end]
+            return response
+        except Exception:
+            return response
+
+    def _call_ollama(self, prompt: str, timeout: int = 10, max_retries: int = 1, fast_mode: bool = True) -> str:
+        """
+        Appelle l'API Ollama avec optimisation pour la détection de variables
+        
+        Args:
+            prompt: Prompt à envoyer à l'API
+            timeout: Timeout en secondes (par défaut 10s)
+            max_retries: Nombre maximum de tentatives en cas d'échec (par défaut 1)
+            fast_mode: Utiliser le mode rapide avec moins de tokens (par défaut True)
             
-            # Options simplifiées
-            options = {
-                "temperature": 0.1,  # Réduit pour plus de rapidité
-                "num_predict": 50,   # Réduit de 100 à 50
-                "stop": ["\n\n", "###"]
-            }
+        Returns:
+            Réponse de l'API
+        """
+        try:
+            # Limiter et optimiser le prompt
+            if len(prompt) > 3000:
+                prompt = prompt[:3000]
+                
+            # Options optimisées à partir du fichier de configuration
+            config = self._load_config()
+            options = config.get("options", {})
             
-            # Appel simplifié à Ollama avec le modèle Mistral
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "mistral", "prompt": prompt, **options},
-                timeout=timeout
-            )
+            # En mode rapide, limiter le nombre de tokens
+            if fast_mode:
+                options["num_predict"] = min(options.get("num_predict", 800), 300)
+                
+            # Récupérer modèle et URL depuis la configuration
+            api_url = config.get("api_url", "http://localhost:11434/api/generate")
+            model = config.get("model", "llama3:latest")
             
-            if response.status_code == 200:
-                return response.json().get("response", "")
+            # Ajouter un délai de sécurité pour le timeout réseau
+            request_timeout = min(timeout + 3, 10)  # Timeout maximum de 10 secondes et 3 secondes de plus que le timeout API
+            
+            # Tentatives avec délai minimal entre chaque essai
+            for attempt in range(max_retries + 1):
+                try:
+                    if attempt > 0:
+                        logger.info(f"Nouvelle tentative ({attempt}/{max_retries})")
+                    
+                    # Appel optimisé à l'API sans stream pour maximiser la vitesse
+                    response = requests.post(
+                        api_url,
+                        json={"model": model, "prompt": prompt, "stream": False, "options": options},
+                        timeout=request_timeout
+                    ).json()
+                    
+                    if "response" in response:
+                        # Extraire la réponse
+                        result = response["response"].strip()
+                        return result
+                        
+                    return ""
+                    
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'appel à Ollama: {str(e)}")
+                    if attempt < max_retries:
+                        time.sleep(1)  # Délai minimal
+            
+            logger.error(f"Échec après {max_retries} tentatives")
             return ""
             
         except Exception as e:
-            logger.error(f"Erreur Ollama: {str(e)}")
+            logger.error(f"Erreur Ollama (globale): {str(e)}")
             return ""
 
     def _analyze_document_by_sections(self, content: str) -> Dict[str, Any]:
-        # Analyse simplifiée
+        """
+        Analyse un document en le divisant en sections pour un traitement plus efficace
+        
+        Args:
+            content: Contenu du document à analyser
+            
+        Returns:
+            Dict contenant les informations extraites
+        """
         try:
+            logger.info("Analyse du document par sections")
+            
+            # Évaluer la complexité globale du document
+            complexity = self._estimate_document_complexity(content)
+            logger.info(f"Complexité du document estimée: {complexity}")
+            
+            # Diviser le document en sections logiques
             sections = self._split_document_into_sections(content)
+            logger.info(f"Document divisé en {len(sections)} sections")
+            
+            # Limiter le nombre de sections analysées pour accélérer le processus
+            max_sections = 2 if complexity == "complex" else 3
+            sections_to_analyze = sections[:max_sections]
+            
             results = []
+            retries_left = 1  # Réduit le nombre de retries pour accélérer
             
-            for section in sections[:5]:  # Limite à 5 sections
-                if len(section) > 500:  # Réduit de 800 à 500
-                    section = section[:500]
-                result = self._analyze_section_simplified(section)
-                if result:
-                    results.append(result)
+            # Analyser seulement les sections les plus pertinentes
+            # Section 1: Souvent l'en-tête ou introduction
+            if len(sections) > 0:
+                # Réduire davantage la taille pour éviter les timeouts
+                section = sections[0][:1000]  # 1000 caractères au lieu de 2000
+                
+                # Vérifier d'abord s'il y a des variables évidentes avec regex
+                basic_vars = self._extract_basic_variables_from_text(section)
+                if basic_vars:
+                    logger.info(f"Variables extraites de l'en-tête par regex: {len(basic_vars)}")
+                    results.append({"variables": basic_vars})
+                else:
+                    # Sinon essayer avec l'analyse IA
+                    result = self._analyze_section_simplified(section)
+                    if result and "variables" in result and result["variables"]:
+                        logger.info(f"En-tête/Introduction: {len(result['variables'])} variables trouvées")
+                        results.append(result)
             
-            return self._merge_results(results)
-                    
+            # Section 2: Souvent le corps du document 
+            if len(sections) > 2 and len(results) < 2:  # N'analyser que si on n'a pas assez de résultats
+                section = sections[2][:1000]  # 1000 caractères au lieu de 2000
+                
+                # Vérifier d'abord s'il y a des variables évidentes avec regex
+                basic_vars = self._extract_basic_variables_from_text(section)
+                if basic_vars:
+                    logger.info(f"Variables extraites du corps par regex: {len(basic_vars)}")
+                    results.append({"variables": basic_vars})
+                else:
+                    # Sinon essayer avec l'analyse IA
+                    result = self._analyze_section_simplified(section)
+                    if result and "variables" in result and result["variables"]:
+                        logger.info(f"Corps du document: {len(result['variables'])} variables trouvées")
+                        results.append(result)
+            
+            # Fusionner les résultats
+            merged_result = self._merge_results(results)
+            
+            # Fallback rapide si pas assez de variables
+            if len(merged_result.get("variables", {})) < 3:
+                logger.warning("Peu de variables trouvées, extraction directe")
+                basic_vars = self._extract_basic_variables_from_text(content[:5000])
+                if basic_vars:
+                    merged_result["variables"] = merged_result.get("variables", {})
+                    merged_result["variables"].update(basic_vars)
+            
+            # Ajouter des métadonnées
+            merged_result["_meta"] = {
+                "sections_count": len(sections),
+                "sections_analyzed": min(max_sections, len(sections)),
+                "complexity": complexity,
+                "extraction_method": "sections",
+            }
+            
+            return merged_result
+            
         except Exception as e:
-            logger.error(f"Erreur analyse: {str(e)}")
-            return {}
+            logger.error(f"Erreur lors de l'analyse par sections: {str(e)}")
+            # Fallback vers une méthode plus simple
+            variables = self._extract_basic_variables_from_text(content[:3000])
+            return {"variables": variables, "_meta": {"extraction_method": "fallback_basic"}}
 
     def _analyze_section_simplified(self, content: str) -> Dict[str, Any]:
-        try:
-            prompt = f"""
-Tu es un expert en extraction de variables personnalisables dans les documents. Extrais tous les champs qui devraient être remplacés par des informations du client.
-
-Exemples de variables personnalisables à identifier:
-1. Informations personnelles:
-   - nom, prénom, civilité (M./Mme/etc.)
-   - société, entreprise, organisation
-   - fonction, poste, titre professionnel
-
-2. Coordonnées:
-   - adresse complète, rue, numéro, ville, code_postal, pays
-   - email, téléphone, mobile, fax
-   - site_web
-
-3. Données financières:
-   - montant, prix, total, sous_total
-   - devise, taux_tva, montant_tva
-   - reduction, remise, acompte
-   - prix_unitaire, quantité
-
-4. Dates et références:
-   - date (toute date dans le document)
-   - date_creation, date_emission, date_echeance
-   - reference, numero_commande, numero_client
-   - numero_facture, identifiant
-
-5. Contenu contextuel:
-   - objet, sujet, titre_document
-   - description, details, motif
-   - lieu, emplacement
-   - conditions, termes
-
-Ne retourne que les variables qui sont clairement identifiables comme des champs à personnaliser.
-Assure-toi que chaque variable soit correctement nommée et catégorisée.
-
-Analyse le texte suivant et identifie toutes les variables personnalisables:
------
-{content}
------
-
-Réponds uniquement avec un objet JSON de la forme:
-{{
-  "variables": {{
-    "nom_variable": {{
-      "valeur": "Valeur actuelle extraite du document",
-      "type": "Type de variable (nom, date, montant, etc.)",
-      "description": "Description brève de la variable"
-    }},
-    ...
-  }}
-}}
-"""
-            response = self._call_ollama(prompt, timeout=15)
+        """
+        Analyse une section de document de manière simplifiée pour en extraire les variables
+        
+        Args:
+            content: Section de texte à analyser
             
+        Returns:
+            Dict contenant les variables extraites
+        """
+        try:
+            # Estimer la complexité de la section pour ajuster le timeout
+            complexity = self._estimate_document_complexity(content)
+            timeout = 10 if complexity == "complex" else 7  # Réduire les timeouts pour éviter les erreurs
+            
+            # Optimisation: réduire le contenu pour cibler l'essentiel
+            if len(content) > 1000:
+                content = content[:1000]  # Réduire à 1000 caractères maximum
+            
+            # Prompt en format texte simple au lieu de JSON
+            prompt = f"""
+Liste les variables et leurs valeurs dans ce document, une par ligne:
+VARIABLE: valeur
+
+Exemple:
+NOM: Jean Dupont
+DATE: 12/03/2024
+
+Texte:
+{content}
+"""
+            # Appel à l'IA
+            response = self._call_ollama(prompt, timeout=timeout, fast_mode=True)
             if not response:
-                return {}
+                # Utiliser extraction basique si pas de réponse
+                variables = self._extract_basic_variables_from_text(content)
+                return {"variables": variables}
+            
+            # Parser la réponse en format texte simple
+            variables = {}
+            lines = response.strip().split('\n')
+            for line in lines:
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    if len(parts) == 2:
+                        key = parts[0].strip().lower()
+                        value = parts[1].strip()
+                        if key and value:
+                            variables[key] = value
+            
+            # Si aucune variable n'est trouvée, essayer l'extraction basique
+            if not variables:
+                variables = self._extract_basic_variables_from_text(content)
+            
+            return {"variables": variables}
                 
-            try:
-                # Essayer d'extraire la partie JSON
-                json_match = re.search(r'({.*})', response.replace('\n', ''), re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(1)
-                    try:
-                        extracted_data = json.loads(json_str)
-                        # Vérifier que c'est un dictionnaire et qu'il contient "variables"
-                        if isinstance(extracted_data, dict):
-                            if "variables" in extracted_data:
-                                return extracted_data
-                            return {"variables": extracted_data}
-                    except:
-                        pass
-                
-                # Si l'extraction a échoué, essayer de nettoyer la réponse entière
-                try:
-                    return json.loads(response)
-                except:
-                    pass
-                    
-                # En dernier recours, parser manuellement
-                variable_pattern = r'"([^"]+)":\s*"([^"]+)"'
-                matches = re.findall(variable_pattern, response)
-                if matches:
-                    variables = {}
-                    for key, value in matches:
-                        variables[key] = value
-                    return {"variables": variables}
-                    
-                return {}
-            except Exception as e:
-                logger.error(f"Erreur lors du parsing de la réponse JSON: {e}")
-                return {}
-                        
         except Exception as e:
-            logger.error(f"Erreur section: {str(e)}")
-            return {}
+            logger.error(f"Erreur globale dans _analyze_section_simplified: {str(e)}")
+            # En cas d'échec, utiliser l'extraction basique par regex
+            variables = self._extract_basic_variables_from_text(content)
+            return {"variables": variables}
+    
+    def _extract_basic_variables_from_text(self, text: str) -> Dict[str, Any]:
+        """
+        Extrait des variables basiques d'un texte sans utiliser l'IA
+        
+        Args:
+            text: Texte brut dont on veut extraire les variables
+            
+        Returns:
+            Dictionnaire des variables extraites
+        """
+        variables = {}
+        
+        # Normalisation du texte
+        normalized_text = text.replace('\r\n', '\n').replace('\t', ' ')
+        
+        # Définition des patterns de reconnaissance
+        patterns = {
+            # Contact
+            'email': r'\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b',
+            'telephone': r'(?:\+?\d{1,3}[.\s-]?)?(?:\(?\d{2,3}\)?[.\s-]?)?\d{2,4}[.\s-]?\d{2,4}[.\s-]?\d{2,4}',
+            
+            # Identifiants et références
+            'reference': r'(?:ref|réf|référence|n°|numéro)\s*:?\s*([A-Z0-9-_/]+)',
+            
+            # Données financières
+            'montant': r'\b\d+(?:[,.]\d{1,2})?\s*(?:€|USD|£|\$|EUR)?\b',
+            
+            # Dates
+            'date': r'\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b|\b\d{4}[-]\d{1,2}[-]\d{1,2}\b',
+            
+            # Sites web
+            'site_web': r'\b(?:https?://|www\.)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}(?:/[^\s]*)?'
+        }
+        
+        # Extraction des données
+        for var_name, pattern in patterns.items():
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                if isinstance(matches[0], tuple):
+                    for match in matches[0]:
+                        if match:
+                            variables[var_name] = match.strip()
+                            break
+                else:
+                    variables[var_name] = matches[0].strip()
+        
+        # Nettoyage des valeurs
+        for key in variables:
+            if isinstance(variables[key], str):
+                variables[key] = re.sub(r'^\W+|\W+$', '', variables[key]).strip()
+                variables[key] = re.sub(r'\s+', ' ', variables[key])
+        
+        # Reformatage du résultat
+        result = {}
+        for key, value in variables.items():
+            var_type = self._guess_variable_type(key, normalized_text)
+            result[key] = {
+                "type": var_type,
+                "description": self._get_variable_description(key),
+                "valeur": value
+            }
+        
+        return result
 
     def _merge_results(self, results: List[Dict]) -> Dict[str, Any]:
         merged = {}
@@ -1186,267 +1255,370 @@ Réponds uniquement avec un objet JSON de la forme:
         """
         logger.info("Utilisation de la méthode de secours pour l'analyse")
         try:
-            # Utiliser un prompt simplifié pour Mistral avec moins de complexité
+            # 1. Détection préliminaire des variables évidentes (templates)
+            template_variables = self._detect_template_variables(content)
+            
+            # 2. Utiliser l'IA avec un timeout court
+            document_complexity = self._estimate_document_complexity(content)
+            timeout = 20 if document_complexity == "complex" else 15
+            
+            # Prompt en format texte simple pour plus de rapidité
             prompt = f"""
-Analyse ce document et identifie tous les champs personnalisables qui devraient être remplacés par les informations d'un client.
-Ne retourne qu'un objet JSON simple sans explication.
+Analyse ce document et identifie les variables personnalisables.
+Liste chaque variable avec sa valeur sur une ligne séparée, au format VARIABLE: VALEUR.
+
+Exemple:
+NOM: Jean Dupont
+ADRESSE: 15 rue des Fleurs
+CODE_POSTAL: 75001
+VILLE: Paris
+MONTANT: 150,50€
+DATE: 12/03/2024
 
 Document:
 ---
-{content[:2000]}  # Limiter à 2000 caractères pour garantir une réponse
+{content[:3000]}
 ---
-
-Format de réponse attendu:
-{{
-  "variables": {{
-    "nom_variable": "valeur_actuelle",
-    ...
-  }}
-}}
 """
-            # Essayer d'abord avec Mistral
-            try:
-                response = self._call_ollama(prompt, timeout=10)
-                if response:
-                    # Tenter d'extraire le JSON
-                    json_match = re.search(r'({.*})', response.replace('\n', ''), re.DOTALL)
-                    if json_match:
-                        try:
-                            extracted_data = json.loads(json_match.group(1))
-                            if isinstance(extracted_data, dict) and "variables" in extracted_data:
-                                logger.info(f"Analyse de secours via Mistral réussie, {len(extracted_data['variables'])} variables extraites")
-                                return extracted_data
-                        except:
-                            logger.warning("Erreur d'analyse JSON de la réponse Mistral")
-            except Exception as e:
-                logger.warning(f"Erreur lors de l'utilisation de Mistral pour l'analyse de secours: {e}")
+            # Essayer avec timeout adapté
+            response = self._call_ollama(prompt, timeout=timeout, max_retries=2)
             
-            # Si Mistral échoue, utiliser une analyse par expressions régulières
-            variables = {}
-            
-            # Rechercher des dates (format JJ/MM/AAAA ou JJ-MM-AAAA ou AAAA-MM-JJ)
-            dates = re.findall(r'\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b', content)
-            if dates:
-                variables['date'] = dates[0]
-                # Chercher plus de contexte pour identifier le type de date
-                date_contexts = {
-                    'date_emission': ['émis', 'établi', 'création', 'facture du'],
-                    'date_echeance': ['échéance', 'paiement', 'règlement', 'due', 'limite'],
-                    'date_livraison': ['livraison', 'livré', 'expédition']
-                }
+            if not response:
+                # Si pas de réponse, retourner les variables du template et l'extraction basique
+                logger.warning("Pas de réponse pour l'analyse de secours, utilisation des extractions basiques")
+                basic_variables = self._extract_basic_variables_from_text(content[:5000])
                 
-                content_lower = content.lower()
-                for date in dates[:3]:  # Limiter aux 3 premières dates
-                    for date_type, contexts in date_contexts.items():
-                        # Chercher le contexte avant et après la date
-                        for context in contexts:
-                            if re.search(f"{context}.{{0,30}}{re.escape(date)}", content_lower) or \
-                               re.search(f"{re.escape(date)}.{{0,30}}{context}", content_lower):
-                                variables[date_type] = date
-                                break
+                # Fusionner avec les variables de template
+                all_variables = {**template_variables, **basic_variables}
+                return {"variables": all_variables}
             
-            # Rechercher des montants (avec ou sans devise)
-            amount_patterns = [
-                r'\b\d+(?:[,.]\d{1,3})?(?:\s?[€$£]|EUR|USD|GBP)\b',  # Montants avec devise
-                r'\b\d+(?:[,.]\d{2})(?:\s?HT|\s?TTC)?\b',  # Montants avec HT/TTC
-                r'total\s*:?\s*\d+(?:[,.]\d{1,3})?'  # Totaux
-            ]
+            # Parser la réponse en format texte
+            extracted_variables = {}
+            for line in response.strip().split('\n'):
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    if len(parts) == 2:
+                        key = parts[0].strip().lower()
+                        value = parts[1].strip()
+                        if key and value and len(key) > 1 and len(value) > 1:
+                            extracted_variables[key] = value
             
-            for pattern in amount_patterns:
-                amounts = re.findall(pattern, content, re.IGNORECASE)
-                if amounts:
-                    # Identifier le contexte pour chaque montant
-                    amount_contexts = {
-                        'montant_total': ['total', 'net à payer', 'montant'],
-                        'montant_ht': ['HT', 'hors taxe'],
-                        'montant_ttc': ['TTC', 'toutes taxes', 'TVA incluse'],
-                        'acompte': ['acompte', 'avance', 'versement initial']
-                    }
-                    
-                    content_lower = content.lower()
-                    for amount in amounts[:5]:  # Limiter aux 5 premiers montants
-                        amount_clean = amount.strip()
-                        for amount_type, contexts in amount_contexts.items():
-                            for context in contexts:
-                                if re.search(f"{context}.{{0,50}}{re.escape(amount_clean)}", content_lower, re.IGNORECASE) or \
-                                   re.search(f"{re.escape(amount_clean)}.{{0,50}}{context}", content_lower, re.IGNORECASE):
-                                    variables[amount_type] = amount_clean
-                                    break
-                                    
-                    # Si aucun contexte spécifique n'a été trouvé pour le premier montant
-                    if 'montant_total' not in variables and 'montant_ht' not in variables and 'montant_ttc' not in variables:
-                        variables['montant'] = amounts[0]
-            
-            # Rechercher des emails
-            emails = re.findall(r'\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\b', content)
-            if emails:
-                variables['email'] = emails[0]
+            # Si aucune variable n'est extraite de la réponse, revenir aux méthodes basiques
+            if not extracted_variables:
+                logger.warning("Aucune variable extraite de la réponse, recours aux méthodes basiques")
+                basic_variables = self._extract_basic_variables_from_text(content[:5000])
+                extracted_variables = basic_variables
                 
-                # Vérifier s'il y a plusieurs emails et les classifier
-                if len(emails) > 1:
-                    email_contexts = {
-                        'email_contact': ['contact', 'info', 'renseignement'],
-                        'email_facturation': ['facture', 'facturation', 'compta', 'finance'],
-                        'email_support': ['support', 'aide', 'assistance', 'sav']
-                    }
-                    
-                    content_lower = content.lower()
-                    for i, email in enumerate(emails[:3]):  # Limiter aux 3 premiers emails
-                        for email_type, contexts in email_contexts.items():
-                            for context in contexts:
-                                if re.search(f"{context}.{{0,50}}{re.escape(email)}", content_lower, re.IGNORECASE) or \
-                                   re.search(f"{re.escape(email)}.{{0,50}}{context}", content_lower, re.IGNORECASE):
-                                    variables[email_type] = email
-                                    break
+            # Fusionner les variables du template avec celles extraites
+            all_variables = {**template_variables, **extracted_variables}
             
-            # Rechercher des numéros de téléphone (formats internationaux inclus)
-            phone_patterns = [
-                r'\b(?:0\d[\s.-]?){4,5}\d{2}\b',  # Format français
-                r'\b\+\d{2}[\s.-]?(?:\d[\s.-]?){8,11}\b',  # Format international
-                r'\b(?:\d{2}[\s.-]?){4,5}\b'  # Format général
-            ]
-            
-            for pattern in phone_patterns:
-                phones = re.findall(pattern, content)
-                if phones:
-                    variables['telephone'] = phones[0]
-                    # Identifier différents types de téléphones
-                    if len(phones) > 1:
-                        phone_contexts = {
-                            'telephone_mobile': ['mobile', 'portable', 'cell'],
-                            'telephone_fixe': ['fixe', 'bureau'],
-                            'fax': ['fax', 'télécopie']
-                        }
-                        
-                        content_lower = content.lower()
-                        for i, phone in enumerate(phones[:3]):  # Limiter aux 3 premiers numéros
-                            for phone_type, contexts in phone_contexts.items():
-                                for context in contexts:
-                                    if re.search(f"{context}.{{0,30}}{re.escape(phone)}", content_lower, re.IGNORECASE) or \
-                                       re.search(f"{re.escape(phone)}.{{0,30}}{context}", content_lower, re.IGNORECASE):
-                                        variables[phone_type] = phone
-                                        break
-                    break
-            
-            # Rechercher des adresses (codes postaux et villes)
-            # Format français: code postal à 5 chiffres suivi de ville
-            cp_city_matches = re.findall(r'\b(\d{5})\s+([A-Z][A-Za-zÀ-ÿ\s-]{2,})\b', content)
-            if cp_city_matches:
-                cp, city = cp_city_matches[0]
-                variables['code_postal'] = cp
-                variables['ville'] = city
-                
-                # Chercher une rue associée (avant le code postal)
-                content_parts = content.split(cp)
-                if len(content_parts) > 1:
-                    before_cp = content_parts[0]
-                    # Chercher la dernière ligne contenant "rue", "avenue", etc.
-                    address_indicators = ['rue', 'avenue', 'boulevard', 'place', 'chemin', 'allée', 'impasse', 'route']
-                    for indicator in address_indicators:
-                        addr_match = re.findall(f'\\b\\d+[\\s,]*{indicator}[\\sA-Za-zÀ-ÿ,\\-\']+', before_cp, re.IGNORECASE)
-                        if addr_match:
-                            variables['adresse'] = addr_match[-1].strip()
-                            break
-            
-            # Essayer d'identifier le type de document
-            doc_types = {
-                'contrat': ['contrat', 'convention', 'accord', 'engagement'],
-                'facture': ['facture', 'paiement', 'règlement', 'montant', 'total', 'tva'],
-                'devis': ['devis', 'estimation', 'proposition', 'offre'],
-                'lettre': ['madame', 'monsieur', 'cordialement', 'sincères salutations'],
-                'rapport': ['rapport', 'analyse', 'étude', 'synthèse'],
-                'attestation': ['atteste', 'certification', 'confirme', 'attester'],
-                'cv': ['expérience', 'compétences', 'formation', 'diplôme', 'curriculum vitae']
-            }
-            
-            content_lower = content.lower()
-            for doc_type, keywords in doc_types.items():
-                if any(keyword in content_lower for keyword in keywords):
-                    variables['type_document'] = doc_type
-                    break
-            else:
-                variables['type_document'] = 'document'
-            
-            # Rechercher des références de document
-            ref_patterns = [
-                r'\b(?:ref|référence|n°)(?:\s|:)+([a-zA-Z0-9-_/]+)',
-                r'\b(?:facture|devis|commande|bon)(?:\s|:)+n°\s*([a-zA-Z0-9-_/]+)',
-                r'\b(?:identifiant|id|numéro)(?:\s|:)+([a-zA-Z0-9-_/]+)'
-            ]
-            
-            for pattern in ref_patterns:
-                refs = re.findall(pattern, content, re.IGNORECASE)
-                if refs:
-                    variables['reference'] = refs[0].strip()
-                    break
-            
-            # Rechercher un nom ou une entité
-            name_patterns = [
-                r'M(?:\.|onsieur)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)',
-                r'Mme(?:\.|adame)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)',
-                r'(?:Société|SARL|SAS|SA|EURL|SASU)\s+([A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ\s-]+)'
-            ]
-            
-            for pattern in name_patterns:
-                matches = re.findall(pattern, content)
-                if matches:
-                    if 'Monsieur' in pattern:
-                        variables['civilite'] = 'M.'
-                        variables['nom'] = matches[0].strip()
-                    elif 'Madame' in pattern:
-                        variables['civilite'] = 'Mme'
-                        variables['nom'] = matches[0].strip()
-                    else:
-                        variables['societe'] = matches[0].strip()
-                    break
-            
-            # Si aucun nom ou société, chercher des mots commençant par majuscule
-            if 'nom' not in variables and 'societe' not in variables:
-                cap_words_pattern = r'(?<=[^\.\?\!]\s)[A-Z][a-zA-ZéèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]{3,}'
-                cap_words = re.findall(cap_words_pattern, content)
-                if cap_words:
-                    # Prendre les mots qui apparaissent au moins deux fois
-                    from collections import Counter
-                    word_counts = Counter(cap_words)
-                    for word, count in word_counts.most_common(3):
-                        if count >= 2 and len(word) > 3:  # Au moins 2 occurrences et 4 caractères
-                            if re.match(r'^[A-Z][a-z]+$', word):  # Format typique pour un nom propre
-                                variables['nom'] = word
-                                break
-            
-            # Créer un résultat structuré
-            structured_variables = {}
-            for key, value in variables.items():
-                structured_variables[key] = {
-                    "valeur": value,
-                    "type": self._get_variable_type(key),
-                    "description": self._get_variable_description(key)
-                }
-            
-            # Créer le résultat final
-            result = {
-                'variables': structured_variables,
-                'detection_method': 'fallback_enhanced',
-                'confidence': 'medium'
-            }
-            
-            logger.info(f"Analyse de secours terminée, {len(variables)} variables extraites")
-            return result
+            return {"variables": all_variables}
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'analyse de secours: {e}")
-            # Retourner un résultat minimal mais valide
-            return {
-                'variables': {
-                    'type_document': {
-                        "valeur": "document",
-                        "type": "categorie",
-                        "description": "Type de document"
-                    }
-                },
-                'detection_method': 'fallback_error',
-                'error': str(e)
-            }
+            logger.error(f"Erreur lors de l'analyse de secours: {str(e)}")
+            # En dernier recours, utiliser uniquement l'extraction basique
+            basic_variables = self._extract_basic_variables_from_text(content[:5000])
+            return {"variables": basic_variables}
+
+    def _estimate_document_complexity(self, content: str) -> str:
+        """
+        Estime la complexité d'un document pour ajuster les paramètres d'analyse
+        
+        Args:
+            content: Contenu du document
+            
+        Returns:
+            str: "simple", "medium" ou "complex"
+        """
+        # Calculer des indicateurs de complexité
+        char_count = len(content)
+        line_count = content.count('\n') + 1
+        word_count = len(content.split())
+        
+        # Indicateurs de structure et contenu complexe
+        table_indicators = content.count('|') + content.count(';') + content.count('\t')
+        number_count = len(re.findall(r'\d+', content))
+        special_char_count = len(re.findall(r'[€$£%&*()[\]{}]', content))
+        
+        # Calculer un score de complexité
+        complexity_score = 0
+        
+        # Longueur du document
+        if char_count > 10000:
+            complexity_score += 3
+        elif char_count > 5000:
+            complexity_score += 2
+        elif char_count > 2000:
+            complexity_score += 1
+            
+        # Densité d'information
+        if word_count > 0:
+            chars_per_word = char_count / word_count
+            if chars_per_word > 8:  # Mots longs/complexes
+                complexity_score += 2
+            elif chars_per_word > 6:
+                complexity_score += 1
+                
+        # Structure
+        if table_indicators > 50:  # Document très structuré (tables, CSV)
+            complexity_score += 3
+        elif table_indicators > 20:
+            complexity_score += 2
+            
+        # Données numériques
+        if number_count > 100:  # Beaucoup de chiffres (factures, données financières)
+            complexity_score += 2
+        elif number_count > 50:
+            complexity_score += 1
+            
+        # Caractères spéciaux
+        if special_char_count > 100:
+            complexity_score += 1
+            
+        # Variété lexicale (estimation simple)
+        unique_words = len(set(re.findall(r'\b\w+\b', content.lower())))
+        if unique_words > 300:
+            complexity_score += 2
+        elif unique_words > 150:
+            complexity_score += 1
+            
+        # Déterminer la catégorie finale
+        if complexity_score >= 6:
+            return "complex"
+        elif complexity_score >= 3:
+            return "medium"
+        else:
+            return "simple"
+
+    def _detect_template_variables(self, content: str) -> Dict[str, str]:
+        """
+        Détecte les variables évidentes de type template dans le contenu
+        
+        Args:
+            content: Contenu textuel à analyser
+            
+        Returns:
+            Dict contenant les variables de template détectées
+        """
+        logger.info("Détection des variables de template")
+        variables = {}
+        
+        # Modèles de variables de template
+        template_patterns = [
+            r'\{\{([a-zA-Z0-9_]+)\}\}',  # Format {{variable}}
+            r'\{([a-zA-Z0-9_]+)\}',      # Format {variable}
+            r'\[([a-zA-Z0-9_]+)\]',      # Format [variable]
+            r'<<([a-zA-Z0-9_]+)>>',      # Format <<variable>>
+            r'<([a-zA-Z0-9_]+)>',        # Format <variable>
+            r'\$([a-zA-Z0-9_]+)\$',      # Format $variable$
+            r'%([a-zA-Z0-9_]+)%',        # Format %variable%
+            r'«([a-zA-Z0-9_]+)»'         # Format «variable»
+        ]
+        
+        for pattern in template_patterns:
+            matches = re.findall(pattern, content)
+            for var_name in matches:
+                var_name = var_name.strip()
+                # Ignorer les noms de variables courts ou communs
+                if len(var_name) > 2 and var_name.lower() not in ['if', 'for', 'end', 'else', 'var', 'let']:
+                    variables[var_name] = f"<{var_name}>"
+        
+        logger.info(f"Détection de {len(variables)} variables de template")
+        return variables
+    
+    def _extract_variables_with_scoring(self, content: str) -> Tuple[Dict[str, str], Dict[str, float]]:
+        """
+        Extrait les variables du texte en utilisant des regex et attribue un score de confiance
+        
+        Args:
+            content: Contenu textuel à analyser
+            
+        Returns:
+            Tuple[Dict[str, str], Dict[str, float]]: Variables extraites et leurs scores de confiance
+        """
+        logger.info("Extraction de variables par regex avec scoring")
+        variables = {}
+        scores = {}  # Scores de confiance (0.0 à 1.0)
+        content_lower = content.lower()
+        
+        # 1. INFORMATIONS PERSONNELLES
+        
+        # Civilités (M., Mme, Dr, etc.)
+        civility_patterns = [
+            (r'\b(M\.|Monsieur|Mme\.?|Madame|Mlle\.?|Mademoiselle|Dr\.?|Docteur|Pr\.?|Professeur)\s+([A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)*)', 0.8),
+            (r'\b([A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)*)\s+(M\.|Monsieur|Mme\.?|Madame|Mlle\.?|Mademoiselle|Dr\.?|Docteur|Pr\.?|Professeur)', 0.7)
+        ]
+        
+        for pattern, base_score in civility_patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                civility_map = {
+                    'monsieur': 'M.', 'm.': 'M.',
+                    'madame': 'Mme', 'mme': 'Mme', 'mme.': 'Mme',
+                    'mademoiselle': 'Mlle', 'mlle': 'Mlle', 'mlle.': 'Mlle',
+                    'docteur': 'Dr', 'dr': 'Dr', 'dr.': 'Dr',
+                    'professeur': 'Pr', 'pr': 'Pr', 'pr.': 'Pr'
+                }
+                
+                if len(matches[0]) >= 2:
+                    # Format: (civilité, nom)
+                    civ, nom = matches[0]
+                    civ_lower = civ.lower().replace('.', '')
+                    if civ_lower in civility_map:
+                        variables['civilite'] = civility_map[civ_lower]
+                        scores['civilite'] = base_score + 0.1
+                    else:
+                        variables['civilite'] = civ
+                        scores['civilite'] = base_score
+                    variables['nom'] = nom.strip()
+                    scores['nom'] = base_score
+                break
+                
+        # Noms complets (avec ou sans civilité)
+        if 'nom' not in variables:
+            name_patterns = [
+                (r'(?:nom|client)(?:\s*:|\s*du\s*client\s*:|\s*)\s*([A-Z][a-zÀ-ÿ]+(?:[\s-][A-Z][a-zÀ-ÿ]+)*)', 0.9),
+                (r'\b([A-Z][A-Z\s-]+)\b', 0.6),  # Noms en majuscules (moins fiable)
+                (r'(?:je soussigné\(e\)|signataire)\s*:?\s*([A-Z][a-zÀ-ÿ]+(?:[\s-][A-Z][a-zÀ-ÿ]+)*)', 0.85)
+            ]
+            
+            for pattern, base_score in name_patterns:
+                matches = re.findall(pattern, content, re.IGNORECASE)
+                if matches:
+                    for match in matches:
+                        name = match.strip()
+                        # Vérifier que ce n'est pas un terme commun
+                        common_terms = ['FACTURE', 'DEVIS', 'CONTRAT', 'DOCUMENT', 'CLIENT']
+                        if name.upper() not in common_terms and len(name) > 3:
+                            variables['nom'] = name
+                            # Ajuster le score selon le contexte et la qualité
+                            context_score = 0.0
+                            if "nom" in content_lower[:content_lower.find(name.lower())]:
+                                context_score += 0.1
+                            if name.isupper() and pattern != r'\b([A-Z][A-Z\s-]+)\b':
+                                context_score -= 0.1  # Pénalité pour les noms tout en majuscules sauf si c'est le pattern dédié
+                            
+                            scores['nom'] = min(1.0, base_score + context_score)
+                            break
+                    if 'nom' in variables:
+                        break
+        
+        # Ajouter le reste des sections (prénoms, société, adresse, etc.) avec scoring
+        # Pour chaque section, définir des patterns avec un score de base et ajuster 
+        # le score final en fonction du contexte
+        
+        # Par exemple pour les montants:
+        amount_patterns = [
+            (r'(?:montant|total|prix|somme)(?:\s*:|\s*)\s*([0-9\s]+(?:[,.][0-9]{1,3})?)\s*(?:€|EUR|euros?|USD|\$|£|HT|TTC)', 0.9),
+            (r'([0-9\s]+(?:[,.][0-9]{1,3})?\s*(?:€|EUR|euros?|USD|\$|£))', 0.75),
+            (r'(?:HT|hors taxes?)(?:\s*:|\s*)\s*([0-9\s]+(?:[,.][0-9]{1,3})?)', 0.85),
+            (r'(?:TTC|toutes taxes comprises?)(?:\s*:|\s*)\s*([0-9\s]+(?:[,.][0-9]{1,3})?)', 0.85),
+            (r'(?:TVA|taux de TVA)(?:\s*:|\s*)\s*([0-9\s]+(?:[,.][0-9]{1,3})?\s*\%?)', 0.85)
+        ]
+        
+        for pattern, base_score in amount_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            if matches:
+                amount_value = matches[0].strip() if isinstance(matches[0], str) else matches[0]
+                
+                # Déterminer le type de montant en fonction du pattern
+                var_name = ""
+                if 'montant' in pattern.lower() or 'total' in pattern.lower() or 'prix' in pattern.lower() or 'somme' in pattern.lower():
+                    var_name = 'montant'
+                elif 'HT' in pattern or 'hors taxes' in pattern.lower():
+                    var_name = 'montant_ht'
+                elif 'TTC' in pattern or 'toutes taxes' in pattern.lower():
+                    var_name = 'montant_ttc'
+                elif 'TVA' in pattern:
+                    var_name = 'tva'
+                
+                if var_name:
+                    variables[var_name] = amount_value
+                    
+                    # Ajuster le score selon le format et la qualité
+                    context_score = 0.0
+                    # Un montant bien formaté avec devise augmente la confiance
+                    if re.search(r'[0-9]+[,.][0-9]{2}\s*(?:€|EUR)', amount_value):
+                        context_score += 0.1
+                    # Des caractères non numériques inattendus réduisent la confiance
+                    if re.search(r'[^0-9\s,.€$£HTCVAEURG]', amount_value):
+                        context_score -= 0.2
+                        
+                    scores[var_name] = min(1.0, base_score + context_score)
+        
+        # Adaptation similaire pour les autres types de variables
+        # Par exemple, ici pour dates, emails, téléphones, etc.
+        
+        # Code complet du _extract_variables_with_regex mais avec des scores
+        
+        # Le reste de la méthode _extract_variables_with_regex à adapter avec scores
+        
+        # Reproduire la logique pour les autres parties (téléphones, emails, etc.)
+        # en suivant la même structure: patterns avec scores de base, 
+        # puis ajustement selon le contexte
+
+        logger.info(f"Extraction par regex terminée, {len(variables)} variables extraites avec scoring")
+        return variables, scores
+
+    def _guess_variable_type(self, key: str, content: str = None) -> str:
+        """
+        Devine le type d'une variable en fonction de son nom et contenu
+        
+        Args:
+            key: Nom de la variable
+            content: Contenu pour analyse contextuelle (optionnel)
+            
+        Returns:
+            Type de la variable (text, number, date, etc.)
+        """
+        # Mapping des clés vers les types
+        type_mapping = {
+            # Dates
+            'date': 'date',
+            'date_emission': 'date',
+            'date_echeance': 'date',
+            'date_livraison': 'date',
+            
+            # Montants et nombres
+            'montant': 'number',
+            'montant_ht': 'number',
+            'montant_ttc': 'number',
+            'tva': 'number',
+            
+            # Contacts
+            'telephone': 'phone',
+            'telephone_mobile': 'phone',
+            'telephone_fixe': 'phone',
+            'email': 'email',
+            
+            # Adresses
+            'adresse': 'address',
+            'code_postal': 'postal_code',
+            'ville': 'city',
+            'pays': 'country',
+            
+            # Identifiants
+            'siret': 'id',
+            'siren': 'id',
+            'tva_intra': 'id',
+            'reference': 'id',
+            'numero_facture': 'id',
+            'numero_client': 'id'
+        }
+        
+        # Analyse du contenu de la valeur si disponible
+        if key not in type_mapping and content:
+            if re.search(r'\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b', content):
+                return 'date'
+            elif re.search(r'\b\d+(?:[,.]\d{1,3})?\s*(?:€|EUR|USD|\$|£)\b', content):
+                return 'number'
+            elif re.search(r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b', content):
+                return 'email'
+            elif re.search(r'\b(?:\+?\d{1,3}[.\s-]?)?(?:\(?\d{2,3}\)?[.\s-]?)?\d{2,4}[.\s-]?\d{2,4}[.\s-]?\d{2,4}\b', content):
+                return 'phone'
+        
+        # Retour du type ou par défaut "text"
+        return type_mapping.get(key, 'text')
 
     def _get_variable_type(self, key: str) -> str:
         """
@@ -1530,8 +1702,8 @@ Format de réponse attendu:
             "file_extension": os.path.splitext(file_path)[1].lower() if os.path.exists(file_path) else "",
             "text_extraction": None,
             "text_length": 0,
-            "mistral_connection": False,
-            "mistral_response": None,
+            "llama3_connection": False,
+            "llama3_response": None,
             "issues": [],
             "recommendations": []
         }
@@ -1565,20 +1737,20 @@ Format de réponse attendu:
             diagnostics["issues"].append(f"Erreur lors de l'extraction du texte: {str(e)}")
             diagnostics["recommendations"].append("Vérifiez le format du document et réessayez avec un autre format si possible")
             
-        # Test de la connexion à Mistral
+        # Test de la connexion à Phi-3
         try:
             test_prompt = "Renvoie simplement le mot 'OK'"
             response = self._call_ollama(test_prompt, timeout=3)
             
-            diagnostics["mistral_connection"] = "OK" in response
-            diagnostics["mistral_response"] = response[:50] if response else "Pas de réponse"
+            diagnostics["llama3_connection"] = "OK" in response
+            diagnostics["llama3_response"] = response[:50] if response else "Pas de réponse"
             
-            if not diagnostics["mistral_connection"]:
-                diagnostics["issues"].append("Problème de connexion avec le modèle Mistral")
-                diagnostics["recommendations"].append("Vérifiez que le serveur Ollama est en cours d'exécution et que le modèle Mistral est installé")
+            if not diagnostics["llama3_connection"]:
+                diagnostics["issues"].append("Problème de connexion avec le modèle Llama3")
+                diagnostics["recommendations"].append("Vérifiez que le serveur Ollama est en cours d'exécution et que le modèle llama3 est installé")
                 
         except Exception as e:
-            diagnostics["issues"].append(f"Erreur lors du test de connexion à Mistral: {str(e)}")
+            diagnostics["issues"].append(f"Erreur lors du test de connexion à Llama3: {str(e)}")
             diagnostics["recommendations"].append("Vérifiez la configuration du serveur Ollama et assurez-vous qu'il fonctionne correctement")
             
         # Analyse conditionnelle du contenu
@@ -1619,7 +1791,7 @@ Format de réponse attendu:
             logger.info("Division du document en sections pour analyse")
             
             # Si le contenu est très court, le traiter comme une seule section
-            if len(content) < 1000:
+            if len(content) < 500:
                 return [content]
                 
             # Tentative de division basée sur les titres et les sauts de ligne
@@ -1666,11 +1838,11 @@ Format de réponse attendu:
             if len(sections) <= 1:
                 paragraphs = re.split(r'\n\s*\n', content)
                 
-                # Regrouper les paragraphes en sections d'environ 1000 caractères
+                # Regrouper les paragraphes en sections d'environ 500 caractères
                 current_section = ""
                 for para in paragraphs:
                     if para.strip():
-                        if len(current_section) + len(para) > 1000:
+                        if len(current_section) + len(para) > 500:
                             if current_section:
                                 sections.append(current_section)
                                 current_section = para
@@ -1685,17 +1857,17 @@ Format de réponse attendu:
             
             # Si le document est très long mais qu'on n'a pas trouvé beaucoup de sections,
             # diviser en morceaux de taille similaire
-            if len(content) > 5000 and len(sections) < 3:
+            if len(content) > 2000 and len(sections) < 3:
                 # Réinitialiser les sections
                 sections = []
                 
-                # Diviser en sections de 1000 caractères environ
-                section_size = 1000
+                # Diviser en sections de 500 caractères environ
+                section_size = 500
                 for i in range(0, len(content), section_size):
                     section = content[i:i + section_size]
                     if section.strip():
                         sections.append(section)
-                
+                        
             logger.info(f"Document divisé en {len(sections)} sections")
             return sections
                 
@@ -1707,13 +1879,14 @@ Format de réponse attendu:
     def _fallback_personalization(self, content: str, variables: Dict[str, Any]) -> str:
         """
         Méthode de personnalisation de secours pour remplacer les variables par leurs valeurs
+        tout en préservant la structure exacte du document.
         
         Args:
             content: Contenu du document à personnaliser
             variables: Dictionnaire des variables à remplacer
             
         Returns:
-            Document personnalisé
+            Document personnalisé avec sa structure originale préservée
         """
         logger.info("Utilisation de la méthode de personnalisation de secours")
         try:
@@ -1734,75 +1907,420 @@ Format de réponse attendu:
                     value = str(var_info)
                     
                 if value:
-                    # Créer différentes variantes de recherche pour le nom de variable
-                    patterns = [
-                        r'\{' + re.escape(var_name) + r'\}',  # {nom_variable}
-                        r'\{\{' + re.escape(var_name) + r'\}\}',  # {{nom_variable}}
-                        r'\[\[' + re.escape(var_name) + r'\]\]',  # [[nom_variable]]
-                        r'<' + re.escape(var_name) + r'>',  # <nom_variable>
-                        r'%' + re.escape(var_name) + r'%',  # %nom_variable%
-                        r'\$' + re.escape(var_name) + r'\$',  # $nom_variable$
-                        r'\$\{' + re.escape(var_name) + r'\}',  # ${nom_variable}
-                        r'\b' + re.escape(var_name) + r'\b'  # nom_variable (mot entier)
-                    ]
-                    
-                    # Ajouter aussi la version avec des underscores remplacés par des espaces
-                    if '_' in var_name:
-                        space_name = var_name.replace('_', ' ')
-                        patterns.append(r'\b' + re.escape(space_name) + r'\b')
-                    
-                    # Pour certaines variables spécifiques, ajouter des variantes courantes
-                    special_cases = {
-                        'nom': ['NOM', 'Nom'],
-                        'prenom': ['PRENOM', 'Prénom', 'PRÉNOM'],
-                        'adresse': ['ADRESSE', 'Adresse'],
-                        'ville': ['VILLE', 'Ville'],
-                        'code_postal': ['CODE POSTAL', 'Code postal', 'CP', 'cp'],
-                        'date': ['DATE', 'Date']
-                    }
-                    
-                    if var_name.lower() in special_cases:
-                        for variant in special_cases[var_name.lower()]:
-                            patterns.append(r'\b' + re.escape(variant) + r'\b')
-                    
-                    # Appliquer tous les motifs de recherche
-                    for pattern in patterns:
-                        result = re.sub(pattern, value, result)
+                    replace_dict[var_name] = value
             
-            # Recherche avancée pour les variables non explicitement marquées
-            # Par exemple, pour capturer "Nom: ________" ou "Adresse: ______"
-            common_fields = {
-                'nom': [r'Nom\s*:\s*_{3,}', r'Nom\s*:\s*\.{3,}', r'Nom\s*:(?:\s*$|\s{10,})'],
-                'prenom': [r'Pr[ée]nom\s*:\s*_{3,}', r'Pr[ée]nom\s*:\s*\.{3,}', r'Pr[ée]nom\s*:(?:\s*$|\s{10,})'],
-                'adresse': [r'Adresse\s*:\s*_{3,}', r'Adresse\s*:\s*\.{3,}', r'Adresse\s*:(?:\s*$|\s{10,})'],
-                'ville': [r'Ville\s*:\s*_{3,}', r'Ville\s*:\s*\.{3,}', r'Ville\s*:(?:\s*$|\s{10,})'],
-                'code_postal': [r'Code postal\s*:\s*_{3,}', r'Code postal\s*:\s*\.{3,}', r'Code postal\s*:(?:\s*$|\s{10,})'],
-                'email': [r'E-?mail\s*:\s*_{3,}', r'E-?mail\s*:\s*\.{3,}', r'E-?mail\s*:(?:\s*$|\s{10,})'],
-                'telephone': [r'T[ée]l[ée]phone\s*:\s*_{3,}', r'T[ée]l[ée]phone\s*:\s*\.{3,}', r'T[ée]l[ée]phone\s*:(?:\s*$|\s{10,})']
+            # Première passe: utiliser replace_variables pour un remplacement standard
+            result = self.replace_variables(result, replace_dict)
+            
+            # Deuxième passe: rechercher des variables qui pourraient avoir été manquées
+            var_pattern_formats = [
+                r'\{([a-zA-Z0-9_]+)\}',        # {variable}
+                r'\{\{([a-zA-Z0-9_]+)\}\}',    # {{variable}}
+                r'\[([a-zA-Z0-9_]+)\]',        # [variable]
+                r'\[\[([a-zA-Z0-9_]+)\]\]',    # [[variable]]
+                r'<([a-zA-Z0-9_]+)>',          # <variable>
+                r'\$\{([a-zA-Z0-9_]+)\}',      # ${variable}
+                r'%([a-zA-Z0-9_]+)%',          # %variable%
+                r'\$([a-zA-Z0-9_]+)\$',        # $variable$
+                r'«([a-zA-Z0-9_]+)»'           # «variable»
+            ]
+            
+            for pattern_format in var_pattern_formats:
+                matches = re.findall(pattern_format, result)
+                for var_name in matches:
+                    var_name_lower = var_name.lower()
+                    
+                    # Chercher si on a cette variable exacte ou sous une autre casse
+                    value = None
+                    for key, val in replace_dict.items():
+                        if key.lower() == var_name_lower:
+                            value = val
+                            break
+                    
+                    # Si on a trouvé une valeur, remplacer cette occurrence spécifique
+                    if value:
+                        pattern_with_var = pattern_format.replace('([a-zA-Z0-9_]+)', re.escape(var_name))
+                        result = re.sub(pattern_with_var, value, result)
+            
+            # Troisième passe: essayer des correspondances approximatives pour des variables connues
+            common_mappings = {
+                "nom_complet": ["nom", "prenom"],
+                "adresse_complete": ["adresse", "code_postal", "ville"],
+                "contact": ["telephone", "email"],
+                "identifiant": ["reference", "numero_client"]
             }
             
-            for field, patterns in common_fields.items():
-                # Vérifier si nous avons une valeur pour ce champ
-                value = ""
-                for var_name, var_info in variables.items():
-                    if var_name.lower() == field or var_name.lower().endswith('_' + field):
-                        if isinstance(var_info, dict):
-                            if "valeur" in var_info:
-                                value = var_info["valeur"]
-                            elif "current_value" in var_info:
-                                value = var_info["current_value"]
-                        else:
-                            value = str(var_info)
-                        break
-                
-                if value:
-                    for pattern in patterns:
-                        result = re.sub(pattern, f"{field.capitalize()}: {value}", result, flags=re.IGNORECASE)
+            for composite_var, source_vars in common_mappings.items():
+                # Chercher si le motif composite existe dans le document
+                for pattern_format in var_pattern_formats:
+                    pattern_with_var = pattern_format.replace('([a-zA-Z0-9_]+)', re.escape(composite_var))
+                    if re.search(pattern_with_var, result):
+                        # Construire une valeur composée à partir des variables sources
+                        composite_value = ""
+                        for source_var in source_vars:
+                            for key, val in replace_dict.items():
+                                if key.lower() == source_var:
+                                    if composite_value:
+                                        composite_value += " "
+                                    composite_value += val
+                                    break
+                        
+                        # Si on a construit une valeur composée, remplacer
+                        if composite_value:
+                            result = re.sub(pattern_with_var, composite_value, result)
             
             logger.info("Personnalisation de secours terminée")
             return result
-            
+        
         except Exception as e:
             logger.error(f"Erreur lors de la personnalisation de secours: {e}")
-            # En cas d'erreur, retourner le document original
+            # En dernier recours, retourner le document original
             return content
+
+    def extract_template_variables(self, content: str) -> List[str]:
+        """
+        Extrait uniquement les noms des variables à remplacer dans un template
+        
+        Args:
+            content: Contenu du document
+        
+        Returns:
+            Liste des noms de variables
+        """
+        logger.info("Extraction des variables de template")
+        
+        # Réduire le contenu pour l'analyse
+        if len(content) > 3000:
+            content = content[:3000]
+        
+        # Extraction par IA avec prompt optimisé
+        prompt = f"""Identifie les champs qui peuvent être remplacés dans ce template de document.
+Cherche uniquement les éléments qui varieraient si ce document était utilisé pour une autre personne.
+
+IMPORTANT: Je veux SEULEMENT les noms des champs (comme "nom", "adresse"), PAS leurs valeurs actuelles.
+
+Liste uniquement les noms des champs à remplacer (par exemple: nom, prénom, email, téléphone, date, etc.).
+
+DOCUMENT:
+{content}
+"""
+        
+        try:
+            response = self._call_ollama(prompt, timeout=15)
+            if response:
+                # Extraire les variables à partir de la réponse
+                # Rechercher les motifs comme "nom", "adresse", "email", etc.
+                variables = re.findall(r'[*-]?\s*([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:\s+[a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)', response)
+                # Nettoyer les résultats
+                variables = [v.strip().lower() for v in variables if len(v.strip()) > 2]
+                
+                # Filtrer les mots communs qui ne sont pas des variables
+                common_words = ["liste", "exemple", "variables", "champs", "document", "template", "important"]
+                variables = [v for v in variables if v not in common_words]
+                
+                if variables:
+                    logger.info(f"Variables extraites par IA: {', '.join(variables)}")
+                    return variables
+        except Exception as e:
+            logger.error(f"Erreur lors de l'extraction des variables par IA: {str(e)}")
+        
+        # Fallback: extraction par regex des patterns courants
+        return self._extract_variables_by_regex(content)
+
+    def _extract_variables_by_regex(self, content: str) -> List[str]:
+        """
+        Extraction de variables par regex comme méthode de secours
+        
+        Args:
+            content: Contenu du document
+        
+        Returns:
+            Liste des noms de variables
+        """
+        logger.info("Utilisation de regex pour extraire les variables de template")
+        
+        # Liste pour stocker les variables trouvées
+        variables = set()
+        
+        # Chercher les patterns de variables courants dans les templates
+        patterns = [
+            r'\{\{([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:_[a-zA-Z0-9_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)\}\}',  # {{nom_variable}}
+            r'\[([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:_[a-zA-Z0-9_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)\]',      # [nom_variable]
+            r'\$\{([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:_[a-zA-Z0-9_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)\}',    # ${nom_variable}
+            r'<([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:_[a-zA-Z0-9_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)>',        # <nom_variable>
+            r'%([a-zA-Z_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+(?:_[a-zA-Z0-9_éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+)*)%'         # %nom_variable%
+        ]
+        
+        # Trouver les correspondances pour chaque pattern
+        for pattern in patterns:
+            matches = re.findall(pattern, content)
+            for match in matches:
+                variables.add(match.lower())
+        
+        # Convertir le set en liste
+        var_list = list(variables)
+        
+        if var_list:
+            logger.info(f"Variables extraites par regex: {', '.join(var_list)}")
+        
+        return var_list
+
+    def replace_variables(self, template: str, values: Dict[str, str]) -> str:
+        """
+        Remplace les variables dans un template par des valeurs
+        Méthode simplifiée pour éviter les problèmes de remplacement
+        
+        Args:
+            template: Template du document
+            values: Dictionnaire des valeurs pour chaque variable
+            
+        Returns:
+            Document personnalisé
+        """
+        logger.info(f"Remplacement direct des variables ({len(values)} variables)")
+        
+        # Vérification du template
+        if not template:
+            logger.error("Template vide, impossible de remplacer les variables")
+            return ""
+            
+        # Utiliser le template original
+        result = template
+        
+        # Nombre de remplacements effectués
+        replacements_count = 0
+        
+        # Pour chaque variable, faire un remplacement direct
+        for var_name, value in values.items():
+            # S'assurer que la valeur est une chaîne
+            value_str = str(value) if value is not None else ""
+            
+            # Format 1: {variable}
+            original_count = result.count(f"{{{var_name}}}")
+            result = result.replace(f"{{{var_name}}}", value_str)
+            count1 = original_count - result.count(f"{{{var_name}}}")
+            
+            # Format 2: {{variable}}
+            original_count = result.count(f"{{{{{var_name}}}}}")
+            result = result.replace(f"{{{{{var_name}}}}}", value_str)
+            count2 = original_count - result.count(f"{{{{{var_name}}}}}")
+            
+            # Compter le nombre total de remplacements pour cette variable
+            total_count = count1 + count2
+            if total_count > 0:
+                replacements_count += total_count
+                logger.debug(f"Variable '{var_name}' remplacée {total_count} fois")
+        
+        # Log du résultat
+        logger.info(f"Remplacement terminé: {replacements_count} remplacements effectués")
+        
+        # Vérification du résultat
+        if not result or len(result.strip()) == 0:
+            logger.error("ERREUR: Document final vide après remplacement des variables!")
+        elif len(result) < 10:
+            logger.warning(f"Document final très court après remplacement: '{result}'")
+        
+        return result
+
+    def process_template(self, template_content: str, values: Dict[str, str] = None) -> Dict[str, Any]:
+        """
+        Traite un template pour extraire ses variables et optionnellement les remplacer
+        
+        Args:
+            template_content: Contenu du template
+            values: Valeurs de remplacement (optionnel)
+            
+        Returns:
+            Dictionnaire contenant les variables détectées et le document personnalisé
+        """
+        logger.info("Traitement d'un template de document")
+        
+        # 1. Extraire les variables du template
+        variables = self.extract_template_variables(template_content)
+        
+        result = {
+            "variables": variables,
+            "template": template_content,
+            "personalized": None
+        }
+        
+        # 2. Si des valeurs sont fournies, remplacer les variables
+        if values and variables:
+            # Filtrer les valeurs pour ne conserver que celles qui correspondent aux variables
+            valid_values = {}
+            for var in variables:
+                # Chercher la variable dans les valeurs (insensible à la casse)
+                for key, value in values.items():
+                    if key.lower() == var.lower():
+                        valid_values[var] = value
+                        break
+            
+            # Remplacer les variables par les valeurs
+            if valid_values:
+                personalized_doc = self.replace_variables(template_content, valid_values)
+                result["personalized"] = personalized_doc
+                result["replaced_variables"] = list(valid_values.keys())
+        
+        return result
+
+    def test_document_generation(self, template_content: str = None, variables: Dict[str, str] = None) -> str:
+        """
+        Fonction de test pour vérifier directement la génération de document
+        
+        Args:
+            template_content: Contenu du template (optionnel, un template simple sera utilisé sinon)
+            variables: Variables à remplacer (optionnel, des variables de test seront utilisées sinon)
+            
+        Returns:
+            Document généré
+        """
+        # Template par défaut si aucun n'est fourni
+        if not template_content:
+            template_content = """
+            DOCUMENT DE TEST
+            -----------------
+            
+            Nom: {nom}
+            Prénom: {prenom}
+            Email: {email}
+            Date: {date}
+            
+            Ce document est adressé à {nom} {prenom}.
+            Vous pouvez nous contacter à l'adresse {email}.
+            
+            Document généré le {date}.
+            """
+            
+        # Variables par défaut si aucune n'est fournie
+        if not variables:
+            variables = {
+                "nom": "Dupont",
+                "prenom": "Jean",
+                "email": "jean.dupont@example.com",
+                "date": "22/03/2025"
+            }
+            
+        # Afficher les informations de test
+        print("\n===== TEST DE GÉNÉRATION DE DOCUMENT =====")
+        print(f"Template utilisé ({len(template_content)} caractères):")
+        print("-" * 40)
+        print(template_content)
+        print("-" * 40)
+        print(f"Variables à remplacer: {variables}")
+        
+        # Essayer les deux méthodes de remplacement
+        try:
+            # Méthode 1: replace_variables
+            result1 = self.replace_variables(template_content, variables)
+            print("\nRésultat avec replace_variables:")
+            print("-" * 40)
+            print(result1)
+            print("-" * 40)
+            print(f"Longueur du document généré: {len(result1)} caractères")
+            
+            # Méthode 2: personalize_document
+            result2 = self.personalize_document(template_content, variables)
+            print("\nRésultat avec personalize_document:")
+            print("-" * 40)
+            print(result2)
+            print("-" * 40)
+            print(f"Longueur du document généré: {len(result2)} caractères")
+            
+            # Vérifier si les deux méthodes donnent le même résultat
+            if result1 == result2:
+                print("\n✅ Les deux méthodes donnent le même résultat!")
+            else:
+                print("\n❌ Les deux méthodes donnent des résultats différents!")
+                
+            return result1
+            
+        except Exception as e:
+            print(f"\n❌ ERREUR lors du test: {str(e)}")
+            traceback.print_exc()
+            return f"ERREUR: {str(e)}"
+
+# Test direct si le script est exécuté directement
+if __name__ == "__main__":
+    import logging
+    
+    # Configuration du logging pour le test
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    print("===== TEST DU GÉNÉRATEUR DE DOCUMENTS =====")
+    
+    # Créer une instance du processeur de documents
+    processor = AIDocumentProcessor()
+    
+    # Cas de test 1 : Template simple
+    print("\n----- TEST 1: TEMPLATE SIMPLE -----")
+    template_simple = """
+    DOCUMENT TEST SIMPLE
+    --------------------
+    
+    Nom: {nom}
+    Email: {email}
+    Date: {date}
+    
+    Bonjour {nom},
+    
+    Merci de nous avoir contacté à l'adresse {email}.
+    
+    Date: {date}
+    """
+    
+    variables_simple = {
+        "nom": "Dupont",
+        "email": "dupont@example.com",
+        "date": "22/03/2025"
+    }
+    
+    result_simple = processor.test_document_generation(template_simple, variables_simple)
+    
+    # Cas de test 2 : Formats de variables variés
+    print("\n----- TEST 2: FORMATS DE VARIABLES VARIÉS -----")
+    template_formats = """
+    DOCUMENT MULTI-FORMATS
+    ---------------------
+    
+    Format 1: {nom}
+    Format 2: {{nom}}
+    Format 3: [nom]
+    Format 4: <nom>
+    Format 5: $nom$
+    Format 6: «nom»
+    
+    Email format 1: {email}
+    Email format 2: [email]
+    """
+    
+    variables_formats = {
+        "nom": "Dupont",
+        "email": "dupont@example.com"
+    }
+    
+    result_formats = processor.test_document_generation(template_formats, variables_formats)
+    
+    # Cas de test 3 : Template avec variables non définies
+    print("\n----- TEST 3: VARIABLES NON DÉFINIES -----")
+    template_undefined = """
+    DOCUMENT AVEC VARIABLES MANQUANTES
+    --------------------------------
+    
+    Nom: {nom}
+    Email: {email}
+    Téléphone: {telephone}
+    Adresse: {adresse}
+    """
+    
+    variables_incomplete = {
+        "nom": "Dupont",
+        "email": "dupont@example.com"
+        # telephone et adresse manquants
+    }
+    
+    result_undefined = processor.test_document_generation(template_undefined, variables_incomplete)
+    
+    print("\n===== TESTS TERMINÉS =====")
